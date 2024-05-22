@@ -1,0 +1,54 @@
+{{define "title"}}Albums{{end}}
+
+{{define "content"}}
+
+{{template "header" .}}
+
+<main class="container">
+    <div class="row mt-2 p-3 gy-3 gx-5 bg-light rounded">
+        <div class="col-lg-4 text-center">
+            <div class="image-wrapper">
+                <img class="img-account-profile object-fit-cover rounded-circle mb-3" src="{{ .User.ProfilePictureURL }}" alt="">
+                <div></div>
+            </div>
+            <h4>{{ .User.FirstName }} {{ .User.LastName }}</h4>
+            <p>{{ .User.Email }}</h4>
+        </div>
+        <div class="col-lg-8">
+            <h2 class="mb-3">Profile</h2>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="row">
+                        <div class="col-6 fw-bold">
+                            First Name:
+                        </div>
+                        <div class="col-6">
+                            {{ .User.FirstName }}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 fw-bold">
+                            Last Name:
+                        </div>
+                        <div class="col-6">
+                            {{ .User.LastName }}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 fw-bold">
+                            Email address:
+                        </div>
+                        <div class="col-6">
+                            {{ .User.Email }}
+                        </div>
+                    </div>
+                    <a class="btn btn-outline-primary mt-3" href="/profile/edit">Edit profile</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+{{template "footer" .}}
+
+{{end}}

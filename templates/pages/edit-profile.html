@@ -1,0 +1,119 @@
+{{define "title"}}Edit Album{{end}}
+
+{{define "content"}}
+
+{{template "header" .}}
+
+<main class="container">
+    <div class="row mt-2 p-3 gy-3 gx-5 bg-light rounded">
+        <div class="col-lg-4 text-center">
+            <img class="img-account-profile object-fit-cover rounded-circle mb-3" src="{{ .User.ProfilePictureURL }}"
+                alt="">
+            <div class="link-primary mb-2" data-bs-toggle="modal" data-bs-target="#editProfilePicture">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil"
+                    viewBox="0 0 16 16">
+                    <path
+                        d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z" />
+                </svg>
+                Upload new image
+            </div>
+            <div class="modal fade" id="editProfilePicture" tabindex="-1" aria-labelledby="editProfilePicture"
+                aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content text-start">
+                        <div class="modal-header">
+                            <h1 class="modal-title fs-5" id="exampleModalLabel">Upload Photo</h1>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form enctype="multipart/form-data" action="/profile/photo/edit" method="post">
+                                <div class="form-group mt-2">
+                                    <label for="profile_picture">Select file</label>
+                                    <input type="file" class="form-control-file" id="profile_picture"
+                                        name="profile_picture">
+                                </div>
+                                <input type="submit" multiple accept="image/*" class="btn btn-primary mt-2"
+                                    value="Upload" />
+                                <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
+                                <button type="button" class="btn btn-secondary mt-2"
+                                    data-bs-dismiss="modal">Close</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <h4>{{ .User.FirstName }} {{ .User.LastName }}</h4>
+            <p>{{ .User.Email }}</h4>
+        </div>
+        <div class="col-lg-8">
+            <h2 class="mb-3">Edit Profile</h2>
+            <form action="/profile/edit" method="post">
+                <div class="row">
+                    <div class="col-lg-6">
+                        {{ with .Form.Errors.FirstName }}
+                        <p class="text-danger p-3">{{ . }}</p>
+                        {{ end }}
+                        <label for="first_name" class="form-label">First name</label>
+                        <input type="text" class="form-control mb-2" id="first_name" name="first_name"
+                            value="{{ .Form.FirstName }}">
+                        {{ with .Form.Errors.LastName }}
+                        <p class="text-danger p-3">{{ . }}</p>
+                        {{ end }}
+                        <label for="last_name" class="form-label">Last name</label>
+                        <input type="text" class="form-control mb-2" id="last_name" name="last_name"
+                            value="{{ .Form.LastName }}">
+                        {{ with .Form.Errors.Email }}
+                        <p class="text-danger p-3">{{ . }}</p>
+                        {{ end }}
+                        <label for="email" class="form-label">Email address</label>
+                        <input type="email" class="form-control mb-2" id="email" name="email" value="{{ .Form.Email }}">
+                    </div>
+                    <div class="col-lg-6">
+                        {{ with .Form.Errors.Password }}
+                        <p class="text-danger p-3">{{ . }}</p>
+                        {{ end }}
+                        <label for="password" class="form-label">New password</label>
+                        <input type="password" class="form-control mb-2" id="password" name="password"
+                            value="{{ .Form.Password }}">
+                        {{ with .Form.Errors.ConfirmPassword }}
+                        <p class="text-danger p-3">{{ . }}</p>
+                        {{ end }}
+                        <label for="confirmPassword" class="form-label">Confirm password</label>
+                        <input type="password" class="form-control mb-2" id="confirmPassword" name="confirm_password"
+                            value="{{ .Form.ConfirmPassword }}">
+                        <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
+                    </div>
+                </div>
+                <a href="/profile" class="btn btn-outline-secondary">Back</a>
+                <button class="btn btn-outline-primary ">Submit</button>
+                <button class="btn btn-danger" type="button" data-bs-toggle="modal"
+                    data-bs-target="#deleteAccountPrompt">Delete account</button>
+            </form>
+            <div class="modal fade" id="deleteAccountPrompt" data-bs-backdrop="static" data-bs-keyboard="false"
+                tabindex="-1" aria-labelledby="staticBackdropLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h1 class="modal-title fs-5" id="deleteAccountPrompt">Confirm Account Deletion</h1>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            Are you sure you want to delete your account?
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <form action="/profile/delete" method="post">
+                                <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
+                                <button type="submit" class="btn btn-danger">Delete my account</a>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+{{template "footer" .}}
+
+{{end}}

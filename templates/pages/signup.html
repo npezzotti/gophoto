@@ -1,0 +1,51 @@
+{{define "title"}}Sign up{{end}}
+
+{{define "content"}}
+
+<div class="row g-0 vh-100">
+    <div class="col d-none d-md-flex bg-image-rock"></div>
+    <div class="col d-flex flex-column align-items-center justify-content-center">
+        <img class="align-self-center" src="../assets/images/gophoto.png" height="200" alt="gophoto">
+        <div class="container w-75 mt-5">
+            <h1>Sign up</h1>
+            <form action="/signup" method="post">
+                {{ with .Form.Errors.FirstName }}
+                <p class="text-danger">{{ . }}</p>
+                {{ end }}
+                <label for="first_name">First name</label>
+                <input name="first_name" type="text" id="first_name" placeholder="Enter first name"
+                    value="{{ .Form.FirstName }}" class="form-control form-control-lg focus-ring focus-ring-light mb-2">
+                {{ with .Form.Errors.LastName }}
+                <p class="text-danger">{{ . }}</p>
+                {{ end }}
+                <label for="last_name">Last name</label>
+                <input name="last_name" type="text" id="last_name" placeholder="Enter last name" value="{{ .Form.LastName }}"
+                    class="form-control form-control-lg focus-ring focus-ring-light mb-2">
+                {{ with .Form.Errors.Email }}
+                <p class="text-danger">{{ . }}</p>
+                {{ end }}
+                <label for="email">Email address</label>
+                <input name="email" type="email" id="email" placeholder="Enter email" value="{{ .Form.Email }}"
+                    class="form-control form-control-lg focus-ring focus-ring-light mb-2">
+                {{ with .Form.Errors.Password }}
+                <p class="text-danger">{{ . }}</p>
+                {{ end }}
+                <label for="password">Password</label>
+                <input name="password" type="password" id="password" placeholder="Password" value="{{ .Form.Password }}"
+                    class="form-control form-control-lg focus-ring focus-ring-light mb-2">
+                {{ with .Form.Errors.ConfirmPassword }}
+                <p class="text-danger">{{ . }}</p>
+                {{ end }}
+                <label for="confirmPassword">Confirm password</label>
+                <input name="confirm_password" type="password" id="confirmPassword" placeholder="Confirm password"
+                    value="{{ .Form.ConfirmPassword }}"
+                    class="form-control form-control-lg focus-ring focus-ring-light mb-2">
+                <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
+                <button class="btn btn-primary" type="submit">Sign up</button>
+            </form>
+            <p class="mt-2">Already have an account? <a href="/login">Log in</a></p>
+        </div>
+    </div>
+</div>
+
+{{end}}

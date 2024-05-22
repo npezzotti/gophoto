@@ -1,0 +1,16 @@
+.bg-image-palm {
+    background: url('../images/palm.jpg') no-repeat center center / cover;
+}
+
+.bg-image-rock {
+    background: url('../images/rock.jpg') no-repeat center center / cover;
+}
+
+.img-account-profile {
+    height: 12rem;
+    width: 12rem;
+}
+
+.toast-body {
+    font-size: 1.15rem;
+}
