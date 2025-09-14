@@ -37,7 +37,8 @@ func (a *application) newUserResponse(ctx context.Context, user *db.User) *UserR
 }
 
 func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "POST" {
+	switch r.Method {
+	case "POST":
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -89,7 +90,7 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 
 		a.Flash(r, "Account created!", flashInfo)
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
-	} else if r.Method == "GET" {
+	case "GET":
 		td := a.newTemplateData(r)
 		td.Form = &SignupForm{}
 
@@ -98,7 +99,7 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-	} else {
+	default:
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 		return
 	}

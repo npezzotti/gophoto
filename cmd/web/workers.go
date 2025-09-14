@@ -44,6 +44,7 @@ func NewStorageCleanerWorker(db *db.Queries, store store.Store, logger *log.Logg
 }
 
 func (scw *StorageCleanerWorker) Start() {
+	scw.log.Println("starting storage cleaner worker")
 	go func() {
 		for {
 			select {
@@ -62,7 +63,7 @@ func (scw *StorageCleanerWorker) Perform() {
 	scw.log.Println("starting storage cleanup job")
 	photos, err := scw.db.GetOrphanedPhotos(context.Background())
 	if err != nil {
-		if !errors.Is(sql.ErrNoRows, err) {
+		if !errors.Is(err, sql.ErrNoRows) {
 			scw.log.Println("error getting files:", err)
 		}
 		return

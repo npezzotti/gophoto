@@ -18,8 +18,8 @@ import (
 const (
 	formFileName      = "file"
 	maxUploadSize     = 5 << (10 * 2)
-	defaultProfilePic = "images/profile.jpg"
-	defaultAlbumCover = "images/album.jpg"
+	defaultProfilePic = "images/profile.png"
+	defaultAlbumCover = "images/album.png"
 )
 
 type UserImageResponse struct {
