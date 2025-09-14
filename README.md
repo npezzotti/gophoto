@@ -1,4 +1,4 @@
-# go-crud
+# gophoto
 
 ### Start a development database
 ```

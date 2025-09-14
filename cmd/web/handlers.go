@@ -38,7 +38,7 @@ func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsB
 		Offset:  0,
 		Limit:   1,
 	})
-	if err != nil && !errors.Is(sql.ErrNoRows, err) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		a.ErrorLog.Printf("error getting album cover: %s\n", err)
 	}
 
