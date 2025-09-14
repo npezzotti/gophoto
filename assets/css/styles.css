@@ -1,9 +1,9 @@
 .bg-image-palm {
-    background: url('../images/palm.jpg') no-repeat center center / cover;
+    background: url('../images/palm.png') no-repeat center center / cover;
 }
 
 .bg-image-rock {
-    background: url('../images/rock.jpg') no-repeat center center / cover;
+    background: url('../images/rock.png') no-repeat center center / cover;
 }
 
 .img-account-profile {
