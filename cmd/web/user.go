@@ -130,7 +130,8 @@ func (a *application) profileHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
+	switch r.Method {
+	case http.MethodGet:
 		user := a.getUserFromRequest(r)
 
 		td := a.newTemplateData(r)
@@ -145,7 +146,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-	} else if r.Method == http.MethodPost {
+	case http.MethodPost:
 		user := a.getUserFromRequest(r)
 
 		if err := r.ParseForm(); err != nil {
@@ -201,7 +202,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 		a.Flash(r, "Profile updated!", flashInfo)
 		http.Redirect(w, r, "/profile", http.StatusSeeOther)
 
-	} else {
+	default:
 		http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
 		return
 	}

@@ -428,7 +428,8 @@ func (a *application) deletePhotoHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
+	switch r.Method {
+	case http.MethodPost:
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
@@ -501,7 +502,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		http.Redirect(w, r, "/albums", http.StatusSeeOther)
-	} else if r.Method == http.MethodGet {
+	case http.MethodGet:
 		td := a.newTemplateData(r)
 		td.Form = &LoginForm{}
 
@@ -510,7 +511,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-	} else {
+	default:
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 		return
 	}
