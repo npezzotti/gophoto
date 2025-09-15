@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -24,6 +23,7 @@ import (
 	"github.com/npezzotti/gophoto/config"
 	"github.com/npezzotti/gophoto/db"
 	"github.com/npezzotti/gophoto/store"
+	"github.com/npezzotti/gophoto/web"
 	"github.com/npezzotti/gophoto/workers"
 )
 
@@ -50,31 +50,24 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ts, err := NewTemplateCache()
+	ts, err := web.NewTemplateCache()
 	if err != nil {
 		log.Fatal("error creating template cache:", err)
 	}
 
 	sessionManager := scs.New()
 	sessionManager.Store = postgresstore.New(dbConn)
-	gob.Register(Flash{})
+	gob.Register(web.Flash{})
 
-	app := NewApplication(cfg, sessionManager, db, photoStore, ts)
+	app := web.NewApplication(cfg, sessionManager, db, photoStore, ts)
 
-	storageCleanerWorker := workers.NewStorageCleanerWorker(app.database, app.store, app.InfoLog, workers.FrequencyFifteenMin)
+	storageCleanerWorker := workers.NewStorageCleanerWorker(db, photoStore, app.InfoLog, workers.FrequencyFifteenMin)
 	storageCleanerWorker.Start()
 
-	srv := &http.Server{
-		Addr:     cfg.HttpServerAddr,
-		Handler:  setupMiddleware(app.mux, app.sessionManager.LoadAndSave, noSurf, app.authenticate),
-		ErrorLog: app.ErrorLog,
-	}
-
 	errChan := make(chan error)
-
 	go func() {
 		app.InfoLog.Printf("starting server on %s", cfg.HttpServerAddr)
-		errChan <- srv.ListenAndServe()
+		errChan <- app.Start()
 	}()
 
 	sigChan := make(chan os.Signal, 1)
@@ -103,7 +96,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		app.InfoLog.Println("stopping server")
-		if err := srv.Shutdown(ctx); err != nil {
+		if err := app.Shutdown(ctx); err != nil {
 			log.Fatalf("error shutting down server: %v", err)
 		}
 		wg.Done()

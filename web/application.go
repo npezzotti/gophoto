@@ -1,6 +1,7 @@
-package main
+package web
 
 import (
+	"context"
 	"html/template"
 	"log"
 	"net/http"
@@ -14,7 +15,7 @@ import (
 
 type application struct {
 	config         *config.Config
-	mux            *http.ServeMux
+	srv            *http.Server
 	database       *db.Queries
 	store          store.Store
 	templateCache  map[string]*template.Template
@@ -35,9 +36,23 @@ func NewApplication(cfg *config.Config, sess *scs.SessionManager, db *db.Queries
 	app.InfoLog = log.New(os.Stdout, "[INFO] ", log.Default().Flags())
 	app.ErrorLog = log.New(os.Stderr, "[ERROR] ", log.Default().Flags()|log.Lshortfile)
 
-	app.mux = app.routes()
+	mux := app.routes()
+
+	app.srv = &http.Server{
+		Addr:     cfg.HttpServerAddr,
+		Handler:  setupMiddleware(mux, app.sessionManager.LoadAndSave, noSurf, app.authenticate),
+		ErrorLog: app.ErrorLog,
+	}
 
 	return app
+}
+
+func (a *application) Start() error {
+	return a.srv.ListenAndServe()
+}
+
+func (a *application) Shutdown(ctx context.Context) error {
+	return a.srv.Shutdown(ctx)
 }
 
 func (a *application) routes() *http.ServeMux {
