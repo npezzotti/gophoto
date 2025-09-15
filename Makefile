@@ -4,7 +4,7 @@ BINARY := gophoto
 
 .PHONY: build run stop logs db-shell
 build:
-	go build -o $(BIN_DIR)/$(BINARY) cmd/web/*.go
+	go build -o $(BIN_DIR)/$(BINARY) cmd/*.go
 run:
 	docker compose -f $(COMPOSE_FILE) up -d --build
 stop:
