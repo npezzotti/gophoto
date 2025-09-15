@@ -16,7 +16,6 @@ services:
       - POSTGRES_USER=gophoto
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=gophoto
-      - PGDATA=/var/lib/postgresql/data/pgdata 
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
