@@ -24,6 +24,7 @@ import (
 	"github.com/npezzotti/gophoto/config"
 	"github.com/npezzotti/gophoto/db"
 	"github.com/npezzotti/gophoto/store"
+	"github.com/npezzotti/gophoto/workers"
 )
 
 func main() {
@@ -60,7 +61,7 @@ func main() {
 
 	app := NewApplication(cfg, sessionManager, db, photoStore, ts)
 
-	storageCleanerWorker := NewStorageCleanerWorker(app.database, app.store, app.InfoLog, FrequencyFifteenMin)
+	storageCleanerWorker := workers.NewStorageCleanerWorker(app.database, app.store, app.InfoLog, workers.FrequencyFifteenMin)
 	storageCleanerWorker.Start()
 
 	srv := &http.Server{
