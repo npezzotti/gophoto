@@ -1,0 +1,28 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8800:8800"
+    environment:
+      - GOPHOTO_DATABASE_SOURCE=postgres://gophoto:password@db:5432?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    image: postgres:latest
+    environment:
+      - POSTGRES_USER=gophoto
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=gophoto
+      - PGDATA=/var/lib/postgresql/data/pgdata 
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gophoto"]
+      interval: 1s
+      timeout: 5s
+      retries: 10
+volumes:
+  db_data:
