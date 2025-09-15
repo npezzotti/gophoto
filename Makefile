@@ -1,4 +1,19 @@
-db:
-	docker run --name postgres -d -p 5432:5432 -e POSTGRES_USER=gophoto -e POSTGRES_PASSWORD=password -e POSTGRES_DB=gophoto postgres
+COMPOSE_FILE := docker-compose.yml
+BIN_DIR := ./bin
+BINARY := gophoto
 
-.PHONY: db
+.PHONY: build run stop logs db-shell
+build:
+	go build -o $(BIN_DIR)/$(BINARY) cmd/web/*.go
+run:
+	docker compose -f $(COMPOSE_FILE) up -d --build
+stop:
+	docker compose -f $(COMPOSE_FILE) down
+logs:
+	docker compose -f $(COMPOSE_FILE) logs -f
+db-shell:
+	docker compose -f $(COMPOSE_FILE) exec db psql -U gophoto -d gophoto
+fmt:
+	go fmt ./...
+test:
+	go test -v ./...
