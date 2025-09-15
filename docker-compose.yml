@@ -10,6 +10,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      - file_data:/app/uploads
   db:
     image: postgres:latest
     environment:
@@ -25,3 +27,4 @@ services:
       retries: 10
 volumes:
   db_data:
+  file_data:
