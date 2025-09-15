@@ -8,7 +8,7 @@ A simple photo management application built with Go.
 - Upload, organize, and browse photos
 - Photo storage on local disk or AWS S3
 - Secure user authentication and sessions
-- Responsive web interface with pagination, toasts, and lightbox for image viewing
+- Responsive web interface with pagination, flash notifications, and a lightbox for image viewing
 - Background worker to prune orphaned images
 - Docker Compose development environment
 - Kubernetes production deployment
