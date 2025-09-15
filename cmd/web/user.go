@@ -22,7 +22,7 @@ func (a *application) newUserResponse(ctx context.Context, user *db.User) *UserR
 	var url = filepath.Join("/assets", defaultProfilePic)
 
 	if user.ProfilePictureKey.Valid {
-		existingUrl, err := a.store.Read(user.ProfilePictureKey.String)
+		existingUrl, err := a.store.Read(ctx, user.ProfilePictureKey.String)
 		if err == nil {
 			url = existingUrl
 		}
@@ -233,13 +233,13 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 	user := a.getUserFromRequest(r)
 
 	if user.ProfilePictureKey.Valid {
-		if err := a.store.Delete(user.ProfilePictureKey.String); err != nil {
+		if err := a.store.Delete(r.Context(), user.ProfilePictureKey.String); err != nil {
 			a.ErrorLog.Printf("error deleting photo from storage: %s", err)
 		}
 	}
 
 	key := uuid.New().String()
-	if err := a.store.Write(key, file); err != nil {
+	if err := a.store.Write(r.Context(), key, file); err != nil {
 		a.ErrorLog.Printf("error writing profile picture to storage: %s", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return

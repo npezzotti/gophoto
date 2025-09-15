@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"errors"
 	"io"
 
@@ -10,9 +11,9 @@ import (
 var ErrNotExist error = errors.New("file does not exist")
 
 type Store interface {
-	Read(key string) (string, error)
-	Write(key string, file io.Reader) error
-	Delete(key string) error
+	Read(ctx context.Context, key string) (string, error)
+	Write(ctx context.Context, key string, file io.Reader) error
+	Delete(ctx context.Context, key string) error
 }
 
 func NewStore(cfg *config.Config) (Store, error) {

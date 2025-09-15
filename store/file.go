@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -27,7 +28,7 @@ func NewFileStore(baseDir string) (*FileStore, error) {
 	}, nil
 }
 
-func (fs *FileStore) Read(key string) (string, error) {
+func (fs *FileStore) Read(ctx context.Context, key string) (string, error) {
 	f := fs.path(key)
 	if _, err := os.Stat(f); err != nil {
 		return "", err
@@ -36,7 +37,7 @@ func (fs *FileStore) Read(key string) (string, error) {
 	return filepath.Join("/", f), nil
 }
 
-func (fs *FileStore) Write(key string, file io.Reader) error {
+func (fs *FileStore) Write(ctx context.Context, key string, file io.Reader) error {
 	fileBytes, err := io.ReadAll(file)
 	if err != nil {
 		return fmt.Errorf("error reading file: %w", err)
@@ -56,7 +57,7 @@ func (fs *FileStore) Write(key string, file io.Reader) error {
 	return nil
 }
 
-func (fs *FileStore) Delete(key string) error {
+func (fs *FileStore) Delete(ctx context.Context, key string) error {
 	path := fs.path(key)
 
 	_, err := os.Stat(path)

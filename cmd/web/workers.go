@@ -70,7 +70,7 @@ func (scw *StorageCleanerWorker) Perform() {
 	}
 
 	for _, photo := range photos {
-		if err := scw.store.Delete(photo.Key); err != nil {
+		if err := scw.store.Delete(context.Background(), photo.Key); err != nil {
 			if !errors.Is(err, store.ErrNotExist) {
 				scw.log.Printf("error deleting file with key %s: %s", photo.Key, err.Error())
 			}

@@ -45,7 +45,7 @@ func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsB
 	coverUrl := defaultAlbumCover
 
 	if len(coverPhoto) > 0 {
-		coverUrl, err = a.store.Read(coverPhoto[0].Key)
+		coverUrl, err = a.store.Read(ctx, coverPhoto[0].Key)
 		if err != nil {
 			a.ErrorLog.Printf("error generating url for %s: %s\n", coverPhoto[0].Key, err)
 		}
@@ -58,7 +58,7 @@ func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsB
 }
 
 func (a *application) newUserImageResponse(ctx context.Context, photo db.Photo) *UserImageResponse {
-	url, err := a.store.Read(photo.Key)
+	url, err := a.store.Read(ctx, photo.Key)
 	if err != nil {
 		a.ErrorLog.Printf("error generating url for photo %d: %s\n", photo.ID, err.Error())
 	}
@@ -363,7 +363,7 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := a.store.Write(photo.Key, file); err != nil {
+	if err := a.store.Write(r.Context(),photo.Key, file); err != nil {
 		a.ErrorLog.Printf("error writing photo to storage: %s\n", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -411,7 +411,7 @@ func (a *application) deletePhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := a.store.Delete(photo.Key); err != nil {
+	if err := a.store.Delete(r.Context(),photo.Key); err != nil {
 		a.ErrorLog.Printf("error deleting photo file: %s\n", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return

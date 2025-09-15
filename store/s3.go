@@ -19,7 +19,7 @@ type S3Store struct {
 }
 
 func NewS3Store() *S3Store {
-	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("us-east-1"))
+	cfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion("us-east-1"))
 	if err != nil {
 		log.Fatalf("unable to load SDK config, %v", err)
 	}
@@ -32,8 +32,8 @@ func NewS3Store() *S3Store {
 	}
 }
 
-func (s *S3Store) Read(key string) (string, error) {
-	request, err := s.Presigner.PresignGetObject(context.TODO(), &s3.GetObjectInput{
+func (s *S3Store) Read(ctx context.Context, key string) (string, error) {
+	request, err := s.Presigner.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.BucketName),
 		Key:    aws.String(key),
 	}, func(po *s3.PresignOptions) {
@@ -46,10 +46,10 @@ func (s *S3Store) Read(key string) (string, error) {
 	return request.URL, nil
 }
 
-func (s *S3Store) Write(key string, file io.Reader) error {
+func (s *S3Store) Write(ctx context.Context, key string, file io.Reader) error {
 	uploader := manager.NewUploader(s.Client)
 
-	_, err := uploader.Upload(context.TODO(), &s3.PutObjectInput{
+	_, err := uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(s.BucketName),
 		Key:    aws.String(key),
 		Body:   file,
@@ -61,8 +61,8 @@ func (s *S3Store) Write(key string, file io.Reader) error {
 	return nil
 }
 
-func (s *S3Store) Delete(key string) error {
-	_, err := s.Client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
+func (s *S3Store) Delete(ctx context.Context, key string) error {
+	_, err := s.Client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(s.BucketName),
 		Key:    aws.String(key),
 	})
