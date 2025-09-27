@@ -11,9 +11,11 @@ import (
 	"github.com/npezzotti/gophoto/config"
 	"github.com/npezzotti/gophoto/db"
 	"github.com/npezzotti/gophoto/store"
+	"github.com/redis/go-redis/v9"
 )
 
 type application struct {
+	redisClient    *redis.Client
 	config         *config.Config
 	srv            *http.Server
 	database       *db.Queries
@@ -24,8 +26,9 @@ type application struct {
 	ErrorLog       *log.Logger
 }
 
-func NewApplication(cfg *config.Config, sess *scs.SessionManager, db *db.Queries, s store.Store, tc map[string]*template.Template) *application {
+func NewApplication(redisClient *redis.Client, cfg *config.Config, sess *scs.SessionManager, db *db.Queries, s store.Store, tc map[string]*template.Template) *application {
 	app := &application{
+		redisClient:    redisClient,
 		config:         cfg,
 		sessionManager: sess,
 		database:       db,
@@ -64,6 +67,7 @@ func (a *application) routes() *http.ServeMux {
 	mux.Handle("/albums/new", a.protected(http.HandlerFunc(a.createAlbumHandler)))
 	mux.Handle("/photo/delete", a.protected(http.HandlerFunc(a.deletePhotoHandler)))
 	mux.Handle("/photo/new", a.protected(http.HandlerFunc(a.createPhotoHandler)))
+	mux.Handle("/photo/status", a.protected(http.HandlerFunc(a.photoStatusHandler)))
 	mux.Handle("/login", http.HandlerFunc(a.loginHandler))
 	mux.HandleFunc("/signup", a.signupHandler)
 	mux.HandleFunc("/logout", a.logoutHandler)

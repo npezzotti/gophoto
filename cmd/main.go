@@ -50,6 +50,9 @@ func main() {
 		log.Fatal(err)
 	}
 
+	redisClient := workers.OpenRedis("redis:6379")
+	defer redisClient.Close()
+
 	ts, err := web.NewTemplateCache()
 	if err != nil {
 		log.Fatal("error creating template cache:", err)
@@ -59,10 +62,16 @@ func main() {
 	sessionManager.Store = postgresstore.New(dbConn)
 	gob.Register(web.Flash{})
 
-	app := web.NewApplication(cfg, sessionManager, db, photoStore, ts)
+	app := web.NewApplication(redisClient, cfg, sessionManager, db, photoStore, ts)
 
 	storageCleanerWorker := workers.NewStorageCleanerWorker(db, photoStore, app.InfoLog, workers.FrequencyFifteenMin)
-	storageCleanerWorker.Start()
+	storageCleanerWorker.Run()
+
+	photoProcessorWorker, err := workers.NewPhotoProcessorWorker(redisClient, cfg, db, photoStore, app.InfoLog)
+	if err != nil {
+		log.Fatal("error creating photo processor worker:", err)
+	}
+	photoProcessorWorker.Run()
 
 	errChan := make(chan error)
 	go func() {
@@ -90,6 +99,13 @@ func main() {
 	go func() {
 		app.InfoLog.Println("stopping worker")
 		storageCleanerWorker.Stop()
+		wg.Done()
+	}()
+
+	wg.Add(1)
+	go func() {
+		app.InfoLog.Println("stopping worker")
+		photoProcessorWorker.Stop()
 		wg.Done()
 	}()
 

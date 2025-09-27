@@ -16,7 +16,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.15.9
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.47.7
 	github.com/golang-migrate/migrate/v4 v4.16.2
+	github.com/h2non/bimg v1.1.9
 	github.com/justinas/nosurf v1.1.1
+	github.com/redis/go-redis/v9 v9.14.0
 )
 
 require (
@@ -36,7 +38,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.21.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.26.6 // indirect
 	github.com/aws/smithy-go v1.19.0 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
@@ -45,4 +49,5 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/net v0.19.0 // indirect
 	golang.org/x/tools v0.13.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

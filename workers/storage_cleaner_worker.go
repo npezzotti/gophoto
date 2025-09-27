@@ -11,12 +11,6 @@ import (
 	"github.com/npezzotti/gophoto/store"
 )
 
-type Worker interface {
-	Start()
-	Perform()
-	Stop()
-}
-
 type StorageCleanerWorker struct {
 	db       *db.Queries
 	store    store.Store
@@ -43,7 +37,7 @@ func NewStorageCleanerWorker(db *db.Queries, store store.Store, logger *log.Logg
 	}
 }
 
-func (scw *StorageCleanerWorker) Start() {
+func (scw *StorageCleanerWorker) Run() {
 	scw.log.Println("starting storage cleaner worker")
 	go func() {
 		for {
@@ -53,13 +47,13 @@ func (scw *StorageCleanerWorker) Start() {
 				scw.doneChan <- true
 				return
 			case <-scw.ticker.C:
-				scw.Perform()
+				scw.cleanStorage()
 			}
 		}
 	}()
 }
 
-func (scw *StorageCleanerWorker) Perform() {
+func (scw *StorageCleanerWorker) cleanStorage() {
 	scw.log.Println("starting storage cleanup job")
 	photos, err := scw.db.GetOrphanedPhotos(context.Background())
 	if err != nil {

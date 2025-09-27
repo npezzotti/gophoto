@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,18 +14,22 @@ import (
 	"github.com/google/uuid"
 	"github.com/npezzotti/gophoto/db"
 	"github.com/npezzotti/gophoto/pagination"
+	"github.com/npezzotti/gophoto/workers"
 )
 
 const (
 	formFileName      = "file"
-	maxUploadSize     = 5 << (10 * 2)
+	maxUploadSize     = 50 << (10 * 2)
 	defaultProfilePic = "images/profile.png"
 	defaultAlbumCover = "images/album.png"
 )
 
 type UserImageResponse struct {
-	Image db.Photo
-	URL   string
+	Image        db.Photo
+	URL          string
+	OriginalURL  string
+	ThumbnailURL string
+	LargeURL     string
 }
 
 type AlbumResponse struct {
@@ -45,7 +50,7 @@ func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsB
 	coverUrl := defaultAlbumCover
 
 	if len(coverPhoto) > 0 {
-		coverUrl, err = a.store.Read(ctx, coverPhoto[0].Key)
+		coverUrl, err = a.store.Read(ctx, coverPhoto[0].Key+"_thumb")
 		if err != nil {
 			a.ErrorLog.Printf("error generating url for %s: %s\n", coverPhoto[0].Key, err)
 		}
@@ -58,14 +63,26 @@ func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsB
 }
 
 func (a *application) newUserImageResponse(ctx context.Context, photo db.Photo) *UserImageResponse {
-	url, err := a.store.Read(ctx, photo.Key)
+	original, err := a.store.Read(ctx, photo.Key+"_original")
+	if err != nil {
+		a.ErrorLog.Printf("error generating url for photo %d: %s\n", photo.ID, err.Error())
+	}
+
+	thumbnail, err := a.store.Read(ctx, photo.Key+"_thumb")
+	if err != nil {
+		a.ErrorLog.Printf("error generating url for photo %d: %s\n", photo.ID, err.Error())
+	}
+
+	large, err := a.store.Read(ctx, photo.Key+"_large")
 	if err != nil {
 		a.ErrorLog.Printf("error generating url for photo %d: %s\n", photo.ID, err.Error())
 	}
 
 	return &UserImageResponse{
-		Image: photo,
-		URL:   url,
+		Image:        photo,
+		OriginalURL:  original,
+		ThumbnailURL: thumbnail,
+		LargeURL:     large,
 	}
 }
 
@@ -363,14 +380,65 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := a.store.Write(r.Context(),photo.Key, file); err != nil {
+	if err := a.store.Write(r.Context(), photo.Key+"_original", file); err != nil {
 		a.ErrorLog.Printf("error writing photo to storage: %s\n", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	a.Flash(r, "Photo successfully uploaded!", flashInfo)
-	http.Redirect(w, r, fmt.Sprintf("/albums?id=%d", photo.AlbumID.Int32), http.StatusSeeOther)
+	// Process photo in background
+	err = a.redisClient.Publish(context.Background(), workers.PhotoProcessingQueue, photo.ID).Err()
+	if err != nil {
+		a.ErrorLog.Printf("error publishing photo processing job: %s\n", err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	// a.Flash(r, "Photo successfully uploaded!", flashInfo)
+	// http.Redirect(w, r, fmt.Sprintf("/albums?id=%d", photo.AlbumID.Int32), http.StatusSeeOther)
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]int32{"id": photo.ID}); err != nil {
+		a.ErrorLog.Println("error encoding json:", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (a *application) photoStatusHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		return
+	}
+
+	id_str := r.URL.Query().Get("id")
+	if id_str == "" {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+	id, err := strconv.Atoi(id_str)
+	if err != nil {
+		a.ErrorLog.Println("error converting string to int", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	photo, err := a.database.GetPhoto(r.Context(), int32(id))
+	if err != nil {
+		a.ErrorLog.Println("photo file not found", err)
+		http.NotFound(w, r)
+		return
+	}
+
+	// Todo: check user owns photo
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": photo.Status}); err != nil {
+		a.ErrorLog.Println("error encoding json:", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 }
 
 func (a *application) deletePhotoHandler(w http.ResponseWriter, r *http.Request) {
@@ -411,7 +479,7 @@ func (a *application) deletePhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := a.store.Delete(r.Context(),photo.Key); err != nil {
+	if err := a.store.Delete(r.Context(), photo.Key); err != nil {
 		a.ErrorLog.Printf("error deleting photo file: %s\n", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return

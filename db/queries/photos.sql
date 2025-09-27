@@ -17,12 +17,27 @@ OFFSET $3;
 -- name: CreatePhoto :one
 INSERT INTO photos (
   album_id,
-  key
+  key,
+  status
 ) VALUES (
   $1,
-  $2
+  $2,
+  $3
 )
 RETURNING *;
+
+-- name: UpdatePhoto :one
+UPDATE photos
+SET
+  album_id = $2
+WHERE id = $1
+RETURNING *;
+
+-- name: UpdatePhotoStatus :exec
+UPDATE photos
+SET
+  status = $2
+WHERE id = $1;
 
 -- name: DeletePhoto :exec
 DELETE FROM photos
