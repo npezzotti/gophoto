@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        BIN_DIR: bin
     ports:
       - "8800:8800"
     environment:
@@ -11,9 +13,11 @@ services:
       db:
         condition: service_healthy
     volumes:
+      - ./assets:/app/assets
+      - ./templates:/app/templates
       - file_data:/app/uploads
   db:
-    image: postgres:latest
+    image: postgres:17
     environment:
       - POSTGRES_USER=gophoto
       - POSTGRES_PASSWORD=password
@@ -25,6 +29,10 @@ services:
       interval: 1s
       timeout: 5s
       retries: 10
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
 volumes:
   db_data:
   file_data:
