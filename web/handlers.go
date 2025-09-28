@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/npezzotti/gophoto/db"
 	"github.com/npezzotti/gophoto/pagination"
+	"github.com/npezzotti/gophoto/store"
 	"github.com/npezzotti/gophoto/workers"
 )
 
@@ -50,7 +51,7 @@ func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsB
 	coverUrl := defaultAlbumCover
 
 	if len(coverPhoto) > 0 {
-		coverUrl, err = a.store.Read(ctx, coverPhoto[0].Key+"_thumb")
+		coverUrl, err = a.store.Read(ctx, coverPhoto[0].Key+string(store.FileSuffixThumbnail))
 		if err != nil {
 			a.ErrorLog.Printf("error generating url for %s: %s\n", coverPhoto[0].Key, err)
 		}
@@ -73,7 +74,7 @@ func (a *application) newUserImageResponse(ctx context.Context, photo db.Photo) 
 		a.ErrorLog.Printf("error generating url for photo %d: %s\n", photo.ID, err.Error())
 	}
 
-	large, err := a.store.Read(ctx, photo.Key+"_large")
+	large, err := a.store.Read(ctx, photo.Key+string(store.FileSuffixLarge))
 	if err != nil {
 		a.ErrorLog.Printf("error generating url for photo %d: %s\n", photo.ID, err.Error())
 	}
@@ -387,15 +388,19 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Process photo in background
-	err = a.redisClient.Publish(context.Background(), workers.PhotoProcessingQueue, photo.ID).Err()
+	processingJob, err := json.Marshal(workers.PhotoProcessingJob{PhotoID: photo.ID})
+	if err != nil {
+		a.ErrorLog.Printf("error marshalling photo processing job: %s\n", err.Error())
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	
+	err = a.redisClient.Publish(context.Background(), workers.PhotoProcessingQueue, processingJob).Err()
 	if err != nil {
 		a.ErrorLog.Printf("error publishing photo processing job: %s\n", err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-
-	// a.Flash(r, "Photo successfully uploaded!", flashInfo)
-	// http.Redirect(w, r, fmt.Sprintf("/albums?id=%d", photo.AlbumID.Int32), http.StatusSeeOther)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]int32{"id": photo.ID}); err != nil {

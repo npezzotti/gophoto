@@ -1,14 +1,16 @@
 package workers
 
-import "github.com/redis/go-redis/v9"
+import (
+	"context"
+
+	"github.com/redis/go-redis/v9"
+)
 
 const (
 	PhotoProcessingQueue = "photo_processing"
 )
 
-func OpenRedis(addr string) *redis.Client {
-	client := redis.NewClient(&redis.Options{
-		Addr: addr,
-	})
-	return client
+func subscribeToQueue(client *redis.Client, queueName string) <-chan *redis.Message {
+	subscriber := client.Subscribe(context.Background(), queueName)
+	return subscriber.Channel()
 }

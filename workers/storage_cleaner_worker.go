@@ -11,6 +11,8 @@ import (
 	"github.com/npezzotti/gophoto/store"
 )
 
+// The StorageCleanerWorker periodically checks for orphaned photos in the storage
+// and deletes their backing files to free up space.
 type StorageCleanerWorker struct {
 	db       *db.Queries
 	store    store.Store
@@ -63,14 +65,21 @@ func (scw *StorageCleanerWorker) cleanStorage() {
 		return
 	}
 
+	scw.log.Printf("found %d orphaned photos to delete", len(photos))
+
 	for _, photo := range photos {
-		if err := scw.store.Delete(context.Background(), photo.Key); err != nil {
-			if !errors.Is(err, store.ErrNotExist) {
-				scw.log.Printf("error deleting file with key %s: %s", photo.Key, err.Error())
+		for _, suffix := range []store.FileSuffix{"", store.FileSuffixThumbnail, store.FileSuffixLarge} {
+			key := photo.Key + string(suffix)
+			if err := scw.store.Delete(context.Background(), key); err != nil {
+				if !errors.Is(err, store.ErrNotExist) {
+					scw.log.Printf("error deleting file with key %s: %s", key, err.Error())
+				}
 			}
 		}
 
-		scw.db.DeletePhoto(context.Background(), photo.ID)
+		if err := scw.db.DeletePhoto(context.Background(), photo.ID); err != nil {
+			scw.log.Printf("error deleting photo %d from database: %s", photo.ID, err.Error())
+		}
 	}
 
 	scw.log.Println("finished storage cleanup job")

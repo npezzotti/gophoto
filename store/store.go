@@ -8,6 +8,13 @@ import (
 	"github.com/npezzotti/gophoto/config"
 )
 
+type FileSuffix string
+
+const (
+	FileSuffixThumbnail FileSuffix = "_thumb"
+	FileSuffixLarge     FileSuffix = "_large"
+)
+
 var ErrNotExist error = errors.New("file does not exist")
 
 type Store interface {

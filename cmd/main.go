@@ -11,7 +11,6 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/alexedwards/scs/postgresstore"
 	"github.com/alexedwards/scs/v2"
@@ -19,6 +18,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/npezzotti/gophoto/config"
 	"github.com/npezzotti/gophoto/db"
@@ -28,29 +28,32 @@ import (
 )
 
 func main() {
-	cfg, err := config.LoadConfig()
+	cfg, err := config.LoadConfigFromEnv()
 	if err != nil {
 		log.Fatalln("error generating config:", err)
 	}
 
-	dbConn, err := Open(cfg.DatabaseSource)
+	dbConn, err := connectPostgres(cfg.DatabaseSource)
 	if err != nil {
 		log.Fatalln("error connecting to db:", err)
 	}
 	defer dbConn.Close()
 
-	if err = Migrate("file://db/migrations", dbConn); err != nil {
+	if err = db.Migrate("file://db/migrations", dbConn); err != nil {
 		log.Fatalln("failed running migrations:", err)
 	}
 
-	db := db.New(dbConn)
+	querier := db.New(dbConn)
 
 	photoStore, err := store.NewStore(cfg)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("error creating store:", err)
 	}
 
-	redisClient := workers.OpenRedis("redis:6379")
+	redisClient, err := createRedisClient(cfg.RedisAddress)
+	if err != nil {
+		log.Fatal("error connecting to redis:", err)
+	}
 	defer redisClient.Close()
 
 	ts, err := web.NewTemplateCache()
@@ -62,15 +65,19 @@ func main() {
 	sessionManager.Store = postgresstore.New(dbConn)
 	gob.Register(web.Flash{})
 
-	app := web.NewApplication(redisClient, cfg, sessionManager, db, photoStore, ts)
+	app := web.NewApplication(redisClient, cfg, sessionManager, querier, photoStore, ts)
 
-	storageCleanerWorker := workers.NewStorageCleanerWorker(db, photoStore, app.InfoLog, workers.FrequencyFifteenMin)
+	storageCleanerWorker := workers.NewStorageCleanerWorker(querier, photoStore, app.InfoLog, workers.FrequencyFifteenMin)
 	storageCleanerWorker.Run()
 
-	photoProcessorWorker, err := workers.NewPhotoProcessorWorker(redisClient, cfg, db, photoStore, app.InfoLog)
+	photoProcessorWorker, err := workers.NewPhotoProcessorWorker(redisClient, cfg, querier, photoStore, app.InfoLog)
 	if err != nil {
 		log.Fatal("error creating photo processor worker:", err)
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	photoProcessorWorker.Run()
 
 	errChan := make(chan error)
@@ -88,9 +95,6 @@ func main() {
 	case <-errChan:
 		log.Println("error while running server")
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	doneChan := make(chan struct{})
 	var wg sync.WaitGroup
@@ -152,8 +156,8 @@ func Migrate(source string, db *sql.DB) error {
 	return nil
 }
 
-func Open(url string) (*sql.DB, error) {
-	db, err := sql.Open("postgres", url)
+func connectPostgres(dsn string) (*sql.DB, error) {
+	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		return nil, err
 	}
@@ -163,4 +167,16 @@ func Open(url string) (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+func createRedisClient(addr string) (*redis.Client, error) {
+	client := redis.NewClient(&redis.Options{
+		Addr: addr,
+	})
+
+	if err := client.Ping(context.Background()).Err(); err != nil {
+		return nil, err
+	}
+
+	return client, nil
 }

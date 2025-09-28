@@ -20,14 +20,17 @@ type Config struct {
 	BaseDir          string
 	BucketName       string
 	UseTemplateCache bool
+	RedisAddress     string
+	RedisPassword    string
 }
 
-func LoadConfig() (*Config, error) {
+func LoadConfigFromEnv() (*Config, error) {
 	cfg := &Config{
-		StorageType:    storageType(os.Getenv("GOPHOTO_STORAGE_TYPE")),
-		DatabaseSource: os.Getenv("GOPHOTO_DATABASE_SOURCE"),
 		HttpServerAddr: os.Getenv("GOPHOTO_HTTP_SERVER_ADDR"),
+		DatabaseSource: os.Getenv("GOPHOTO_DSN"),
+		RedisAddress:   os.Getenv("GOPHOTO_REDIS_ADDR"),
 		BaseDir:        os.Getenv("GOPHOTO_BASE_DIR"),
+		StorageType:    storageType(os.Getenv("GOPHOTO_STORAGE_TYPE")),
 		BucketName:     os.Getenv("GOPHOTO_BUCKET_NAME"),
 	}
 
@@ -42,6 +45,15 @@ func LoadConfig() (*Config, error) {
 	if cfg.DatabaseSource == "" {
 		return cfg, errors.New("database source required")
 	}
+
+	if cfg.StorageType == StorageTypeS3 && cfg.BucketName == "" {
+		return cfg, errors.New("bucket name required for s3 storage")
+	}
+
+	if cfg.RedisAddress == "" {
+		return cfg, errors.New("redis address required")
+	}
+	
 
 	return cfg, nil
 }

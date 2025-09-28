@@ -3,12 +3,12 @@ package workers
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
-	"strconv"
 
 	"github.com/h2non/bimg"
 	"github.com/npezzotti/gophoto/config"
@@ -16,6 +16,10 @@ import (
 	"github.com/npezzotti/gophoto/store"
 	"github.com/redis/go-redis/v9"
 )
+
+type PhotoProcessingJob struct {
+	PhotoID int32
+}
 
 type PhotoProcessorWorker struct {
 	redisClient *redis.Client
@@ -36,15 +40,15 @@ type ImageOpts struct {
 	Type    bimg.ImageType
 }
 
-func NewPhotoProcessorWorker(redisClient *redis.Client, cfg *config.Config, db *db.Queries, store store.Store, logger *log.Logger) (*PhotoProcessorWorker, error) {
+func NewPhotoProcessorWorker(redisClient *redis.Client, cfg *config.Config, db *db.Queries, s store.Store, l *log.Logger) (*PhotoProcessorWorker, error) {
 	ppw := &PhotoProcessorWorker{
 		redisClient: redisClient,
 		db:          db,
-		store:       store,
-		log:         logger,
+		store:       s,
+		log:         l,
 		imageOpts: []ImageOpts{
-			{Suffix: "_thumb", Width: 300, Height: 300, Quality: 80, Type: bimg.WEBP},
-			{Suffix: "_large", Width: 1920, Height: 1080, Quality: 90, Type: bimg.WEBP},
+			{Suffix: string(store.FileSuffixThumbnail), Width: 300, Height: 300, Quality: 80, Type: bimg.WEBP},
+			{Suffix: string(store.FileSuffixLarge), Width: 1920, Height: 1080, Quality: 90, Type: bimg.WEBP},
 		},
 		stopChan: make(chan struct{}),
 		doneChan: make(chan bool, 1),
@@ -63,53 +67,63 @@ func NewPhotoProcessorWorker(redisClient *redis.Client, cfg *config.Config, db *
 }
 
 func (ppw *PhotoProcessorWorker) Run() {
-	subscriber := ppw.redisClient.Subscribe(context.Background(), PhotoProcessingQueue)
+	ppw.log.Println("starting photo processor worker")
+
+	// Subscribe to the Redis channel for photo processing jobs
+	jobsChan := subscribeToQueue(ppw.redisClient, PhotoProcessingQueue)
 
 	go func() {
 		for {
 			select {
+			case msg := <-jobsChan:
+				if msg == nil {
+					continue
+				}
+
+				if err := ppw.handleJob(msg); err != nil {
+					ppw.log.Println("error handling job:", err)
+				}
 			case <-ppw.stopChan:
 				ppw.log.Println("stopping photo processor worker")
-				ppw.doneChan <- true
+				select {
+				case ppw.doneChan <- true:
+				default:
+				}
 				return
-			default:
-				msg, err := subscriber.ReceiveMessage(context.Background())
-				if err != nil {
-					log.Print("error receiving message:", err)
-					continue
-				}
-				log.Printf("received message: %s", msg.Payload)
-
-				photoId, err := strconv.Atoi(msg.Payload)
-				if err != nil {
-					log.Printf("error parsing photo ID from message payload %q: %v", msg.Payload, err)
-					continue
-				}
-
-				ppw.processPhoto(int32(photoId))
 			}
 		}
 	}()
 }
 
-func (ppw *PhotoProcessorWorker) processPhoto(photoId int32) {
+// handleJob processes a single photo processing job message from the Redis queue.
+func (ppw *PhotoProcessorWorker) handleJob(msg *redis.Message) error {
+	var processingJob PhotoProcessingJob
+	if err := json.Unmarshal([]byte(msg.Payload), &processingJob); err != nil {
+		return fmt.Errorf("error unmarshalling message payload %q: %w", msg.Payload, err)
+	}
+
+	if err := ppw.processPhoto(processingJob.PhotoID); err != nil {
+		return fmt.Errorf("error processing photo ID %d: %w", processingJob.PhotoID, err)
+	}
+	return nil
+}
+
+func (ppw *PhotoProcessorWorker) processPhoto(photoId int32) error {
 	ppw.log.Printf("starting photo processing job for photo ID %d", photoId)
 
 	photo, err := ppw.db.GetPhoto(context.Background(), photoId)
 	if err != nil {
-		ppw.log.Printf("error getting photo from database: %v", err)
-		return
+		return fmt.Errorf("error getting photo from database: %v", err)
 	}
 
 	photoBytes, err := ppw.downloadOriginal(photo)
 	if err != nil {
-		ppw.log.Printf("error downloading original photo: %v", err)
-		return
+		return fmt.Errorf("error downloading original photo: %v", err)
 	}
 
 	meta, err := bimg.NewImage(photoBytes).Metadata()
 	if err != nil {
-		ppw.log.Printf("error getting image metadata: %v", err)
+		return fmt.Errorf("error getting image metadata: %v", err)
 	}
 
 	for _, opts := range ppw.imageOpts {
@@ -139,18 +153,15 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32) {
 			ppw.log.Printf("error writing %s image to store: %v", opts.Suffix, err)
 			continue
 		}
-
-		ppw.log.Printf("successfully processed and stored image %q", photo.Key+opts.Suffix)
 	}
 
 	if err := ppw.db.UpdatePhotoStatus(context.Background(), db.UpdatePhotoStatusParams{
 		ID:     photo.ID,
 		Status: "processed",
 	}); err != nil {
-		ppw.log.Printf("error updating photo status: %v", err)
+		return fmt.Errorf("error updating photo status: %v", err)
 	}
-
-	ppw.log.Println("photo processing job completed")
+	return nil
 }
 
 func (ppw *PhotoProcessorWorker) downloadOriginal(photo db.Photo) ([]byte, error) {
