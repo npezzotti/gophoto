@@ -98,6 +98,9 @@ func (ppw *PhotoProcessorWorker) Run() {
 
 // handleJob processes a single photo processing job message from the Redis queue.
 func (ppw *PhotoProcessorWorker) handleJob(msg *redis.Message) error {
+	ppw.log.Println("starting photo processing job")
+	defer ppw.log.Println("finished photo processing job")
+	
 	var processingJob PhotoProcessingJob
 	if err := json.Unmarshal([]byte(msg.Payload), &processingJob); err != nil {
 		return fmt.Errorf("error unmarshalling message payload %q: %w", msg.Payload, err)
