@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 const createPhoto = `-- name: CreatePhoto :one
@@ -20,7 +21,7 @@ INSERT INTO photos (
   $2,
   $3
 )
-RETURNING id, album_id, key, status, created_at
+RETURNING id, album_id, key, status, deleteable_after, created_at, updated_at
 `
 
 type CreatePhotoParams struct {
@@ -37,7 +38,9 @@ func (q *Queries) CreatePhoto(ctx context.Context, arg CreatePhotoParams) (Photo
 		&i.AlbumID,
 		&i.Key,
 		&i.Status,
+		&i.DeleteableAfter,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -53,7 +56,7 @@ func (q *Queries) DeletePhoto(ctx context.Context, id int32) error {
 }
 
 const getAlbumCover = `-- name: GetAlbumCover :one
-SELECT id, album_id, key, status, created_at FROM photos
+SELECT id, album_id, key, status, deleteable_after, created_at, updated_at FROM photos
 WHERE album_id = $1
 ORDER BY created_at DESC
 LIMIT 1
@@ -67,13 +70,15 @@ func (q *Queries) GetAlbumCover(ctx context.Context, albumID sql.NullInt32) (Pho
 		&i.AlbumID,
 		&i.Key,
 		&i.Status,
+		&i.DeleteableAfter,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const getOrphanedPhotos = `-- name: GetOrphanedPhotos :many
-SELECT id, album_id, key, status, created_at FROM photos
+SELECT id, album_id, key, status, deleteable_after, created_at, updated_at FROM photos
 WHERE album_id IS NULL
 LIMIT 10
 `
@@ -92,7 +97,9 @@ func (q *Queries) GetOrphanedPhotos(ctx context.Context) ([]Photo, error) {
 			&i.AlbumID,
 			&i.Key,
 			&i.Status,
+			&i.DeleteableAfter,
 			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -108,7 +115,7 @@ func (q *Queries) GetOrphanedPhotos(ctx context.Context) ([]Photo, error) {
 }
 
 const getPhoto = `-- name: GetPhoto :one
-SELECT id, album_id, key, status, created_at FROM photos
+SELECT id, album_id, key, status, deleteable_after, created_at, updated_at FROM photos
 WHERE id = $1 LIMIT 1
 `
 
@@ -120,13 +127,15 @@ func (q *Queries) GetPhoto(ctx context.Context, id int32) (Photo, error) {
 		&i.AlbumID,
 		&i.Key,
 		&i.Status,
+		&i.DeleteableAfter,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const listPhotosByAlbum = `-- name: ListPhotosByAlbum :many
-SELECT id, album_id, key, status, created_at FROM photos
+SELECT id, album_id, key, status, deleteable_after, created_at, updated_at FROM photos
 WHERE album_id = $1
 LIMIT $2 
 OFFSET $3
@@ -152,7 +161,9 @@ func (q *Queries) ListPhotosByAlbum(ctx context.Context, arg ListPhotosByAlbumPa
 			&i.AlbumID,
 			&i.Key,
 			&i.Status,
+			&i.DeleteableAfter,
 			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -170,25 +181,42 @@ func (q *Queries) ListPhotosByAlbum(ctx context.Context, arg ListPhotosByAlbumPa
 const updatePhoto = `-- name: UpdatePhoto :one
 UPDATE photos
 SET
-  album_id = $2
+  album_id = $2,
+  key = $3,
+  status = $4,
+  deleteable_after = $5,
+  updated_at = $6
 WHERE id = $1
-RETURNING id, album_id, key, status, created_at
+RETURNING id, album_id, key, status, deleteable_after, created_at, updated_at
 `
 
 type UpdatePhotoParams struct {
-	ID      int32
-	AlbumID sql.NullInt32
+	ID              int32
+	AlbumID         sql.NullInt32
+	Key             string
+	Status          string
+	DeleteableAfter sql.NullTime
+	UpdatedAt       time.Time
 }
 
 func (q *Queries) UpdatePhoto(ctx context.Context, arg UpdatePhotoParams) (Photo, error) {
-	row := q.db.QueryRowContext(ctx, updatePhoto, arg.ID, arg.AlbumID)
+	row := q.db.QueryRowContext(ctx, updatePhoto,
+		arg.ID,
+		arg.AlbumID,
+		arg.Key,
+		arg.Status,
+		arg.DeleteableAfter,
+		arg.UpdatedAt,
+	)
 	var i Photo
 	err := row.Scan(
 		&i.ID,
 		&i.AlbumID,
 		&i.Key,
 		&i.Status,
+		&i.DeleteableAfter,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -196,16 +224,18 @@ func (q *Queries) UpdatePhoto(ctx context.Context, arg UpdatePhotoParams) (Photo
 const updatePhotoStatus = `-- name: UpdatePhotoStatus :exec
 UPDATE photos
 SET
-  status = $2
+  status = $2,
+  updated_at = $3
 WHERE id = $1
 `
 
 type UpdatePhotoStatusParams struct {
-	ID     int32
-	Status string
+	ID        int32
+	Status    string
+	UpdatedAt time.Time
 }
 
 func (q *Queries) UpdatePhotoStatus(ctx context.Context, arg UpdatePhotoStatusParams) error {
-	_, err := q.db.ExecContext(ctx, updatePhotoStatus, arg.ID, arg.Status)
+	_, err := q.db.ExecContext(ctx, updatePhotoStatus, arg.ID, arg.Status, arg.UpdatedAt)
 	return err
 }

@@ -22,7 +22,9 @@ CREATE TABLE photos (
     album_id INT REFERENCES albums(id) ON DELETE SET NULL,
     key VARCHAR(250) NOT NULL,
     status VARCHAR(20) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    deleteable_after TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE sessions (

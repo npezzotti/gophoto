@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/h2non/bimg"
 	"github.com/npezzotti/gophoto/config"
@@ -156,8 +157,9 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32) error {
 	}
 
 	if err := ppw.db.UpdatePhotoStatus(context.Background(), db.UpdatePhotoStatusParams{
-		ID:     photo.ID,
-		Status: "processed",
+		ID:        photo.ID,
+		Status:    "processed",
+		UpdatedAt: time.Now(),
 	}); err != nil {
 		return fmt.Errorf("error updating photo status: %v", err)
 	}

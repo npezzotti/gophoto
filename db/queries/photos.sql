@@ -29,14 +29,19 @@ RETURNING *;
 -- name: UpdatePhoto :one
 UPDATE photos
 SET
-  album_id = $2
+  album_id = $2,
+  key = $3,
+  status = $4,
+  deleteable_after = $5,
+  updated_at = $6
 WHERE id = $1
 RETURNING *;
 
 -- name: UpdatePhotoStatus :exec
 UPDATE photos
 SET
-  status = $2
+  status = $2,
+  updated_at = $3
 WHERE id = $1;
 
 -- name: DeletePhoto :exec
