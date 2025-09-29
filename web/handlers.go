@@ -569,9 +569,9 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		a.sessionManager.Put(r.Context(), "userId", user.ID)
+		a.sessionManager.Put(r.Context(), SessionKeyUserID, user.ID)
 
-		path := a.sessionManager.PopString(r.Context(), "redirectPath")
+		path := a.sessionManager.PopString(r.Context(), SessionKeyRedirectPath)
 		if path != "" {
 			http.Redirect(w, r, path, http.StatusSeeOther)
 			return

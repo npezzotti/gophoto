@@ -19,5 +19,5 @@ func (a *application) Flash(r *http.Request, msg string, level flashClass) {
 		Message: msg,
 		Level:   level,
 	}
-	a.sessionManager.Put(r.Context(), "__flash", flash)
+	a.sessionManager.Put(r.Context(), SessionKeyFlash, flash)
 }

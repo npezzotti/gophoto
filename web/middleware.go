@@ -22,7 +22,7 @@ func setupMiddleware(handler http.Handler, mw ...middleware) http.Handler {
 
 func (a *application) authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userId := a.sessionManager.GetInt32(r.Context(), "userId")
+		userId := a.sessionManager.GetInt32(r.Context(), SessionKeyUserID)
 		if userId == 0 {
 			next.ServeHTTP(w, r)
 			return
@@ -48,12 +48,12 @@ func (a *application) authenticate(next http.Handler) http.Handler {
 func (a *application) protected(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !isAuthenticated(r) {
-			a.sessionManager.Put(r.Context(), "__flash", Flash{
+			a.sessionManager.Put(r.Context(), SessionKeyFlash, Flash{
 				Message: "You must be logged in to access this.",
 				Level:   "danger",
 			})
 
-			a.sessionManager.Put(r.Context(), "redirectPath", r.URL.Path)
+			a.sessionManager.Put(r.Context(), SessionKeyRedirectPath, r.URL.Path)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}

@@ -14,6 +14,12 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const (
+	SessionKeyRedirectPath = "redirectPath"
+	SessionKeyUserID       = "userID"
+	SessionKeyFlash        = "__flash"
+)
+
 type application struct {
 	redisClient    *redis.Client
 	config         *config.Config

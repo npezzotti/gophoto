@@ -30,7 +30,7 @@ func (a *application) newTemplateData(r *http.Request) *templateData {
 
 	td.User = a.newUserResponse(r.Context(), a.getUserFromRequest(r))
 
-	flash, ok := a.sessionManager.Pop(r.Context(), "__flash").(Flash)
+	flash, ok := a.sessionManager.Pop(r.Context(), SessionKeyFlash).(Flash)
 	if ok {
 		td.Flash = &flash
 	}
