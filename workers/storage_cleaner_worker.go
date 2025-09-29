@@ -22,18 +22,17 @@ type StorageCleanerWorker struct {
 	doneChan chan bool
 }
 
-type TickerFrequency time.Duration
-
 const (
-	FrequencyFifteenMin = TickerFrequency(15 * time.Minute)
+	DefaultFrequency = 15 * time.Minute
+	DefaultTimeLimit = 10 * time.Minute
 )
 
-func NewStorageCleanerWorker(db *db.Queries, store store.Store, logger *log.Logger, frequency TickerFrequency) StorageCleanerWorker {
+func NewStorageCleanerWorker(db *db.Queries, store store.Store, logger *log.Logger, frequency time.Duration) StorageCleanerWorker {
 	return StorageCleanerWorker{
 		db:       db,
 		store:    store,
 		log:      logger,
-		ticker:   time.NewTicker(time.Duration(frequency)),
+		ticker:   time.NewTicker(frequency),
 		stopChan: make(chan struct{}),
 		doneChan: make(chan bool, 1),
 	}
@@ -57,7 +56,12 @@ func (scw *StorageCleanerWorker) Run() {
 
 func (scw *StorageCleanerWorker) cleanStorage() {
 	scw.log.Println("starting storage cleanup job")
-	photos, err := scw.db.GetOrphanedPhotos(context.Background())
+	defer scw.log.Println("finished storage cleanup job")
+
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeLimit)
+	defer cancel()
+
+	photos, err := scw.db.GetOrphanedPhotos(ctx)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			scw.log.Println("error getting files:", err)
@@ -70,7 +74,7 @@ func (scw *StorageCleanerWorker) cleanStorage() {
 	for _, photo := range photos {
 		for _, suffix := range []store.FileSuffix{"", store.FileSuffixThumbnail, store.FileSuffixLarge} {
 			key := photo.Key + string(suffix)
-			if err := scw.store.Delete(context.Background(), key); err != nil {
+			if err := scw.store.Delete(ctx, key); err != nil {
 				if !errors.Is(err, store.ErrNotExist) {
 					scw.log.Printf("error deleting file with key %s: %s", key, err.Error())
 					return
@@ -78,12 +82,17 @@ func (scw *StorageCleanerWorker) cleanStorage() {
 			}
 		}
 
-		if err := scw.db.DeletePhoto(context.Background(), photo.ID); err != nil {
+		if err := scw.db.DeletePhoto(ctx, photo.ID); err != nil {
 			scw.log.Printf("error deleting photo %d from database: %s", photo.ID, err.Error())
+			return
+		}
+
+		// Check if the context has been cancelled or timed out after each iteration
+		if err := ctx.Err(); err != nil {
+			scw.log.Println("context error:", err)
+			return
 		}
 	}
-
-	scw.log.Println("finished storage cleanup job")
 }
 
 func (scw *StorageCleanerWorker) Stop() {

@@ -67,7 +67,7 @@ func main() {
 
 	app := web.NewApplication(redisClient, cfg, sessionManager, querier, photoStore, ts)
 
-	storageCleanerWorker := workers.NewStorageCleanerWorker(querier, photoStore, app.InfoLog, workers.FrequencyFifteenMin)
+	storageCleanerWorker := workers.NewStorageCleanerWorker(querier, photoStore, app.InfoLog, workers.DefaultFrequency)
 	storageCleanerWorker.Run()
 
 	photoProcessorWorker, err := workers.NewPhotoProcessorWorker(redisClient, cfg, querier, photoStore, app.InfoLog)
