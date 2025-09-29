@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestLoadConfig(t *testing.T) {
+func TestLoadConfigFromEnv(t *testing.T) {
 	tcases := []struct {
 		name          string
 		env           map[string]string
