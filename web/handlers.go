@@ -373,6 +373,7 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 	key := uuid.New().String()
 	photo, err := a.database.CreatePhoto(r.Context(), db.CreatePhotoParams{
 		AlbumID: sql.NullInt32{Int32: int32(album_id), Valid: true},
+		UserID:  user.ID,
 		Key:     key,
 	})
 	if err != nil {
@@ -394,7 +395,7 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	
+
 	err = a.redisClient.Publish(context.Background(), workers.PhotoProcessingQueue, processingJob).Err()
 	if err != nil {
 		a.ErrorLog.Printf("error publishing photo processing job: %s\n", err.Error())
@@ -454,49 +455,45 @@ func (a *application) deletePhotoHandler(w http.ResponseWriter, r *http.Request)
 
 	id_str := r.URL.Query().Get("id")
 	if id_str == "" {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		a.Flash(r, "missing id parameter", flashErr)
+		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 		return
 	}
 
 	id, err := strconv.Atoi(id_str)
 	if err != nil {
-		a.ErrorLog.Println("error converting string to int", err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		a.ErrorLog.Println("error parsing id:", err)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
 	photo, err := a.database.GetPhoto(r.Context(), int32(id))
 	if err != nil {
-		a.ErrorLog.Println("photo file not found", err)
-		http.NotFound(w, r)
-		return
-	}
-
-	album, err := a.database.GetAlbum(r.Context(), photo.AlbumID.Int32)
-	if err != nil {
+		a.Flash(r, "Photo not found", flashErr)
 		http.NotFound(w, r)
 		return
 	}
 
 	user := a.getUserFromRequest(r)
-	if album.UserID != user.ID {
+	if photo.UserID != user.ID {
 		http.NotFound(w, r)
 		return
 	}
 
-	if err := a.store.Delete(r.Context(), photo.Key); err != nil {
-		a.ErrorLog.Printf("error deleting photo file: %s\n", err)
+	updateParams := db.UpdatePhotoParams{
+		ID:        photo.ID,
+		AlbumID:   sql.NullInt32{Int32: photo.AlbumID.Int32, Valid: false}, // disassociate photo from album to mark for deletion
+		Key:       photo.Key,
+		Status:    photo.Status,
+		UpdatedAt: time.Now(),
+	}
+	if _, err := a.database.UpdatePhoto(r.Context(), updateParams); err != nil {
+		a.ErrorLog.Println("error updating photo:", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	if err = a.database.DeletePhoto(r.Context(), photo.ID); err != nil {
-		a.ErrorLog.Printf("error deleting photo: %s\n", err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-
-	a.Flash(r, "Photo deleted!", flashInfo)
+	a.Flash(r, "Photo successfully deleted.", flashInfo)
 	http.Redirect(w, r, fmt.Sprintf("/albums?id=%d", photo.AlbumID.Int32), http.StatusSeeOther)
 }
 
@@ -529,23 +526,29 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 		user, err := a.database.GetUserByEmail(r.Context(), lf.Email)
 		if err != nil {
-			a.Flash(r, "Invalid username or password", flashErr)
+			var flashMsg string
+			if errors.Is(err, sql.ErrNoRows) {
+				flashMsg = "No account found with that email address."
+				a.Flash(r, flashMsg, flashErr)
 
-			td := a.newTemplateData(r)
-			td.Form = lf
+				td := a.newTemplateData(r)
+				td.Form = lf
 
-			w.WriteHeader(http.StatusForbidden)
-			if err := a.renderTemplate(w, td, "login.html"); err != nil {
-				a.ErrorLog.Printf("error rendering template: %s", err)
+				w.WriteHeader(http.StatusForbidden)
+				if err := a.renderTemplate(w, td, "login.html"); err != nil {
+					a.ErrorLog.Printf("error rendering template: %s", err)
+					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+					return
+				}
+			} else {
+				a.ErrorLog.Printf("error getting user by email: %s", err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
 			}
-
 			return
 		}
 
 		if !passwordsMatch(user.PasswordHash, lf.Password) {
-			a.Flash(r, "Invalid username or password", flashErr)
+			a.Flash(r, "Incorrect password.", flashErr)
 
 			td := a.newTemplateData(r)
 			td.Form = lf

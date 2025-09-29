@@ -25,7 +25,7 @@ type StorageCleanerWorker struct {
 type TickerFrequency time.Duration
 
 const (
-	FrequencyFifteenMin = TickerFrequency(15 * time.Minute)
+	FrequencyFifteenMin = TickerFrequency(1 * time.Minute)
 )
 
 func NewStorageCleanerWorker(db *db.Queries, store store.Store, logger *log.Logger, frequency TickerFrequency) StorageCleanerWorker {
@@ -73,6 +73,7 @@ func (scw *StorageCleanerWorker) cleanStorage() {
 			if err := scw.store.Delete(context.Background(), key); err != nil {
 				if !errors.Is(err, store.ErrNotExist) {
 					scw.log.Printf("error deleting file with key %s: %s", key, err.Error())
+					return
 				}
 			}
 		}

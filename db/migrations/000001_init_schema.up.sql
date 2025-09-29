@@ -20,9 +20,9 @@ CREATE TABLE albums (
 CREATE TABLE photos (
     id SERIAL PRIMARY KEY,
     album_id INT REFERENCES albums(id) ON DELETE SET NULL,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE SET NULL,
     key VARCHAR(250) NOT NULL,
     status VARCHAR(20) NOT NULL,
-    deleteable_after TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

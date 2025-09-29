@@ -17,12 +17,14 @@ OFFSET $3;
 -- name: CreatePhoto :one
 INSERT INTO photos (
   album_id,
+  user_id,
   key,
   status
 ) VALUES (
   $1,
   $2,
-  $3
+  $3,
+  $4
 )
 RETURNING *;
 
@@ -32,8 +34,7 @@ SET
   album_id = $2,
   key = $3,
   status = $4,
-  deleteable_after = $5,
-  updated_at = $6
+  updated_at = $5
 WHERE id = $1
 RETURNING *;
 

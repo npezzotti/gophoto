@@ -18,13 +18,13 @@ type Album struct {
 }
 
 type Photo struct {
-	ID              int32
-	AlbumID         sql.NullInt32
-	Key             string
-	Status          string
-	DeleteableAfter sql.NullTime
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID        int32
+	AlbumID   sql.NullInt32
+	UserID    int32
+	Key       string
+	Status    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type Session struct {

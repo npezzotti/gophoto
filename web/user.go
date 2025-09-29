@@ -88,7 +88,7 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		a.Flash(r, "Account created!", flashInfo)
+		a.Flash(r, "Account successfully created.", flashInfo)
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 	case "GET":
 		td := a.newTemplateData(r)
