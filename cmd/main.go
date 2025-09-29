@@ -39,7 +39,7 @@ func main() {
 	}
 	defer dbConn.Close()
 
-	if err = db.Migrate("file://db/migrations", dbConn); err != nil {
+	if err = db.Migrate(dbConn); err != nil {
 		log.Fatalln("failed running migrations:", err)
 	}
 
