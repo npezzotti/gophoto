@@ -6,8 +6,53 @@ package db
 
 import (
 	"database/sql"
+	"database/sql/driver"
+	"fmt"
 	"time"
 )
+
+type PhotoStatus string
+
+const (
+	PhotoStatusProcessing PhotoStatus = "processing"
+	PhotoStatusProcessed  PhotoStatus = "processed"
+	PhotoStatusErrored    PhotoStatus = "errored"
+)
+
+func (e *PhotoStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PhotoStatus(s)
+	case string:
+		*e = PhotoStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PhotoStatus: %T", src)
+	}
+	return nil
+}
+
+type NullPhotoStatus struct {
+	PhotoStatus PhotoStatus
+	Valid       bool // Valid is true if PhotoStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPhotoStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.PhotoStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PhotoStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPhotoStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PhotoStatus), nil
+}
 
 type Album struct {
 	ID        int32
@@ -22,7 +67,7 @@ type Photo struct {
 	AlbumID   sql.NullInt32
 	UserID    int32
 	Key       string
-	Status    string
+	Status    PhotoStatus
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

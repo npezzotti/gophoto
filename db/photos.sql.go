@@ -30,7 +30,7 @@ type CreatePhotoParams struct {
 	AlbumID sql.NullInt32
 	UserID  int32
 	Key     string
-	Status  string
+	Status  PhotoStatus
 }
 
 func (q *Queries) CreatePhoto(ctx context.Context, arg CreatePhotoParams) (Photo, error) {
@@ -201,7 +201,7 @@ type UpdatePhotoParams struct {
 	ID        int32
 	AlbumID   sql.NullInt32
 	Key       string
-	Status    string
+	Status    PhotoStatus
 	UpdatedAt time.Time
 }
 
@@ -236,7 +236,7 @@ WHERE id = $1
 
 type UpdatePhotoStatusParams struct {
 	ID        int32
-	Status    string
+	Status    PhotoStatus
 	UpdatedAt time.Time
 }
 

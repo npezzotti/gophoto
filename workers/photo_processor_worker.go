@@ -109,6 +109,14 @@ func (ppw *PhotoProcessorWorker) handleJob(msg *redis.Message) error {
 	return nil
 }
 
+func (ppw *PhotoProcessorWorker) updatePhotoStatus(photo db.Photo, status db.PhotoStatus) error {
+	return ppw.db.UpdatePhotoStatus(context.Background(), db.UpdatePhotoStatusParams{
+		ID:        photo.ID,
+		Status:    status,
+		UpdatedAt: time.Now(),
+	})
+}
+
 func (ppw *PhotoProcessorWorker) processPhoto(photoId int32) error {
 	ppw.log.Printf("starting photo processing job for photo ID %d", photoId)
 
@@ -117,13 +125,21 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32) error {
 		return fmt.Errorf("error getting photo from database: %v", err)
 	}
 
+	var processingErr error
+	defer func() {
+		if processingErr != nil {
+			ppw.updatePhotoStatus(photo, db.PhotoStatusErrored)
+		}
+	}()
 	photoBytes, err := ppw.downloadOriginal(photo)
 	if err != nil {
+		processingErr = err
 		return fmt.Errorf("error downloading original photo: %v", err)
 	}
 
 	meta, err := bimg.NewImage(photoBytes).Metadata()
 	if err != nil {
+		processingErr = err
 		return fmt.Errorf("error getting image metadata: %v", err)
 	}
 
@@ -146,22 +162,21 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32) error {
 
 		processedImg, err := bimg.NewImage(photoBytes).Process(imageOpts)
 		if err != nil {
+			processingErr = err
 			ppw.log.Printf("error processing image for %s: %v", opts.Suffix, err)
 			continue
 		}
 
 		if err := ppw.store.Write(context.Background(), photo.Key+opts.Suffix, bytes.NewReader(processedImg)); err != nil {
+			processingErr = err
 			ppw.log.Printf("error writing %s image to store: %v", opts.Suffix, err)
 			continue
 		}
 	}
 
-	if err := ppw.db.UpdatePhotoStatus(context.Background(), db.UpdatePhotoStatusParams{
-		ID:        photo.ID,
-		Status:    "processed",
-		UpdatedAt: time.Now(),
-	}); err != nil {
-		return fmt.Errorf("error updating photo status: %v", err)
+	if err := ppw.updatePhotoStatus(photo, db.PhotoStatusProcessed); err != nil {
+		processingErr = err
+		ppw.log.Printf("error updating photo %d status: %v", photoId, err)
 	}
 	return nil
 }

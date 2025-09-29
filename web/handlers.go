@@ -375,6 +375,7 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 		AlbumID: sql.NullInt32{Int32: int32(album_id), Valid: true},
 		UserID:  user.ID,
 		Key:     key,
+		Status:  db.PhotoStatusProcessing,
 	})
 	if err != nil {
 		a.ErrorLog.Println("error creating photo:", err)
@@ -440,7 +441,7 @@ func (a *application) photoStatusHandler(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json")
 
-	if err := json.NewEncoder(w).Encode(map[string]string{"status": photo.Status}); err != nil {
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": string(photo.Status)}); err != nil {
 		a.ErrorLog.Println("error encoding json:", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return

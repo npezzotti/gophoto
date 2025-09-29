@@ -25,7 +25,7 @@ type StorageCleanerWorker struct {
 type TickerFrequency time.Duration
 
 const (
-	FrequencyFifteenMin = TickerFrequency(1 * time.Minute)
+	FrequencyFifteenMin = TickerFrequency(15 * time.Minute)
 )
 
 func NewStorageCleanerWorker(db *db.Queries, store store.Store, logger *log.Logger, frequency TickerFrequency) StorageCleanerWorker {

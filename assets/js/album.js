@@ -45,28 +45,35 @@ photoUploadForm.addEventListener('submit', async e => {
           try {
             const response = await fetch(`/photo/status?id=${processingPhotoId}`)
             const data = await response.json()
-            if (data.status === "processed") {
-              // Complete the progress bar
-              progressBar.setAttribute('aria-valuenow', 100);
-              progressBar.style.width = `100%`;
-              clearInterval(pollInterval);
+            switch (data.status) {
+              case "processing":
+                // Still processing, do nothing
+                break;
+              case "processed":
+                // Complete the progress bar
+                if (progressBar) {
+                  progressBar.setAttribute('aria-valuenow', 100);
+                  progressBar.style.width = `100%`;
+                }
+                clearInterval(pollInterval);
 
-              // Refresh the page after a short delay to show the new photo
-              setTimeout(() => {
-                location.reload();
-              }, 1000);
-            }
-
-            if (data.status === "error") {
-              throw new Error("Error processing photo");
+                // Refresh the page after a short delay to show the new photo
+                setTimeout(() => {
+                  location.reload();
+                }, 1000);
+                break;
+              case "errored":
+                throw new Error("Error processing photo");
+              default:
+                throw new Error("Unknown photo status");
             }
           } catch (err) {
             console.error("Error fetching photo status:", err);
             clearInterval(pollInterval);
             progressModal.modal('hide');
           }
-        }, 2000)
-      }, 1000)
+        }, 1000)
+      }, 500);
     }
   } catch (err) {
     console.error("Error uploading photo:", err);
