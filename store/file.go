@@ -8,15 +8,13 @@ import (
 	"path/filepath"
 )
 
-const defaultBaseDir = "./uploads"
-
 type FileStore struct {
 	BaseDir string
 }
 
 func NewFileStore(baseDir string) (*FileStore, error) {
 	if baseDir == "" {
-		baseDir = defaultBaseDir
+		return nil, fmt.Errorf("base directory required")
 	}
 
 	if err := os.MkdirAll(baseDir, os.ModePerm); err != nil {

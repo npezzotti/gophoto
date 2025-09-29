@@ -11,6 +11,7 @@ const (
 	StorageTypeDisk storageType = "disk"
 	StorageTypeS3   storageType = "s3"
 	DefaultAddress              = ":8800"
+	DefaultBaseDir              = "./uploads"
 )
 
 type Config struct {
@@ -38,22 +39,25 @@ func LoadConfigFromEnv() (*Config, error) {
 		cfg.HttpServerAddr = DefaultAddress
 	}
 
-	if cfg.StorageType == "" {
-		cfg.StorageType = StorageTypeDisk
-	}
-
 	if cfg.DatabaseSource == "" {
 		return cfg, errors.New("database source required")
-	}
-
-	if cfg.StorageType == StorageTypeS3 && cfg.BucketName == "" {
-		return cfg, errors.New("bucket name required for s3 storage")
 	}
 
 	if cfg.RedisAddress == "" {
 		return cfg, errors.New("redis address required")
 	}
-	
+
+	if cfg.BaseDir == "" {
+		cfg.BaseDir = DefaultBaseDir
+	}
+
+	if cfg.StorageType == "" {
+		cfg.StorageType = StorageTypeDisk
+	}
+
+	if cfg.StorageType == StorageTypeS3 && cfg.BucketName == "" {
+		return cfg, errors.New("bucket name required for s3 storage")
+	}
 
 	return cfg, nil
 }
