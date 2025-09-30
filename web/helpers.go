@@ -2,6 +2,7 @@ package web
 
 import (
 	"database/sql"
+	"encoding/json"
 	"net/http"
 
 	"github.com/npezzotti/gophoto/db"
@@ -49,4 +50,10 @@ func (a *application) getUserFromRequest(r *http.Request) *db.User {
 	}
 
 	return &db.User{}
+}
+
+func (a *application) writeJsonResp(w http.ResponseWriter, status int, data any) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	return json.NewEncoder(w).Encode(data)
 }

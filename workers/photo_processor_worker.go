@@ -100,7 +100,7 @@ func (ppw *PhotoProcessorWorker) Run() {
 func (ppw *PhotoProcessorWorker) handleJob(msg *redis.Message) error {
 	ppw.log.Println("starting photo processing job")
 	defer ppw.log.Println("finished photo processing job")
-	
+
 	var processingJob PhotoProcessingJob
 	if err := json.Unmarshal([]byte(msg.Payload), &processingJob); err != nil {
 		return fmt.Errorf("error unmarshalling message payload %q: %w", msg.Payload, err)
@@ -185,7 +185,7 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32) error {
 }
 
 func (ppw *PhotoProcessorWorker) downloadOriginal(photo db.Photo) ([]byte, error) {
-	photoURL, err := ppw.store.Read(context.Background(), photo.Key+"_original")
+	photoURL, err := ppw.store.Read(context.Background(), photo.Key+string(store.FileSuffixOriginal))
 	if err != nil {
 		return nil, fmt.Errorf("error reading photo from store: %v", err)
 	}

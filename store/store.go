@@ -11,6 +11,7 @@ import (
 type FileSuffix string
 
 const (
+	FileSuffixOriginal  FileSuffix = "_original"
 	FileSuffixThumbnail FileSuffix = "_thumb"
 	FileSuffixLarge     FileSuffix = "_large"
 )

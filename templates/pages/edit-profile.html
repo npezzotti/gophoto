@@ -102,9 +102,9 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                            <form action="/profile/delete" method="post">
+                            <form action="/profile/delete" method="get">
                                 <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
-                                <button type="submit" class="btn btn-danger">Delete my account</a>
+                                <button type="submit" class="btn btn-danger">Delete my account</button>
                             </form>
                         </div>
                     </div>
