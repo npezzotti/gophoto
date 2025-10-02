@@ -206,7 +206,6 @@ func (a *application) createAlbumHandler(w http.ResponseWriter, r *http.Request)
 		}
 
 		user := a.getUserFromRequest(r)
-		a.InfoLog.Print(user)
 		album, err := a.database.CreateAlbum(r.Context(), db.CreateAlbumParams{
 			UserID: user.ID,
 			Title:  r.Form.Get("title"),

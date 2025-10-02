@@ -43,7 +43,7 @@ func (a *application) getUserFromRequest(r *http.Request) *db.GetUserByIdRow {
 	if userId, ok := r.Context().Value(authenticatedUserId).(int32); ok {
 		userRow, err := a.database.GetUserById(r.Context(), userId)
 		if err != nil {
-			a.InfoLog.Printf("error getting user by id from request: %s", err.Error())
+			a.ErrorLog.Printf("error getting user by id from request: %s", err.Error())
 			if err != sql.ErrNoRows {
 				a.ErrorLog.Printf("error querying user: %s\n", err.Error())
 			}
