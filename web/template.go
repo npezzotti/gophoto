@@ -13,14 +13,15 @@ import (
 )
 
 type templateData struct {
-	Form      Form
-	Flash     *Flash
-	User      *UserResponse
-	Albums    []*AlbumResponse
-	Album     db.GetAlbumRow
-	Images    []*UserImageResponse
-	Paginator *pagination.Pagination
-	CSRFToken string
+	Form                 Form
+	Flash                *Flash
+	User                 *UserResponse
+	Albums               []*AlbumResponse
+	Album                db.GetAlbumRow
+	Images               []*UserImageResponse
+	Paginator            *pagination.Pagination
+	CSRFToken            string
+	AddPhotoUploadAction string
 }
 
 func (a *application) newTemplateData(r *http.Request) *templateData {
@@ -79,6 +80,7 @@ func NewTemplateCache() (map[string]*template.Template, error) {
 		name := filepath.Base(page)
 		patterns := []string{
 			"./templates/base.html",
+			"./templates/partials/photo_upload_modal.html",
 			"./templates/partials/header.html",
 			"./templates/partials/footer.html",
 			page,

@@ -158,6 +158,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 	case http.MethodGet:
 		user := a.getUserFromRequest(r)
 		td := a.newTemplateData(r)
+		td.AddPhotoUploadAction = "/profile/photo/edit"
 		td.Form = &EditProfileForm{
 			FirstName: user.FirstName,
 			LastName:  user.LastName,
@@ -243,7 +244,7 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 			return
 		}
 
-		f, fh, err := r.FormFile(FormProfilePictureName)
+		f, fh, err := r.FormFile(FormFileName)
 		if err != nil {
 			if err := a.writeJsonResp(w, http.StatusBadRequest, map[string]string{"error": strings.ToLower(http.StatusText(http.StatusBadRequest))}); err != nil {
 				a.ErrorLog.Println("error writing json response:", err)

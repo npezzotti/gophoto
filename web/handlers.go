@@ -21,7 +21,6 @@ import (
 
 const (
 	FormFileName           = "file"
-	FormProfilePictureName = "profile_picture"
 	MaxUploadSize          = 50 << (10 * 2)
 	DefaultProfilePrefix   = "images/profile"
 	DefaultAlbumCover      = "images/album_cover.webp"
@@ -142,6 +141,7 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 			td.Album = album
 			td.Images = images
 			td.Paginator = pagination
+			td.AddPhotoUploadAction = fmt.Sprintf("/photo/new?id=%d", album.ID)
 
 			if err := a.renderTemplate(w, td, "album.html"); err != nil {
 				a.ErrorLog.Printf("error rendering template: %s", err)
