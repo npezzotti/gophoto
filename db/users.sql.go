@@ -17,7 +17,7 @@ INSERT INTO users (
 ) VALUES (
   $1, $2, $3, $4
 )
-RETURNING id, first_name, last_name, email, password_hash, profile_picture_key, created_at, updated_at
+RETURNING id, first_name, last_name, email, password_hash, profile_picture_id, created_at, updated_at
 `
 
 type CreateUserParams struct {
@@ -41,7 +41,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.LastName,
 		&i.Email,
 		&i.PasswordHash,
-		&i.ProfilePictureKey,
+		&i.ProfilePictureID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -59,7 +59,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id int32) error {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, first_name, last_name, email, password_hash, profile_picture_key, created_at, updated_at FROM users
+SELECT id, first_name, last_name, email, password_hash, profile_picture_id, created_at, updated_at FROM users
 WHERE email = $1
 LIMIT 1
 `
@@ -73,7 +73,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.LastName,
 		&i.Email,
 		&i.PasswordHash,
-		&i.ProfilePictureKey,
+		&i.ProfilePictureID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -81,23 +81,38 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 }
 
 const getUserById = `-- name: GetUserById :one
-SELECT id, first_name, last_name, email, password_hash, profile_picture_key, created_at, updated_at FROM users
-WHERE id = $1
+SELECT u.id, u.first_name, u.last_name, u.email, u.password_hash, u.profile_picture_id, u.created_at, u.updated_at, p.key AS profile_picture_key 
+FROM users u
+LEFT JOIN photos p ON u.profile_picture_id = p.id
+WHERE u.id = $1
 LIMIT 1
 `
 
-func (q *Queries) GetUserById(ctx context.Context, id int32) (User, error) {
+type GetUserByIdRow struct {
+	ID                int32
+	FirstName         string
+	LastName          string
+	Email             string
+	PasswordHash      string
+	ProfilePictureID  sql.NullInt32
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	ProfilePictureKey sql.NullString
+}
+
+func (q *Queries) GetUserById(ctx context.Context, id int32) (GetUserByIdRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserById, id)
-	var i User
+	var i GetUserByIdRow
 	err := row.Scan(
 		&i.ID,
 		&i.FirstName,
 		&i.LastName,
 		&i.Email,
 		&i.PasswordHash,
-		&i.ProfilePictureKey,
+		&i.ProfilePictureID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProfilePictureKey,
 	)
 	return i, err
 }
@@ -109,20 +124,20 @@ SET
   last_name = $3,
   email = $4,
   password_hash = $5,
-  profile_picture_key = $6,
+  profile_picture_id = $6,
   updated_at = $7
 WHERE id = $1
-RETURNING id, first_name, last_name, email, password_hash, profile_picture_key, created_at, updated_at
+RETURNING id, first_name, last_name, email, password_hash, profile_picture_id, created_at, updated_at
 `
 
 type UpdateUserParams struct {
-	ID                int32
-	FirstName         string
-	LastName          string
-	Email             string
-	PasswordHash      string
-	ProfilePictureKey sql.NullString
-	UpdatedAt         time.Time
+	ID               int32
+	FirstName        string
+	LastName         string
+	Email            string
+	PasswordHash     string
+	ProfilePictureID sql.NullInt32
+	UpdatedAt        time.Time
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
@@ -132,7 +147,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		arg.LastName,
 		arg.Email,
 		arg.PasswordHash,
-		arg.ProfilePictureKey,
+		arg.ProfilePictureID,
 		arg.UpdatedAt,
 	)
 	var i User
@@ -142,7 +157,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.LastName,
 		&i.Email,
 		&i.PasswordHash,
-		&i.ProfilePictureKey,
+		&i.ProfilePictureID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

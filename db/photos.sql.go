@@ -7,43 +7,33 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"time"
 )
 
 const createPhoto = `-- name: CreatePhoto :one
 INSERT INTO photos (
-  album_id,
   user_id,
   key,
   status
 ) VALUES (
   $1,
   $2,
-  $3,
-  $4
+  $3
 )
-RETURNING id, album_id, user_id, key, status, created_at, updated_at
+RETURNING id, user_id, key, status, created_at, updated_at
 `
 
 type CreatePhotoParams struct {
-	AlbumID sql.NullInt32
-	UserID  int32
-	Key     string
-	Status  PhotoStatus
+	UserID int32
+	Key    string
+	Status PhotoStatus
 }
 
 func (q *Queries) CreatePhoto(ctx context.Context, arg CreatePhotoParams) (Photo, error) {
-	row := q.db.QueryRowContext(ctx, createPhoto,
-		arg.AlbumID,
-		arg.UserID,
-		arg.Key,
-		arg.Status,
-	)
+	row := q.db.QueryRowContext(ctx, createPhoto, arg.UserID, arg.Key, arg.Status)
 	var i Photo
 	err := row.Scan(
 		&i.ID,
-		&i.AlbumID,
 		&i.UserID,
 		&i.Key,
 		&i.Status,
@@ -64,18 +54,18 @@ func (q *Queries) DeletePhoto(ctx context.Context, id int32) error {
 }
 
 const getAlbumCover = `-- name: GetAlbumCover :one
-SELECT id, album_id, user_id, key, status, created_at, updated_at FROM photos
-WHERE album_id = $1
-ORDER BY created_at DESC
+SELECT p.id, p.user_id, p.key, p.status, p.created_at, p.updated_at FROM photos p
+JOIN album_photos ap ON ap.photo_id = p.id
+WHERE ap.album_id = $1
+ORDER BY p.created_at DESC
 LIMIT 1
 `
 
-func (q *Queries) GetAlbumCover(ctx context.Context, albumID sql.NullInt32) (Photo, error) {
+func (q *Queries) GetAlbumCover(ctx context.Context, albumID int32) (Photo, error) {
 	row := q.db.QueryRowContext(ctx, getAlbumCover, albumID)
 	var i Photo
 	err := row.Scan(
 		&i.ID,
-		&i.AlbumID,
 		&i.UserID,
 		&i.Key,
 		&i.Status,
@@ -86,8 +76,16 @@ func (q *Queries) GetAlbumCover(ctx context.Context, albumID sql.NullInt32) (Pho
 }
 
 const getOrphanedPhotos = `-- name: GetOrphanedPhotos :many
-SELECT id, album_id, user_id, key, status, created_at, updated_at FROM photos
-WHERE album_id IS NULL
+SELECT id, user_id, key, status, created_at, updated_at FROM photos p
+WHERE p.id NOT IN (
+  SELECT ap.photo_id 
+  FROM album_photos ap
+)
+AND p.id NOT IN (
+  SELECT u.profile_picture_id 
+  FROM users u 
+  WHERE u.profile_picture_id IS NOT NULL
+)
 LIMIT 10
 `
 
@@ -102,7 +100,6 @@ func (q *Queries) GetOrphanedPhotos(ctx context.Context) ([]Photo, error) {
 		var i Photo
 		if err := rows.Scan(
 			&i.ID,
-			&i.AlbumID,
 			&i.UserID,
 			&i.Key,
 			&i.Status,
@@ -123,8 +120,10 @@ func (q *Queries) GetOrphanedPhotos(ctx context.Context) ([]Photo, error) {
 }
 
 const getPhoto = `-- name: GetPhoto :one
-SELECT id, album_id, user_id, key, status, created_at, updated_at FROM photos
-WHERE id = $1 LIMIT 1
+SELECT id, user_id, key, status, created_at, updated_at
+FROM photos
+WHERE id = $1 
+LIMIT 1
 `
 
 func (q *Queries) GetPhoto(ctx context.Context, id int32) (Photo, error) {
@@ -132,91 +131,6 @@ func (q *Queries) GetPhoto(ctx context.Context, id int32) (Photo, error) {
 	var i Photo
 	err := row.Scan(
 		&i.ID,
-		&i.AlbumID,
-		&i.UserID,
-		&i.Key,
-		&i.Status,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const listPhotosByAlbum = `-- name: ListPhotosByAlbum :many
-SELECT id, album_id, user_id, key, status, created_at, updated_at FROM photos
-WHERE album_id = $1
-LIMIT $2 
-OFFSET $3
-`
-
-type ListPhotosByAlbumParams struct {
-	AlbumID sql.NullInt32
-	Limit   int32
-	Offset  int32
-}
-
-func (q *Queries) ListPhotosByAlbum(ctx context.Context, arg ListPhotosByAlbumParams) ([]Photo, error) {
-	rows, err := q.db.QueryContext(ctx, listPhotosByAlbum, arg.AlbumID, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Photo
-	for rows.Next() {
-		var i Photo
-		if err := rows.Scan(
-			&i.ID,
-			&i.AlbumID,
-			&i.UserID,
-			&i.Key,
-			&i.Status,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const updatePhoto = `-- name: UpdatePhoto :one
-UPDATE photos
-SET
-  album_id = $2,
-  key = $3,
-  status = $4,
-  updated_at = $5
-WHERE id = $1
-RETURNING id, album_id, user_id, key, status, created_at, updated_at
-`
-
-type UpdatePhotoParams struct {
-	ID        int32
-	AlbumID   sql.NullInt32
-	Key       string
-	Status    PhotoStatus
-	UpdatedAt time.Time
-}
-
-func (q *Queries) UpdatePhoto(ctx context.Context, arg UpdatePhotoParams) (Photo, error) {
-	row := q.db.QueryRowContext(ctx, updatePhoto,
-		arg.ID,
-		arg.AlbumID,
-		arg.Key,
-		arg.Status,
-		arg.UpdatedAt,
-	)
-	var i Photo
-	err := row.Scan(
-		&i.ID,
-		&i.AlbumID,
 		&i.UserID,
 		&i.Key,
 		&i.Status,

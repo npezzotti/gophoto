@@ -3,12 +3,14 @@ package workers
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/h2non/bimg"
@@ -18,13 +20,41 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+type PhotoType string
+
+const (
+	PhotoTypeUserPhoto  PhotoType = "user_photo"
+	PhotoTypeProfilePic PhotoType = "profile_picture"
+)
+
+type ImageOpts struct {
+	Variant db.PhotoVariant
+	Width   int
+	Height  int
+	Quality int
+	Type    bimg.ImageType
+}
+
+var (
+	UserPhotoSizes []ImageOpts = []ImageOpts{
+		{Variant: db.PhotoVariantThumb, Width: 300, Height: 300, Quality: 80, Type: bimg.WEBP},
+		{Variant: db.PhotoVariantLarge, Width: 1920, Height: 1080, Quality: 90, Type: bimg.WEBP},
+	}
+
+	ProfilePicSizes []ImageOpts = []ImageOpts{
+		{Variant: db.PhotoVariantAvatar, Width: 100, Height: 100, Quality: 80, Type: bimg.WEBP},
+		{Variant: db.PhotoVariantThumb, Width: 300, Height: 300, Quality: 80, Type: bimg.WEBP},
+	}
+)
+
 type PhotoProcessingJob struct {
+	Type    PhotoType
 	PhotoID int32
+	UserID  int32
 }
 
 type PhotoProcessorWorker struct {
 	redisClient *redis.Client
-	imageOpts   []ImageOpts
 	baseURL     *url.URL
 	db          *db.Queries
 	store       store.Store
@@ -33,26 +63,14 @@ type PhotoProcessorWorker struct {
 	doneChan    chan bool
 }
 
-type ImageOpts struct {
-	Suffix  string
-	Width   int
-	Height  int
-	Quality int
-	Type    bimg.ImageType
-}
-
 func NewPhotoProcessorWorker(redisClient *redis.Client, cfg *config.Config, db *db.Queries, s store.Store, l *log.Logger) (*PhotoProcessorWorker, error) {
 	ppw := &PhotoProcessorWorker{
 		redisClient: redisClient,
 		db:          db,
 		store:       s,
 		log:         l,
-		imageOpts: []ImageOpts{
-			{Suffix: string(store.FileSuffixThumbnail), Width: 300, Height: 300, Quality: 80, Type: bimg.WEBP},
-			{Suffix: string(store.FileSuffixLarge), Width: 1920, Height: 1080, Quality: 90, Type: bimg.WEBP},
-		},
-		stopChan: make(chan struct{}),
-		doneChan: make(chan bool, 1),
+		stopChan:    make(chan struct{}),
+		doneChan:    make(chan bool, 1),
 	}
 
 	if cfg.StorageType == config.StorageTypeDisk {
@@ -106,7 +124,17 @@ func (ppw *PhotoProcessorWorker) handleJob(msg *redis.Message) error {
 		return fmt.Errorf("error unmarshalling message payload %q: %w", msg.Payload, err)
 	}
 
-	if err := ppw.processPhoto(processingJob.PhotoID); err != nil {
+	var sizes []ImageOpts
+	switch processingJob.Type {
+	case PhotoTypeUserPhoto:
+		sizes = UserPhotoSizes
+	case PhotoTypeProfilePic:
+		sizes = ProfilePicSizes
+	default:
+		return fmt.Errorf("unknown photo type: %s", processingJob.Type)
+	}
+
+	if err := ppw.processPhoto(processingJob.PhotoID, sizes); err != nil {
 		return fmt.Errorf("error processing photo ID %d: %w", processingJob.PhotoID, err)
 	}
 	return nil
@@ -120,7 +148,7 @@ func (ppw *PhotoProcessorWorker) updatePhotoStatus(photo db.Photo, status db.Pho
 	})
 }
 
-func (ppw *PhotoProcessorWorker) processPhoto(photoId int32) error {
+func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) error {
 	ppw.log.Printf("starting photo processing job for photo ID %d", photoId)
 
 	photo, err := ppw.db.GetPhoto(context.Background(), photoId)
@@ -146,12 +174,12 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32) error {
 		return fmt.Errorf("error getting image metadata: %v", err)
 	}
 
-	for _, opts := range ppw.imageOpts {
+	for _, size := range sizes {
 		imageOpts := bimg.Options{
-			Width:   opts.Width,
-			Height:  opts.Height,
-			Quality: opts.Quality,
-			Type:    opts.Type,
+			Width:   size.Width,
+			Height:  size.Height,
+			Quality: size.Quality,
+			Type:    size.Type,
 		}
 
 		widthRatio := float64(meta.Size.Width) / float64(imageOpts.Width)
@@ -166,13 +194,23 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32) error {
 		processedImg, err := bimg.NewImage(photoBytes).Process(imageOpts)
 		if err != nil {
 			processingErr = err
-			ppw.log.Printf("error processing image for %s: %v", opts.Suffix, err)
+			ppw.log.Printf("error processing %s image: %v", size.Variant, err)
 			continue
 		}
 
-		if err := ppw.store.Write(context.Background(), photo.Key+opts.Suffix, bytes.NewReader(processedImg)); err != nil {
+		if _, err := ppw.db.CreatePhotoMetadata(context.Background(), db.CreatePhotoMetadataParams{
+			PhotoID:  photo.ID,
+			Variant:  size.Variant,
+			FileSize: sql.NullInt64{Int64: int64(len(processedImg)), Valid: true},
+		}); err != nil {
 			processingErr = err
-			ppw.log.Printf("error writing %s image to store: %v", opts.Suffix, err)
+			ppw.log.Printf("error creating photo metadata for %q: %v", size.Variant, err)
+			continue
+		}
+
+		if err := ppw.store.Write(context.Background(), strings.Join([]string{photo.Key, string(size.Variant)}, "_"), bytes.NewReader(processedImg)); err != nil {
+			processingErr = err
+			ppw.log.Printf("error writing %s image to store: %v", size.Variant, err)
 			continue
 		}
 	}

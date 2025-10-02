@@ -1,41 +1,26 @@
 -- name: GetPhoto :one
-SELECT * FROM photos
-WHERE id = $1 LIMIT 1;
+SELECT *
+FROM photos
+WHERE id = $1 
+LIMIT 1;
 
 -- name: GetAlbumCover :one
-SELECT * FROM photos
-WHERE album_id = $1
-ORDER BY created_at DESC
-LIMIT 1; 
-
--- name: ListPhotosByAlbum :many
-SELECT * FROM photos
-WHERE album_id = $1
-LIMIT $2 
-OFFSET $3;
+SELECT p.* FROM photos p
+JOIN album_photos ap ON ap.photo_id = p.id
+WHERE ap.album_id = $1
+ORDER BY p.created_at DESC
+LIMIT 1;
 
 -- name: CreatePhoto :one
 INSERT INTO photos (
-  album_id,
   user_id,
   key,
   status
 ) VALUES (
   $1,
   $2,
-  $3,
-  $4
+  $3
 )
-RETURNING *;
-
--- name: UpdatePhoto :one
-UPDATE photos
-SET
-  album_id = $2,
-  key = $3,
-  status = $4,
-  updated_at = $5
-WHERE id = $1
 RETURNING *;
 
 -- name: UpdatePhotoStatus :exec
@@ -50,6 +35,14 @@ DELETE FROM photos
 WHERE id = $1;
 
 -- name: GetOrphanedPhotos :many
-SELECT * FROM photos
-WHERE album_id IS NULL
+SELECT * FROM photos p
+WHERE p.id NOT IN (
+  SELECT ap.photo_id 
+  FROM album_photos ap
+)
+AND p.id NOT IN (
+  SELECT u.profile_picture_id 
+  FROM users u 
+  WHERE u.profile_picture_id IS NOT NULL
+)
 LIMIT 10;

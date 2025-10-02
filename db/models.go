@@ -54,6 +54,50 @@ func (ns NullPhotoStatus) Value() (driver.Value, error) {
 	return string(ns.PhotoStatus), nil
 }
 
+type PhotoVariant string
+
+const (
+	PhotoVariantOriginal PhotoVariant = "original"
+	PhotoVariantThumb    PhotoVariant = "thumb"
+	PhotoVariantLarge    PhotoVariant = "large"
+	PhotoVariantAvatar   PhotoVariant = "avatar"
+)
+
+func (e *PhotoVariant) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PhotoVariant(s)
+	case string:
+		*e = PhotoVariant(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PhotoVariant: %T", src)
+	}
+	return nil
+}
+
+type NullPhotoVariant struct {
+	PhotoVariant PhotoVariant
+	Valid        bool // Valid is true if PhotoVariant is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPhotoVariant) Scan(value interface{}) error {
+	if value == nil {
+		ns.PhotoVariant, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PhotoVariant.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPhotoVariant) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PhotoVariant), nil
+}
+
 type Album struct {
 	ID        int32
 	UserID    int32
@@ -62,14 +106,26 @@ type Album struct {
 	UpdatedAt time.Time
 }
 
+type AlbumPhoto struct {
+	AlbumID int32
+	PhotoID int32
+}
+
 type Photo struct {
 	ID        int32
-	AlbumID   sql.NullInt32
 	UserID    int32
 	Key       string
 	Status    PhotoStatus
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+type PhotoMetadatum struct {
+	ID        int32
+	PhotoID   int32
+	Variant   PhotoVariant
+	FileSize  sql.NullInt64
+	CreatedAt time.Time
 }
 
 type Session struct {
@@ -79,12 +135,12 @@ type Session struct {
 }
 
 type User struct {
-	ID                int32
-	FirstName         string
-	LastName          string
-	Email             string
-	PasswordHash      string
-	ProfilePictureKey sql.NullString
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID               int32
+	FirstName        string
+	LastName         string
+	Email            string
+	PasswordHash     string
+	ProfilePictureID sql.NullInt32
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }

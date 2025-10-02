@@ -72,8 +72,13 @@ func (scw *StorageCleanerWorker) cleanStorage() {
 	scw.log.Printf("found %d orphaned photos to delete", len(photos))
 
 	for _, photo := range photos {
-		for _, suffix := range []store.FileSuffix{"", store.FileSuffixThumbnail, store.FileSuffixLarge} {
-			key := photo.Key + string(suffix)
+		metadata, err := scw.db.GetPhotoMetadataByPhotoID(ctx, photo.ID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			scw.log.Printf("error getting metadata for photo %d: %s", photo.ID, err.Error())
+			continue
+		}
+		for _, m := range metadata {
+			key := photo.Key + "_" + string(m.Variant)
 			if err := scw.store.Delete(ctx, key); err != nil {
 				if !errors.Is(err, store.ErrNotExist) {
 					scw.log.Printf("error deleting file with key %s: %s", key, err.Error())

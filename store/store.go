@@ -14,6 +14,7 @@ const (
 	FileSuffixOriginal  FileSuffix = "_original"
 	FileSuffixThumbnail FileSuffix = "_thumb"
 	FileSuffixLarge     FileSuffix = "_large"
+	FileSuffixAvatar    FileSuffix = "_avatar"
 )
 
 var ErrNotExist error = errors.New("file does not exist")

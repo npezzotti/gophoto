@@ -4,8 +4,10 @@ WHERE email = $1
 LIMIT 1;
 
 -- name: GetUserById :one
-SELECT * FROM users
-WHERE id = $1
+SELECT u.*, p.key AS profile_picture_key 
+FROM users u
+LEFT JOIN photos p ON u.profile_picture_id = p.id
+WHERE u.id = $1
 LIMIT 1;
 
 -- name: UserExists :one
@@ -30,7 +32,7 @@ SET
   last_name = $3,
   email = $4,
   password_hash = $5,
-  profile_picture_key = $6,
+  profile_picture_id = $6,
   updated_at = $7
 WHERE id = $1
 RETURNING *;

@@ -1,15 +1,14 @@
 -- name: GetAlbum :one
-SELECT a.*, COUNT(p.*) AS num_photos
+SELECT 
+  a.*, 
+  (SELECT COUNT(*) FROM album_photos WHERE album_id = a.id) AS num_photos
 FROM albums a
-  LEFT JOIN photos p on p.album_id = a.id
-WHERE a.id = $1 
-GROUP BY a.id
-LIMIT 1;
+WHERE a.id = $1;
 
 -- name: ListAlbumsByUser :many
-SELECT a.*, COUNT(p.*) AS num_photos
+SELECT a.*, COUNT(ap.*) AS num_photos
 FROM albums a
-  LEFT JOIN photos p ON p.album_id = a.id
+  LEFT JOIN album_photos ap ON ap.album_id = a.id
 WHERE a.user_id = $1
 GROUP BY a.id
 LIMIT $2

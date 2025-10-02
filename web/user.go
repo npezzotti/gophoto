@@ -3,6 +3,8 @@ package web
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -10,30 +12,42 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/npezzotti/gophoto/db"
+	"github.com/npezzotti/gophoto/store"
+	"github.com/npezzotti/gophoto/workers"
 )
 
 type UserResponse struct {
-	FirstName         string
-	LastName          string
-	Email             string
-	ProfilePictureURL string
+	FirstName               string
+	LastName                string
+	Email                   string
+	ProfilePictureThumbURL  string
+	ProfilePictureAvatarURL string
 }
 
-func (a *application) newUserResponse(ctx context.Context, user *db.User) *UserResponse {
-	var url = filepath.Join("/assets", DefaultProfilePic)
-
+func (a *application) newUserResponse(ctx context.Context, user *db.GetUserByIdRow) *UserResponse {
+	var thumbUrl, avatarUrl string
+	var err error
 	if user.ProfilePictureKey.Valid {
-		existingUrl, err := a.store.Read(ctx, user.ProfilePictureKey.String)
-		if err == nil {
-			url = existingUrl
+		thumbUrl, err = a.store.Read(ctx, user.ProfilePictureKey.String+string(store.FileSuffixThumbnail))
+		if err != nil {
+			a.ErrorLog.Println("error reading profile picture from store:", err)
 		}
+		avatarUrl, err = a.store.Read(ctx, user.ProfilePictureKey.String+string(store.FileSuffixAvatar))
+		if err != nil {
+			a.ErrorLog.Println("error reading profile picture from store:", err)
+		}
+	} else {
+		// No profile picture set, use defaults
+		thumbUrl = filepath.Join("/assets", DefaultProfilePrefix+string(store.FileSuffixThumbnail)+".webp")
+		avatarUrl = filepath.Join("/assets", DefaultProfilePrefix+string(store.FileSuffixAvatar)+".webp")
 	}
 
 	return &UserResponse{
-		FirstName:         user.FirstName,
-		LastName:          user.LastName,
-		Email:             user.Email,
-		ProfilePictureURL: url,
+		FirstName:               user.FirstName,
+		LastName:                user.LastName,
+		Email:                   user.Email,
+		ProfilePictureThumbURL:  thumbUrl,
+		ProfilePictureAvatarURL: avatarUrl,
 	}
 }
 
@@ -224,49 +238,106 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 	switch r.Method {
 	case http.MethodPost:
 		if err := r.ParseForm(); err != nil {
-			if err := r.ParseForm(); err != nil {
-				a.ErrorLog.Println("error parsing form:", err)
+			a.ErrorLog.Println("error parsing form:", err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		f, fh, err := r.FormFile(FormProfilePictureName)
+		if err != nil {
+			if err := a.writeJsonResp(w, http.StatusBadRequest, map[string]string{"error": strings.ToLower(http.StatusText(http.StatusBadRequest))}); err != nil {
+				a.ErrorLog.Println("error writing json response:", err)
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+			return
+		}
+		defer f.Close()
+
+		if fh.Size > MaxUploadSize {
+			if err := a.writeJsonResp(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Profile picture exceeds maximum upload size of %dMB.", MaxUploadSize/1024/1024)}); err != nil {
+				a.ErrorLog.Println("error writing json response:", err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
 			}
 		}
 
-		file, fileHeader, err := r.FormFile("profile_picture")
+		filetype, err := detectContentType(f)
 		if err != nil {
+			a.ErrorLog.Println("error detecting content type:", err)
+			resp := map[string]string{"error": strings.ToLower(http.StatusText(http.StatusInternalServerError))}
+			if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
+				a.ErrorLog.Println("error writing json response:", err)
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+			return
+		}
+
+		if !strings.HasPrefix(filetype, "image/") {
+			resp := map[string]string{"error": "file type not allowed"}
+			if err := a.writeJsonResp(w, http.StatusBadRequest, resp); err != nil {
+				a.ErrorLog.Println("error writing json response:", err)
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+			return
+		}
+
+		key := uuid.New().String()
+
+		user := a.getUserFromRequest(r)
+		createPhotoParams := db.CreatePhotoParams{
+			UserID: user.ID,
+			Key:    key,
+			Status: db.PhotoStatusProcessing,
+		}
+		photo, err := a.database.CreatePhoto(r.Context(), createPhotoParams)
+		if err != nil {
+			a.ErrorLog.Printf("error creating photo record: %s", err)
 			a.Flash(r, "Error uploading profile picture. Please try again.", flashErr)
 			http.Redirect(w, r, "/profile", http.StatusSeeOther)
 			return
 		}
-		defer file.Close()
 
-		if fileHeader.Size > MaxUploadSize {
-			a.Flash(r, "Profile picture exceeds maximum upload size of 5MB.", flashErr)
+		if _, err = a.database.CreatePhotoMetadata(r.Context(), db.CreatePhotoMetadataParams{
+			PhotoID:  photo.ID,
+			Variant:  db.PhotoVariantOriginal,
+			FileSize: sql.NullInt64{Int64: fh.Size, Valid: true},
+		}); err != nil {
+			a.ErrorLog.Printf("error creating photo metadata record: %s", err)
+			a.Flash(r, "Error uploading profile picture. Please try again.", flashErr)
 			http.Redirect(w, r, "/profile", http.StatusSeeOther)
 			return
 		}
 
-		user := a.getUserFromRequest(r)
-		if user.ProfilePictureKey.Valid {
-			if err := a.store.Delete(r.Context(), user.ProfilePictureKey.String); err != nil {
-				a.ErrorLog.Printf("error deleting existing profile picture from storage: %s", err)
-			}
+		if err := a.store.Write(r.Context(), key+string(store.FileSuffixOriginal), f); err != nil {
+			a.ErrorLog.Printf("error writing profile picture to storage: %s", err)
+			a.Flash(r, "Error uploading profile picture. Please try again.", flashErr)
+			http.Redirect(w, r, "/profile", http.StatusSeeOther)
+			return
 		}
 
-		key := uuid.New().String()
-		if err := a.store.Write(r.Context(), key, file); err != nil {
-			a.ErrorLog.Printf("error writing profile picture to storage: %s", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		// Process photo in background
+		processingJob, err := json.Marshal(workers.PhotoProcessingJob{Type: workers.PhotoTypeProfilePic, PhotoID: photo.ID})
+		if err != nil {
+			a.ErrorLog.Printf("error marshalling photo processing job: %s\n", err.Error())
+			return
+		}
+		err = a.redisClient.Publish(context.Background(), workers.PhotoProcessingQueue, processingJob).Err()
+		if err != nil {
+			a.ErrorLog.Printf("error publishing photo processing job: %s\n", err.Error())
 			return
 		}
 
 		_, err = a.database.UpdateUser(r.Context(), db.UpdateUserParams{
-			ID:                user.ID,
-			FirstName:         user.FirstName,
-			LastName:          user.LastName,
-			Email:             user.Email,
-			PasswordHash:      user.PasswordHash,
-			ProfilePictureKey: sql.NullString{String: key, Valid: true},
-			UpdatedAt:         time.Now(),
+			ID:               user.ID,
+			FirstName:        user.FirstName,
+			LastName:         user.LastName,
+			Email:            user.Email,
+			PasswordHash:     user.PasswordHash,
+			ProfilePictureID: sql.NullInt32{Int32: photo.ID, Valid: true},
+			UpdatedAt:        time.Now(),
 		})
 		if err != nil {
 			a.ErrorLog.Println("error updating user:", err)
@@ -275,7 +346,13 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 			return
 		}
 
-		http.Redirect(w, r, "/profile", http.StatusSeeOther)
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]int32{"id": photo.ID}); err != nil {
+			a.ErrorLog.Println("error encoding json:", err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
 		return
 	default:
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
