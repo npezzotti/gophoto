@@ -47,11 +47,12 @@ func (a *application) getUserFromRequest(r *http.Request) *db.GetUserByIdRow {
 			if err != sql.ErrNoRows {
 				a.ErrorLog.Printf("error querying user: %s\n", err.Error())
 			}
+			return &db.GetUserByIdRow{}
 		}
 		return &userRow
 	}
 
-	return nil
+	return &db.GetUserByIdRow{}
 }
 
 func (a *application) writeJsonResp(w http.ResponseWriter, status int, data any) error {

@@ -25,6 +25,7 @@ type UserResponse struct {
 }
 
 func (a *application) newUserResponse(ctx context.Context, user *db.GetUserByIdRow) *UserResponse {
+	a.InfoLog.Println(user)
 	var thumbUrl, avatarUrl string
 	var err error
 	if user.ProfilePictureKey.Valid {
