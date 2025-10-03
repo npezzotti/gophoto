@@ -18,7 +18,7 @@ type S3Store struct {
 	Presigner  *s3.PresignClient
 }
 
-func NewS3Store() *S3Store {
+func NewS3Store(bucketName string) *S3Store {
 	cfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion("us-east-1"))
 	if err != nil {
 		log.Fatalf("unable to load SDK config, %v", err)
@@ -27,12 +27,13 @@ func NewS3Store() *S3Store {
 	svc := s3.NewFromConfig(cfg)
 
 	return &S3Store{
-		Client:    svc,
-		Presigner: s3.NewPresignClient(svc),
+		Client:     svc,
+		Presigner:  s3.NewPresignClient(svc),
+		BucketName: bucketName,
 	}
 }
 
-func (s *S3Store) Read(ctx context.Context, key string) (string, error) {
+func (s *S3Store) GenerateURL(ctx context.Context, key string) (string, error) {
 	request, err := s.Presigner.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.BucketName),
 		Key:    aws.String(key),

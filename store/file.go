@@ -26,7 +26,7 @@ func NewFileStore(baseDir string) (*FileStore, error) {
 	}, nil
 }
 
-func (fs *FileStore) Read(ctx context.Context, key string) (string, error) {
+func (fs *FileStore) GenerateURL(ctx context.Context, key string) (string, error) {
 	f := fs.path(key)
 	if _, err := os.Stat(f); err != nil {
 		return "", err

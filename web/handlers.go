@@ -20,10 +20,10 @@ import (
 )
 
 const (
-	FormFileName           = "file"
-	MaxUploadSize          = 50 << (10 * 2)
-	DefaultProfilePrefix   = "images/profile"
-	DefaultAlbumCover      = "images/album_cover.webp"
+	FormFileName         = "file"
+	MaxUploadSize        = 50 << (10 * 2)
+	DefaultProfilePrefix = "images/profile"
+	DefaultAlbumCover    = "images/album_cover.webp"
 )
 
 type UserImageResponse struct {
@@ -51,7 +51,7 @@ func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsB
 
 	var coverUrl string
 	if len(coverPhotos) > 0 {
-		coverUrl, err = a.store.Read(ctx, coverPhotos[0].Key+string(store.FileSuffixThumbnail))
+		coverUrl, err = a.store.GenerateURL(ctx, coverPhotos[0].Key+string(store.FileSuffixThumbnail))
 		if err != nil {
 			a.ErrorLog.Printf("error generating url for %s: %s\n", coverPhotos[0].Key, err)
 		}
@@ -66,17 +66,17 @@ func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsB
 }
 
 func (a *application) newUserImageResponse(ctx context.Context, photo db.Photo) *UserImageResponse {
-	original, err := a.store.Read(ctx, photo.Key+string(store.FileSuffixOriginal))
+	original, err := a.store.GenerateURL(ctx, photo.Key+string(store.FileSuffixOriginal))
 	if err != nil {
 		a.ErrorLog.Printf("error generating url for photo %d: %s\n", photo.ID, err.Error())
 	}
 
-	thumbnail, err := a.store.Read(ctx, photo.Key+string(store.FileSuffixThumbnail))
+	thumbnail, err := a.store.GenerateURL(ctx, photo.Key+string(store.FileSuffixThumbnail))
 	if err != nil {
 		a.ErrorLog.Printf("error generating url for photo %d: %s\n", photo.ID, err.Error())
 	}
 
-	large, err := a.store.Read(ctx, photo.Key+string(store.FileSuffixLarge))
+	large, err := a.store.GenerateURL(ctx, photo.Key+string(store.FileSuffixLarge))
 	if err != nil {
 		a.ErrorLog.Printf("error generating url for photo %d: %s\n", photo.ID, err.Error())
 	}

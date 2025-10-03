@@ -223,7 +223,7 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 }
 
 func (ppw *PhotoProcessorWorker) downloadOriginal(photo db.Photo) ([]byte, error) {
-	photoURL, err := ppw.store.Read(context.Background(), photo.Key+string(store.FileSuffixOriginal))
+	photoURL, err := ppw.store.GenerateURL(context.Background(), photo.Key+string(store.FileSuffixOriginal))
 	if err != nil {
 		return nil, fmt.Errorf("error reading photo from store: %v", err)
 	}

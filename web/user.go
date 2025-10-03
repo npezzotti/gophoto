@@ -29,11 +29,11 @@ func (a *application) newUserResponse(ctx context.Context, user *db.GetUserByIdR
 	var thumbUrl, avatarUrl string
 	var err error
 	if user.ProfilePictureKey.Valid {
-		thumbUrl, err = a.store.Read(ctx, user.ProfilePictureKey.String+string(store.FileSuffixThumbnail))
+		thumbUrl, err = a.store.GenerateURL(ctx, user.ProfilePictureKey.String+string(store.FileSuffixThumbnail))
 		if err != nil {
 			a.ErrorLog.Println("error reading profile picture from store:", err)
 		}
-		avatarUrl, err = a.store.Read(ctx, user.ProfilePictureKey.String+string(store.FileSuffixAvatar))
+		avatarUrl, err = a.store.GenerateURL(ctx, user.ProfilePictureKey.String+string(store.FileSuffixAvatar))
 		if err != nil {
 			a.ErrorLog.Println("error reading profile picture from store:", err)
 		}

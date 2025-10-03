@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-
-	"github.com/npezzotti/gophoto/config"
 )
 
 type FileSuffix string
@@ -13,6 +11,8 @@ type FileSuffix string
 const (
 	FileSuffixOriginal  FileSuffix = "_original"
 	FileSuffixThumbnail FileSuffix = "_thumb"
+	FileSuffixSmall     FileSuffix = "_small"
+	FileSuffixMedium    FileSuffix = "_medium"
 	FileSuffixLarge     FileSuffix = "_large"
 	FileSuffixAvatar    FileSuffix = "_avatar"
 )
@@ -20,29 +20,7 @@ const (
 var ErrNotExist error = errors.New("file does not exist")
 
 type Store interface {
-	Read(ctx context.Context, key string) (string, error)
+	GenerateURL(ctx context.Context, key string) (string, error)
 	Write(ctx context.Context, key string, file io.Reader) error
 	Delete(ctx context.Context, key string) error
-}
-
-func NewStore(cfg *config.Config) (Store, error) {
-	var photoStore Store
-
-	switch cfg.StorageType {
-	case config.StorageTypeDisk:
-		s, err := NewFileStore(cfg.BaseDir)
-		if err != nil {
-			return nil, err
-		}
-
-		photoStore = s
-	case config.StorageTypeS3:
-		s := NewS3Store()
-		s.BucketName = cfg.BucketName
-		photoStore = s
-	default:
-		return nil, errors.New("storage type not supported")
-	}
-
-	return photoStore, nil
 }

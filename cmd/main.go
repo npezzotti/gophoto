@@ -45,9 +45,17 @@ func main() {
 
 	querier := db.New(dbConn)
 
-	photoStore, err := store.NewStore(cfg)
+	var photoStore store.Store
+	switch cfg.StorageType {
+	case config.StorageTypeDisk:
+		photoStore, err = store.NewFileStore(cfg.BaseDir)
+	case config.StorageTypeS3:
+		photoStore = store.NewS3Store(cfg.BucketName)
+	default:
+		log.Fatal("storage type not supported")
+	}
 	if err != nil {
-		log.Fatal("error creating store:", err)
+		log.Fatalln("error creating store:", err)
 	}
 
 	redisClient, err := createRedisClient(cfg.RedisAddress)
