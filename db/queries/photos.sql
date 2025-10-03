@@ -4,13 +4,6 @@ FROM photos
 WHERE id = $1 
 LIMIT 1;
 
--- name: GetAlbumCover :one
-SELECT p.* FROM photos p
-JOIN album_photos ap ON ap.photo_id = p.id
-WHERE ap.album_id = $1
-ORDER BY p.created_at DESC
-LIMIT 1;
-
 -- name: CreatePhoto :one
 INSERT INTO photos (
   user_id,

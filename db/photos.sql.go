@@ -53,28 +53,6 @@ func (q *Queries) DeletePhoto(ctx context.Context, id int32) error {
 	return err
 }
 
-const getAlbumCover = `-- name: GetAlbumCover :one
-SELECT p.id, p.user_id, p.key, p.status, p.created_at, p.updated_at FROM photos p
-JOIN album_photos ap ON ap.photo_id = p.id
-WHERE ap.album_id = $1
-ORDER BY p.created_at DESC
-LIMIT 1
-`
-
-func (q *Queries) GetAlbumCover(ctx context.Context, albumID int32) (Photo, error) {
-	row := q.db.QueryRowContext(ctx, getAlbumCover, albumID)
-	var i Photo
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.Key,
-		&i.Status,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const getOrphanedPhotos = `-- name: GetOrphanedPhotos :many
 SELECT id, user_id, key, status, created_at, updated_at FROM photos p
 WHERE p.id NOT IN (
