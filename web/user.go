@@ -321,7 +321,7 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 		}
 
 		// Process photo in background
-		processingJob, err := json.Marshal(workers.PhotoProcessingJob{Type: workers.PhotoTypeProfilePic, PhotoID: photo.ID})
+		processingJob, err := json.Marshal(workers.PhotoProcessingJob{Type: workers.JobTypeProfilePic, PhotoID: photo.ID})
 		if err != nil {
 			a.ErrorLog.Printf("error marshalling photo processing job: %s\n", err.Error())
 			return

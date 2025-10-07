@@ -70,3 +70,15 @@ func (s *S3Store) Delete(ctx context.Context, path string) error {
 
 	return err
 }
+
+func (s *S3Store) Read(ctx context.Context, path string) (io.ReadCloser, error) {
+	resp, err := s.Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.BucketName),
+		Key:    aws.String(path),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error getting object from S3: %w", err)
+	}
+
+	return resp.Body, nil
+}

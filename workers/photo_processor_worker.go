@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/h2non/bimg"
@@ -19,12 +17,18 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type PhotoType string
+type JobType string
 
 const (
-	PhotoTypeUserPhoto  PhotoType = "user_photo"
-	PhotoTypeProfilePic PhotoType = "profile_picture"
+	JobTypeAlbumPhoto JobType = "user_photo"
+	JobTypeProfilePic JobType = "profile_picture"
 )
+
+type PhotoProcessingJob struct {
+	Type    JobType
+	PhotoID int32
+	UserID  int32
+}
 
 type ImageOpts struct {
 	Variant db.PhotoVariant
@@ -46,15 +50,8 @@ var (
 	}
 )
 
-type PhotoProcessingJob struct {
-	Type    PhotoType
-	PhotoID int32
-	UserID  int32
-}
-
 type PhotoProcessorWorker struct {
 	redisClient *redis.Client
-	baseURL     *url.URL
 	db          *db.Queries
 	store       store.Store
 	log         *log.Logger
@@ -62,8 +59,8 @@ type PhotoProcessorWorker struct {
 	doneChan    chan bool
 }
 
-func NewPhotoProcessorWorker(redisClient *redis.Client, cfg *config.Config, db *db.Queries, s store.Store, l *log.Logger) (*PhotoProcessorWorker, error) {
-	ppw := &PhotoProcessorWorker{
+func NewPhotoProcessorWorker(redisClient *redis.Client, cfg *config.Config, db *db.Queries, s store.Store, l *log.Logger) *PhotoProcessorWorker {
+	return &PhotoProcessorWorker{
 		redisClient: redisClient,
 		db:          db,
 		store:       s,
@@ -71,17 +68,6 @@ func NewPhotoProcessorWorker(redisClient *redis.Client, cfg *config.Config, db *
 		stopChan:    make(chan struct{}),
 		doneChan:    make(chan bool, 1),
 	}
-
-	if cfg.StorageType == config.StorageTypeDisk {
-		// If using local file storage, set the internal URL for downloading photos
-		baseURL, err := url.Parse("http://" + cfg.HttpServerAddr)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing base URL: %w", err)
-		}
-		ppw.baseURL = baseURL
-	}
-
-	return ppw, nil
 }
 
 func (ppw *PhotoProcessorWorker) Run() {
@@ -125,9 +111,9 @@ func (ppw *PhotoProcessorWorker) handleJob(msg *redis.Message) error {
 
 	var sizes []ImageOpts
 	switch processingJob.Type {
-	case PhotoTypeUserPhoto:
+	case JobTypeAlbumPhoto:
 		sizes = UserPhotoSizes
-	case PhotoTypeProfilePic:
+	case JobTypeProfilePic:
 		sizes = ProfilePicSizes
 	default:
 		return fmt.Errorf("unknown photo type: %s", processingJob.Type)
@@ -155,22 +141,29 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 		return fmt.Errorf("error getting photo from database: %v", err)
 	}
 
-	var processingErr error
+	var processingErr bool
 	defer func() {
-		if processingErr != nil {
+		if processingErr {
 			ppw.updatePhotoStatus(photo, db.PhotoStatusErrored)
 		}
 	}()
 
-	photoBytes, err := ppw.downloadOriginal(photo)
+	photoReader, err := ppw.store.Read(context.Background(), store.BuildPhotoPath(photo.Key, db.PhotoVariantOriginal))
 	if err != nil {
-		processingErr = err
-		return fmt.Errorf("error downloading original photo: %v", err)
+		processingErr = true
+		return fmt.Errorf("error reading original photo from store: %v", err)
+	}
+	defer photoReader.Close()
+
+	photoBytes, err := io.ReadAll(photoReader)
+	if err != nil {
+		processingErr = true
+		return fmt.Errorf("error reading original photo data: %v", err)
 	}
 
 	meta, err := bimg.NewImage(photoBytes).Metadata()
 	if err != nil {
-		processingErr = err
+		processingErr = true
 		return fmt.Errorf("error getting image metadata: %v", err)
 	}
 
@@ -193,7 +186,7 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 
 		processedImg, err := bimg.NewImage(photoBytes).Process(imageOpts)
 		if err != nil {
-			processingErr = err
+			processingErr = true
 			ppw.log.Printf("error processing %s image: %v", size.Variant, err)
 			continue
 		}
@@ -205,52 +198,24 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 			MimeType: "image/webp",
 		})
 		if err != nil {
-			processingErr = err
+			processingErr = true
 			ppw.log.Printf("error creating photo metadata for %q: %v", size.Variant, err)
 			continue
 		}
 
 		if err := ppw.store.Write(context.Background(), store.BuildPhotoPath(photo.Key, photoMeta.Variant), bytes.NewReader(processedImg)); err != nil {
-			processingErr = err
+			processingErr = true
 			ppw.log.Printf("error writing %s image to store: %v", size.Variant, err)
 			continue
 		}
 	}
 
 	if err := ppw.updatePhotoStatus(photo, db.PhotoStatusProcessed); err != nil {
-		processingErr = err
+		processingErr = true
 		ppw.log.Printf("error updating photo %d status: %v", photoId, err)
 	}
+
 	return nil
-}
-
-func (ppw *PhotoProcessorWorker) downloadOriginal(photo db.Photo) ([]byte, error) {
-	photoFile := store.BuildPhotoPath(photo.Key, db.PhotoVariantOriginal)
-	photoURL, err := ppw.store.GenerateURL(context.Background(), photoFile)
-	if err != nil {
-		return nil, fmt.Errorf("error generating photo URL: %v", err)
-	}
-
-	if ppw.baseURL != nil {
-		// If using local file storage, prepend the base URL to the photo URL
-		photoURL = ppw.baseURL.String() + photoURL
-	}
-
-	resp, err := http.Get(photoURL)
-	if err != nil {
-		return nil, fmt.Errorf("error fetching photo from URL: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error fetching photo, status code: %d", resp.StatusCode)
-	}
-
-	buffer, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading photo response body: %v", err)
-	}
-	return buffer, nil
 }
 
 func (ppw *PhotoProcessorWorker) Stop() {

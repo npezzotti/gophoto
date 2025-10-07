@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/alexedwards/scs/postgresstore"
 	"github.com/alexedwards/scs/v2"
@@ -78,14 +79,7 @@ func main() {
 	storageCleanerWorker := workers.NewStorageCleanerWorker(querier, photoStore, app.InfoLog, workers.DefaultFrequency)
 	storageCleanerWorker.Run()
 
-	photoProcessorWorker, err := workers.NewPhotoProcessorWorker(redisClient, cfg, querier, photoStore, app.InfoLog)
-	if err != nil {
-		log.Fatal("error creating photo processor worker:", err)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+	photoProcessorWorker := workers.NewPhotoProcessorWorker(redisClient, cfg, querier, photoStore, app.InfoLog)
 	photoProcessorWorker.Run()
 
 	errChan := make(chan error)
@@ -106,6 +100,9 @@ func main() {
 
 	doneChan := make(chan struct{})
 	var wg sync.WaitGroup
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
 
 	wg.Add(1)
 	go func() {

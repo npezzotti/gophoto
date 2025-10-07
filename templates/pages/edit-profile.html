@@ -42,7 +42,7 @@
                         <p class="text-danger p-3">{{ . }}</p>
                         {{ end }}
                         <label for="email" class="form-label">Email address</label>
-                        <input type="email" class="form-control mb-2" id="email" name="email" value="{{ .Form.Email }}">
+                        <input type="email" class="form-control mb-2" id="email" name="email" value="{{ .Form.Email }}" autocomplete="email">
                     </div>
                     <div class="col-lg-6">
                         {{ with .Form.Errors.Password }}
@@ -50,13 +50,13 @@
                         {{ end }}
                         <label for="password" class="form-label">New password</label>
                         <input type="password" class="form-control mb-2" id="password" name="password"
-                            value="{{ .Form.Password }}">
+                            value="{{ .Form.Password }}" autocomplete="new-password">
                         {{ with .Form.Errors.ConfirmPassword }}
                         <p class="text-danger p-3">{{ . }}</p>
                         {{ end }}
                         <label for="confirmPassword" class="form-label">Confirm password</label>
                         <input type="password" class="form-control mb-2" id="confirmPassword" name="confirm_password"
-                            value="{{ .Form.ConfirmPassword }}">
+                            value="{{ .Form.ConfirmPassword }}" autocomplete="new-password">
                         <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
                     </div>
                 </div>

@@ -35,6 +35,16 @@ func (fs *FileStore) GenerateURL(ctx context.Context, path string) (string, erro
 	return filepath.Join("/", f), nil
 }
 
+func (fs *FileStore) Read(ctx context.Context, path string) (io.ReadCloser, error) {
+	filePath := fs.path(path)
+	f, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("error opening file: %w", err)
+	}
+
+	return f, nil
+}
+
 func (fs *FileStore) Write(ctx context.Context, path string, file io.Reader) error {
 	// Create the directory if it doesn't exist
 	fpath := fs.path(path)
@@ -87,6 +97,8 @@ func (fs *FileStore) Delete(ctx context.Context, path string) error {
 	return nil
 }
 
+// path returns the full path to the file by joining the
+// base directory with the provided key
 func (fs *FileStore) path(key string) string {
 	return filepath.Join(fs.BaseDir, key)
 }

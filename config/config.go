@@ -11,7 +11,7 @@ const (
 	StorageTypeDisk storageType = "disk"
 	StorageTypeS3   storageType = "s3"
 	DefaultAddress              = ":8800"
-	DefaultBaseDir              = "./uploads"
+	DefaultBaseDir              = "uploads"
 )
 
 type Config struct {
