@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"net/http"
-	"strings"
 
 	"github.com/justinas/nosurf"
 )
@@ -76,16 +75,7 @@ func noSurf(next http.Handler) http.Handler {
 func (a *application) checkFileOwnership(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user := a.getUserFromRequest(r)
-
-		// URL format is /<baseDir>/<shard1>/<shard2>/<key>/<filename>
-		// We need to extract the <key> part to look up the photo in the database.
-		parts := strings.Split(r.URL.Path, "/")
-		if len(parts) < 5 {
-			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
-			return
-		}
-		key := parts[len(parts)-2]
-
+		key := a.extractKeyFromPath(r.URL.Path)
 		photo, err := a.database.GetPhotoByKey(r.Context(), key)
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
