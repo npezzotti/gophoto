@@ -118,6 +118,27 @@ func (q *Queries) GetPhoto(ctx context.Context, id int32) (Photo, error) {
 	return i, err
 }
 
+const getPhotoByKey = `-- name: GetPhotoByKey :one
+SELECT id, user_id, key, status, created_at, updated_at
+FROM photos
+WHERE key = $1
+LIMIT 1
+`
+
+func (q *Queries) GetPhotoByKey(ctx context.Context, key string) (Photo, error) {
+	row := q.db.QueryRowContext(ctx, getPhotoByKey, key)
+	var i Photo
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Key,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updatePhotoStatus = `-- name: UpdatePhotoStatus :exec
 UPDATE photos
 SET

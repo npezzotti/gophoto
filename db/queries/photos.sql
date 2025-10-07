@@ -4,6 +4,12 @@ FROM photos
 WHERE id = $1 
 LIMIT 1;
 
+-- name: GetPhotoByKey :one
+SELECT *
+FROM photos
+WHERE key = $1
+LIMIT 1;
+
 -- name: CreatePhoto :one
 INSERT INTO photos (
   user_id,

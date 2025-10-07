@@ -58,8 +58,10 @@ type PhotoVariant string
 
 const (
 	PhotoVariantOriginal PhotoVariant = "original"
-	PhotoVariantThumb    PhotoVariant = "thumb"
 	PhotoVariantLarge    PhotoVariant = "large"
+	PhotoVariantSmall    PhotoVariant = "small"
+	PhotoVariantMedium   PhotoVariant = "medium"
+	PhotoVariantThumb    PhotoVariant = "thumb"
 	PhotoVariantAvatar   PhotoVariant = "avatar"
 )
 
@@ -125,6 +127,7 @@ type PhotoMetadatum struct {
 	PhotoID   int32
 	Variant   PhotoVariant
 	FileSize  sql.NullInt64
+	MimeType  string
 	CreatedAt time.Time
 }
 

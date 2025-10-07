@@ -51,7 +51,7 @@ func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsB
 
 	var coverUrl string
 	if len(coverPhotos) > 0 {
-		coverUrl, err = a.store.GenerateURL(ctx, coverPhotos[0].Key+string(store.FileSuffixThumbnail))
+		coverUrl, err = a.store.GenerateURL(ctx, store.BuildPhotoPath(coverPhotos[0].Key, db.PhotoVariantThumb))
 		if err != nil {
 			a.ErrorLog.Printf("error generating url for %s: %s\n", coverPhotos[0].Key, err)
 		}
@@ -66,17 +66,17 @@ func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsB
 }
 
 func (a *application) newUserImageResponse(ctx context.Context, photo db.Photo) *UserImageResponse {
-	original, err := a.store.GenerateURL(ctx, photo.Key+string(store.FileSuffixOriginal))
+	original, err := a.store.GenerateURL(ctx, store.BuildPhotoPath(photo.Key, db.PhotoVariantOriginal))
 	if err != nil {
 		a.ErrorLog.Printf("error generating url for photo %d: %s\n", photo.ID, err.Error())
 	}
 
-	thumbnail, err := a.store.GenerateURL(ctx, photo.Key+string(store.FileSuffixThumbnail))
+	thumbnail, err := a.store.GenerateURL(ctx, store.BuildPhotoPath(photo.Key, db.PhotoVariantThumb))
 	if err != nil {
 		a.ErrorLog.Printf("error generating url for photo %d: %s\n", photo.ID, err.Error())
 	}
 
-	large, err := a.store.GenerateURL(ctx, photo.Key+string(store.FileSuffixLarge))
+	large, err := a.store.GenerateURL(ctx, store.BuildPhotoPath(photo.Key, db.PhotoVariantLarge))
 	if err != nil {
 		a.ErrorLog.Printf("error generating url for photo %d: %s\n", photo.ID, err.Error())
 	}
@@ -426,11 +426,13 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if _, err = a.database.CreatePhotoMetadata(r.Context(), db.CreatePhotoMetadataParams{
+	photoMeta, err := a.database.CreatePhotoMetadata(r.Context(), db.CreatePhotoMetadataParams{
 		PhotoID:  photo.ID,
 		Variant:  db.PhotoVariantOriginal,
 		FileSize: sql.NullInt64{Int64: fh.Size, Valid: true},
-	}); err != nil {
+		MimeType: filetype,
+	})
+	if err != nil {
 		a.ErrorLog.Println("error creating photo metadata:", err)
 		resp := map[string]string{"error": strings.ToLower(http.StatusText(http.StatusInternalServerError))}
 		if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
@@ -451,7 +453,7 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := a.store.Write(r.Context(), photo.Key+string(store.FileSuffixOriginal), f); err != nil {
+	if err := a.store.Write(r.Context(), store.BuildPhotoPath(photo.Key, photoMeta.Variant), f); err != nil {
 		a.ErrorLog.Printf("error writing photo to storage: %s\n", err.Error())
 		resp := map[string]string{"error": strings.ToLower(http.StatusText(http.StatusInternalServerError))}
 		if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {

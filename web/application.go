@@ -83,7 +83,12 @@ func (a *application) routes() *http.ServeMux {
 	mux.Handle("/profile/photo/edit", a.protected(http.HandlerFunc(a.editProfilePictureHandler)))
 	mux.Handle("/profile/delete", a.protected(http.HandlerFunc(a.deleteAccountHandler)))
 	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
-	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads"))))
+
+	if a.config.StorageType == config.StorageTypeDisk {
+		// Only serve uploads directly if using local file storage
+		// mux.Handle("/uploads/", a.checkFileOwnership(a.protected(http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads"))))))
+		mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads"))))
+	}
 
 	return mux
 }

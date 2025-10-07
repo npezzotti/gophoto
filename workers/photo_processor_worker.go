@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/h2non/bimg"
@@ -162,6 +161,7 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 			ppw.updatePhotoStatus(photo, db.PhotoStatusErrored)
 		}
 	}()
+
 	photoBytes, err := ppw.downloadOriginal(photo)
 	if err != nil {
 		processingErr = err
@@ -198,17 +198,19 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 			continue
 		}
 
-		if _, err := ppw.db.CreatePhotoMetadata(context.Background(), db.CreatePhotoMetadataParams{
+		photoMeta, err := ppw.db.CreatePhotoMetadata(context.Background(), db.CreatePhotoMetadataParams{
 			PhotoID:  photo.ID,
 			Variant:  size.Variant,
 			FileSize: sql.NullInt64{Int64: int64(len(processedImg)), Valid: true},
-		}); err != nil {
+			MimeType: "image/webp",
+		})
+		if err != nil {
 			processingErr = err
 			ppw.log.Printf("error creating photo metadata for %q: %v", size.Variant, err)
 			continue
 		}
 
-		if err := ppw.store.Write(context.Background(), strings.Join([]string{photo.Key, string(size.Variant)}, "_"), bytes.NewReader(processedImg)); err != nil {
+		if err := ppw.store.Write(context.Background(), store.BuildPhotoPath(photo.Key, photoMeta.Variant), bytes.NewReader(processedImg)); err != nil {
 			processingErr = err
 			ppw.log.Printf("error writing %s image to store: %v", size.Variant, err)
 			continue
@@ -223,9 +225,10 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 }
 
 func (ppw *PhotoProcessorWorker) downloadOriginal(photo db.Photo) ([]byte, error) {
-	photoURL, err := ppw.store.GenerateURL(context.Background(), photo.Key+string(store.FileSuffixOriginal))
+	photoFile := store.BuildPhotoPath(photo.Key, db.PhotoVariantOriginal)
+	photoURL, err := ppw.store.GenerateURL(context.Background(), photoFile)
 	if err != nil {
-		return nil, fmt.Errorf("error reading photo from store: %v", err)
+		return nil, fmt.Errorf("error generating photo URL: %v", err)
 	}
 
 	if ppw.baseURL != nil {
@@ -238,6 +241,10 @@ func (ppw *PhotoProcessorWorker) downloadOriginal(photo db.Photo) ([]byte, error
 		return nil, fmt.Errorf("error fetching photo from URL: %v", err)
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("error fetching photo, status code: %d", resp.StatusCode)
+	}
 
 	buffer, err := io.ReadAll(resp.Body)
 	if err != nil {

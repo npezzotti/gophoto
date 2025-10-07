@@ -70,3 +70,30 @@ func noSurf(next http.Handler) http.Handler {
 
 	return csrfHandler
 }
+
+// // checkFileOwnership is a middleware that checks if the authenticated user owns the file they are trying to access.
+// func (a *application) checkFileOwnership(next http.Handler) http.Handler {
+// 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// 		user := a.getUserFromRequest(r)
+
+// 		pathPrefix := len("/uploads/")
+// 		fileParts := strings.Split(r.URL.Path[pathPrefix:], "_")
+// 		if len(fileParts) < 2 {
+// 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+// 			return
+// 		}
+
+// 		key := fileParts[0]
+// 		photo, err := a.database.GetPhotoByKey(r.Context(), key)
+// 		if err != nil {
+// 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+// 			return
+// 		}
+// 		if photo.UserID != user.ID {
+// 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+// 			return
+// 		}
+
+// 		next.ServeHTTP(w, r)
+// 	})
+// }

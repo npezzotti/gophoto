@@ -23,8 +23,8 @@ type StorageCleanerWorker struct {
 }
 
 const (
-	DefaultFrequency = 15 * time.Minute
-	DefaultTimeLimit = 10 * time.Minute
+	DefaultFrequency = 1 * time.Minute
+	DefaultTimeLimit  = 10 * time.Minute
 )
 
 func NewStorageCleanerWorker(db *db.Queries, store store.Store, logger *log.Logger, frequency time.Duration) StorageCleanerWorker {
@@ -78,10 +78,10 @@ func (scw *StorageCleanerWorker) cleanStorage() {
 			continue
 		}
 		for _, m := range metadata {
-			key := photo.Key + "_" + string(m.Variant)
-			if err := scw.store.Delete(ctx, key); err != nil {
+			path := store.BuildPhotoPath(photo.Key, m.Variant)
+			if err := scw.store.Delete(ctx, path); err != nil {
 				if !errors.Is(err, store.ErrNotExist) {
-					scw.log.Printf("error deleting file with key %s: %s", key, err.Error())
+					scw.log.Printf("error deleting file with key %s: %s", path, err.Error())
 					return
 				}
 			}

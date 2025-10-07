@@ -6,15 +6,15 @@ import (
 	"io"
 )
 
-type FileSuffix string
+type FileName string
 
 const (
-	FileSuffixOriginal  FileSuffix = "_original"
-	FileSuffixThumbnail FileSuffix = "_thumb"
-	FileSuffixSmall     FileSuffix = "_small"
-	FileSuffixMedium    FileSuffix = "_medium"
-	FileSuffixLarge     FileSuffix = "_large"
-	FileSuffixAvatar    FileSuffix = "_avatar"
+	FileNameOriginal  FileName = "original"
+	FileNameThumbnail FileName = "thumbnail"
+	FileNameSmall     FileName = "small"
+	FileNameMedium    FileName = "medium"
+	FileNameLarge     FileName = "large"
+	FileNameAvatar    FileName = "avatar"
 )
 
 var ErrNotExist error = errors.New("file does not exist")

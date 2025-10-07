@@ -19,6 +19,7 @@ type Config struct {
 	DatabaseSource   string
 	HttpServerAddr   string
 	BaseDir          string
+	StaticDir        string
 	BucketName       string
 	UseTemplateCache bool
 	RedisAddress     string
@@ -33,6 +34,10 @@ func LoadConfigFromEnv() (*Config, error) {
 		BaseDir:        os.Getenv("GOPHOTO_BASE_DIR"),
 		StorageType:    storageType(os.Getenv("GOPHOTO_STORAGE_TYPE")),
 		BucketName:     os.Getenv("GOPHOTO_BUCKET_NAME"),
+	}
+
+	if cfg.StaticDir == "" {
+		cfg.StaticDir = "./assets"
 	}
 
 	if cfg.HttpServerAddr == "" {

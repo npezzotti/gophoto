@@ -33,10 +33,10 @@ func NewS3Store(bucketName string) *S3Store {
 	}
 }
 
-func (s *S3Store) GenerateURL(ctx context.Context, key string) (string, error) {
+func (s *S3Store) GenerateURL(ctx context.Context, path string) (string, error) {
 	request, err := s.Presigner.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.BucketName),
-		Key:    aws.String(key),
+		Key:    aws.String(path),
 	}, func(po *s3.PresignOptions) {
 
 	})
@@ -47,12 +47,12 @@ func (s *S3Store) GenerateURL(ctx context.Context, key string) (string, error) {
 	return request.URL, nil
 }
 
-func (s *S3Store) Write(ctx context.Context, key string, file io.Reader) error {
+func (s *S3Store) Write(ctx context.Context, path string, file io.Reader) error {
 	uploader := manager.NewUploader(s.Client)
 
 	_, err := uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(s.BucketName),
-		Key:    aws.String(key),
+		Key:    aws.String(path),
 		Body:   file,
 	})
 	if err != nil {
@@ -62,10 +62,10 @@ func (s *S3Store) Write(ctx context.Context, key string, file io.Reader) error {
 	return nil
 }
 
-func (s *S3Store) Delete(ctx context.Context, key string) error {
+func (s *S3Store) Delete(ctx context.Context, path string) error {
 	_, err := s.Client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(s.BucketName),
-		Key:    aws.String(key),
+		Key:    aws.String(path),
 	})
 
 	return err

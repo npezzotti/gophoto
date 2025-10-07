@@ -51,13 +51,14 @@ CREATE TABLE album_photos (
 CREATE INDEX idx_album_photos_album_id ON album_photos(album_id);
 CREATE INDEX idx_album_photos_photo_id ON album_photos(photo_id);
 
-CREATE TYPE photo_variant AS ENUM ('original', 'thumb', 'large', 'avatar');
+CREATE TYPE photo_variant AS ENUM ('original', 'large', 'small', 'medium', 'thumb', 'avatar');
 
 CREATE TABLE photo_metadata (
     id SERIAL PRIMARY KEY,
     photo_id INT NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
     variant photo_variant NOT NULL,
     file_size BIGINT,
+    mime_type VARCHAR(50) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(photo_id, variant)
 );

@@ -28,18 +28,18 @@ func (a *application) newUserResponse(ctx context.Context, user *db.GetUserByIdR
 	var thumbUrl, avatarUrl string
 	var err error
 	if user.ProfilePictureKey.Valid {
-		thumbUrl, err = a.store.GenerateURL(ctx, user.ProfilePictureKey.String+string(store.FileSuffixThumbnail))
+		thumbUrl, err = a.store.GenerateURL(ctx, store.BuildPhotoPath(user.ProfilePictureKey.String, db.PhotoVariantThumb))
 		if err != nil {
 			a.ErrorLog.Println("error reading profile picture from store:", err)
 		}
-		avatarUrl, err = a.store.GenerateURL(ctx, user.ProfilePictureKey.String+string(store.FileSuffixAvatar))
+		avatarUrl, err = a.store.GenerateURL(ctx, store.BuildPhotoPath(user.ProfilePictureKey.String, db.PhotoVariantAvatar))
 		if err != nil {
 			a.ErrorLog.Println("error reading profile picture from store:", err)
 		}
 	} else {
 		// No profile picture set, use defaults
-		thumbUrl = filepath.Join("/assets", DefaultProfilePrefix+string(store.FileSuffixThumbnail)+".webp")
-		avatarUrl = filepath.Join("/assets", DefaultProfilePrefix+string(store.FileSuffixAvatar)+".webp")
+		thumbUrl = filepath.Join("/", a.config.StaticDir, "images/profile_thumb.webp")
+		avatarUrl = filepath.Join("/", a.config.StaticDir, "images/profile_avatar.webp")
 	}
 
 	return &UserResponse{
@@ -305,6 +305,7 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 			PhotoID:  photo.ID,
 			Variant:  db.PhotoVariantOriginal,
 			FileSize: sql.NullInt64{Int64: fh.Size, Valid: true},
+			MimeType: filetype,
 		}); err != nil {
 			a.ErrorLog.Printf("error creating photo metadata record: %s", err)
 			a.Flash(r, "Error uploading profile picture. Please try again.", flashErr)
@@ -312,7 +313,7 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 			return
 		}
 
-		if err := a.store.Write(r.Context(), key+string(store.FileSuffixOriginal), f); err != nil {
+		if err := a.store.Write(r.Context(), store.BuildPhotoPath(key, db.PhotoVariantOriginal), f); err != nil {
 			a.ErrorLog.Printf("error writing profile picture to storage: %s", err)
 			a.Flash(r, "Error uploading profile picture. Please try again.", flashErr)
 			http.Redirect(w, r, "/profile", http.StatusSeeOther)

@@ -69,8 +69,13 @@ photoUploadForm.addEventListener('submit', async e => {
             }
           } catch (err) {
             console.error("Error fetching photo status:", err);
+            if (progressBar) {
+              progressBar.setAttribute('aria-valuenow', 100);
+              progressBar.style.width = `100%`;
+            }
             clearInterval(pollInterval);
-            progressModal.modal('hide');
+            progressModal.hide();
+            submitButton.disabled = false;
           }
         }, 1000)
       }, 500);
