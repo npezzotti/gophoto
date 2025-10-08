@@ -2,9 +2,14 @@ package web
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/justinas/nosurf"
+	"github.com/npezzotti/gophoto/utils"
 )
 
 type middleware func(http.Handler) http.Handler
@@ -74,18 +79,38 @@ func noSurf(next http.Handler) http.Handler {
 // checkFileOwnership is a middleware that checks if the authenticated user owns the file they are trying to access.
 func (a *application) checkFileOwnership(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user := a.getUserFromRequest(r)
-		key := a.extractKeyFromPath(r.URL.Path)
-		photo, err := a.database.GetPhotoByKey(r.Context(), key)
-		if err != nil {
-			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
-			return
-		}
-		if photo.UserID != user.ID {
+		if !a.validateSignedURL(r) {
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 			return
 		}
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (a *application) validateSignedURL(r *http.Request) bool {
+	queryParams := r.URL.Query()
+	expiryStr := queryParams.Get("expires")
+	b64signature := queryParams.Get("signature")
+
+	if expiryStr == "" || b64signature == "" {
+		return false
+	}
+
+	expiry, err := strconv.ParseInt(expiryStr, 10, 64)
+	if err != nil {
+		return false
+	}
+
+	if time.Now().Unix() > expiry {
+		return false
+	}
+
+	receivedSig, err := base64.URLEncoding.DecodeString(b64signature)
+	if err != nil {
+		return false
+	}
+
+	message := utils.CreateMessage(strings.TrimPrefix(r.URL.Path, "/"), expiry)
+	return utils.VerifySignature(message, receivedSig, a.config.SigningKey)
 }

@@ -49,7 +49,7 @@ func main() {
 	var photoStore store.Store
 	switch cfg.StorageType {
 	case config.StorageTypeDisk:
-		photoStore, err = store.NewFileStore(cfg.BaseDir)
+		photoStore, err = store.NewFileStore(cfg.BaseDir, cfg.SigningKey)
 	case config.StorageTypeS3:
 		photoStore = store.NewS3Store(cfg.BucketName)
 	default:

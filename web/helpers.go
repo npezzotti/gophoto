@@ -7,7 +7,6 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"strings"
 
 	"github.com/npezzotti/gophoto/db"
 	"golang.org/x/crypto/bcrypt"
@@ -81,17 +80,4 @@ func detectContentType(f multipart.File) (string, error) {
 		return "", fmt.Errorf("seek: %s", err)
 	}
 	return filetype, nil
-}
-
-// extractKeyFromPath extracts the photo key from a given URL path.
-// The expected URL format is /<baseDir>/<shard1>/<shard2>/<key>/<filename>.
-func (a *application) extractKeyFromPath(path string) string {
-	// Remove leading slash and base directory
-	path = strings.TrimPrefix(path, "/"+a.config.BaseDir+"/")
-	parts := strings.Split(path, "/")
-	if len(parts) < 4 {
-		return ""
-	}
-
-	return parts[len(parts)-2]
 }

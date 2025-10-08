@@ -23,8 +23,8 @@ type StorageCleanerWorker struct {
 }
 
 const (
-	DefaultFrequency = 1 * time.Minute
-	DefaultTimeLimit  = 10 * time.Minute
+	DefaultFrequency = 15 * time.Minute
+	DefaultTimeLimit = 10 * time.Minute
 )
 
 func NewStorageCleanerWorker(db *db.Queries, store store.Store, logger *log.Logger, frequency time.Duration) StorageCleanerWorker {

@@ -2,19 +2,29 @@ package store
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"time"
+
+	"github.com/npezzotti/gophoto/utils"
 )
 
 type FileStore struct {
-	BaseDir string
+	BaseDir   string
+	secretKey []byte
 }
 
-func NewFileStore(baseDir string) (*FileStore, error) {
+// NewFileStore creates a new FileStore with the given base directory and secret key.
+func NewFileStore(baseDir string, secretKey []byte) (*FileStore, error) {
 	if baseDir == "" {
 		return nil, fmt.Errorf("base directory required")
+	}
+
+	if len(secretKey) == 0 {
+		return nil, fmt.Errorf("secret key required")
 	}
 
 	if err := os.MkdirAll(baseDir, os.ModePerm); err != nil {
@@ -22,17 +32,24 @@ func NewFileStore(baseDir string) (*FileStore, error) {
 	}
 
 	return &FileStore{
-		BaseDir: baseDir,
+		BaseDir:   baseDir,
+		secretKey: secretKey,
 	}, nil
 }
 
 func (fs *FileStore) GenerateURL(ctx context.Context, path string) (string, error) {
 	f := fs.path(path)
 	if _, err := os.Stat(f); err != nil {
-		return "", err
+		return "", fmt.Errorf("error stating file: %w", err)
 	}
 
-	return filepath.Join("/", f), nil
+	// Generate a presigned URL
+	expiry := time.Now().Add(15 * time.Minute)
+	message := utils.CreateMessage(f, expiry.Unix())
+	signature := utils.GenerateHmac(message, fs.secretKey)
+	b64Sig := base64.URLEncoding.EncodeToString(signature)
+
+	return filepath.Join("/", f) + fmt.Sprintf("?expires=%d&signature=%s", expiry.Unix(), b64Sig), nil
 }
 
 func (fs *FileStore) Read(ctx context.Context, path string) (io.ReadCloser, error) {
@@ -98,7 +115,7 @@ func (fs *FileStore) Delete(ctx context.Context, path string) error {
 }
 
 // path returns the full path to the file by joining the
-// base directory with the provided key
-func (fs *FileStore) path(key string) string {
-	return filepath.Join(fs.BaseDir, key)
+// base directory with the provided path
+func (fs *FileStore) path(path string) string {
+	return filepath.Join(fs.BaseDir, path)
 }

@@ -14,6 +14,8 @@ const (
 	DefaultBaseDir              = "uploads"
 )
 
+var DefaultSigningKey = []byte("default-signing-key")
+
 type Config struct {
 	StorageType      storageType
 	DatabaseSource   string
@@ -24,6 +26,7 @@ type Config struct {
 	UseTemplateCache bool
 	RedisAddress     string
 	RedisPassword    string
+	SigningKey       []byte
 }
 
 func LoadConfigFromEnv() (*Config, error) {
@@ -34,6 +37,7 @@ func LoadConfigFromEnv() (*Config, error) {
 		BaseDir:        os.Getenv("GOPHOTO_BASE_DIR"),
 		StorageType:    storageType(os.Getenv("GOPHOTO_STORAGE_TYPE")),
 		BucketName:     os.Getenv("GOPHOTO_BUCKET_NAME"),
+		SigningKey:     []byte(os.Getenv("GOPHOTO_SIGNING_KEY")),
 	}
 
 	if cfg.StaticDir == "" {
@@ -62,6 +66,10 @@ func LoadConfigFromEnv() (*Config, error) {
 
 	if cfg.StorageType == StorageTypeS3 && cfg.BucketName == "" {
 		return cfg, errors.New("bucket name required for s3 storage")
+	}
+
+	if len(cfg.SigningKey) == 0 {
+		cfg.SigningKey = DefaultSigningKey
 	}
 
 	return cfg, nil
