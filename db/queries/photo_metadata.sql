@@ -2,11 +2,6 @@
 SELECT * FROM photo_metadata
 WHERE photo_id = $1;
 
--- name: GetPhotoMetadataByPhotoIDAndVariant :one
-SELECT * FROM photo_metadata
-WHERE photo_id = $1 AND variant = $2
-LIMIT 1;
-
 -- name: CreatePhotoMetadata :one
 INSERT INTO photo_metadata (
   photo_id,

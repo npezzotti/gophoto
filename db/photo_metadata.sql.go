@@ -85,28 +85,3 @@ func (q *Queries) GetPhotoMetadataByPhotoID(ctx context.Context, photoID int32) 
 	}
 	return items, nil
 }
-
-const getPhotoMetadataByPhotoIDAndVariant = `-- name: GetPhotoMetadataByPhotoIDAndVariant :one
-SELECT id, photo_id, variant, file_size, mime_type, created_at FROM photo_metadata
-WHERE photo_id = $1 AND variant = $2
-LIMIT 1
-`
-
-type GetPhotoMetadataByPhotoIDAndVariantParams struct {
-	PhotoID int32
-	Variant PhotoVariant
-}
-
-func (q *Queries) GetPhotoMetadataByPhotoIDAndVariant(ctx context.Context, arg GetPhotoMetadataByPhotoIDAndVariantParams) (PhotoMetadatum, error) {
-	row := q.db.QueryRowContext(ctx, getPhotoMetadataByPhotoIDAndVariant, arg.PhotoID, arg.Variant)
-	var i PhotoMetadatum
-	err := row.Scan(
-		&i.ID,
-		&i.PhotoID,
-		&i.Variant,
-		&i.FileSize,
-		&i.MimeType,
-		&i.CreatedAt,
-	)
-	return i, err
-}
