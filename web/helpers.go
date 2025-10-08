@@ -31,9 +31,9 @@ func passwordsMatch(hash, password string) bool {
 	return err == nil
 }
 
-// isAuthenticated checks if the user is authenticated by looking for the isAuthenticatedContextKey in the request context.
+// isAuthenticated checks if the user is authenticated by looking for the IsAuthenticatedContextKey in the request context.
 func isAuthenticated(r *http.Request) bool {
-	if isAuthenticated, ok := r.Context().Value(isAuthenticatedContextKey).(bool); ok {
+	if isAuthenticated, ok := r.Context().Value(IsAuthenticatedContextKey).(bool); ok {
 		return isAuthenticated
 	}
 
@@ -42,7 +42,7 @@ func isAuthenticated(r *http.Request) bool {
 
 // getUserFromRequest retrieves the authenticated user's details from the request context.
 func (a *application) getUserFromRequest(r *http.Request) *db.GetUserByIdRow {
-	if userId, ok := r.Context().Value(authenticatedUserId).(int32); ok {
+	if userId, ok := r.Context().Value(AuthenticatedUserId).(int32); ok {
 		userRow, err := a.database.GetUserById(r.Context(), userId)
 		if err != nil {
 			a.ErrorLog.Printf("error getting user by id from request: %s", err.Error())

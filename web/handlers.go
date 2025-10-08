@@ -20,10 +20,11 @@ import (
 )
 
 const (
-	FormFileName         = "file"
-	MaxUploadSize        = 50 << (10 * 2)
-	DefaultProfilePrefix = "images/profile"
-	DefaultAlbumCover    = "images/album_cover.webp"
+	FormFileName                = "file"
+	MaxUploadSize               = 50 << (10 * 2)
+	DefaultProfileThumbnailPath = "images/profile_thumb.webp"
+	DefaultProfileAvatarPath    = "images/profile_avatar.webp"
+	DefaultAlbumCover           = "images/album_cover.webp"
 )
 
 type UserImageResponse struct {
@@ -56,7 +57,7 @@ func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsB
 			a.ErrorLog.Printf("error generating url for %s: %s\n", coverPhotos[0].Key, err)
 		}
 	} else {
-		coverUrl = filepath.Join("/assets", DefaultAlbumCover)
+		coverUrl = filepath.Join(a.config.StaticDir, DefaultAlbumCover)
 	}
 
 	return &AlbumResponse{

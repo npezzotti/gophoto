@@ -40,8 +40,8 @@ func (a *application) authenticate(next http.Handler) http.Handler {
 		}
 
 		if exists {
-			ctxIsAuth := context.WithValue(r.Context(), isAuthenticatedContextKey, true)
-			ctx := context.WithValue(ctxIsAuth, authenticatedUserId, userId)
+			ctxIsAuth := context.WithValue(r.Context(), IsAuthenticatedContextKey, true)
+			ctx := context.WithValue(ctxIsAuth, AuthenticatedUserId, userId)
 
 			r = r.WithContext(ctx)
 		}
@@ -76,8 +76,8 @@ func noSurf(next http.Handler) http.Handler {
 	return csrfHandler
 }
 
-// checkFileOwnership is a middleware that checks if the authenticated user owns the file they are trying to access.
-func (a *application) checkFileOwnership(next http.Handler) http.Handler {
+// validatePresignedURL is a middleware that validates the presigned URL for accessing uploads.
+func (a *application) validatePresignedURL(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !a.validateSignedURL(r) {
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)

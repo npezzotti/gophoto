@@ -14,6 +14,13 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+type ContextKey string
+
+const (
+	AuthenticatedUserId       = ContextKey("authenticatedUserId")
+	IsAuthenticatedContextKey = ContextKey("isAuthenticated")
+)
+
 const (
 	SessionKeyRedirectPath = "redirectPath"
 	SessionKeyUserID       = "userID"
@@ -86,7 +93,7 @@ func (a *application) routes() *http.ServeMux {
 
 	if a.config.StorageType == config.StorageTypeDisk {
 		// Only serve uploads directly if using local file storage
-		mux.Handle("/uploads/", a.checkFileOwnership(a.protected(http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads"))))))
+		mux.Handle("/uploads/", a.validatePresignedURL(a.protected(http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads"))))))
 	}
 
 	return mux
