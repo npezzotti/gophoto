@@ -31,13 +31,14 @@ type Config struct {
 
 func LoadConfigFromEnv() (*Config, error) {
 	cfg := &Config{
-		HttpServerAddr: os.Getenv("GOPHOTO_HTTP_SERVER_ADDR"),
-		DatabaseSource: os.Getenv("GOPHOTO_DSN"),
-		RedisAddress:   os.Getenv("GOPHOTO_REDIS_ADDR"),
-		BaseDir:        os.Getenv("GOPHOTO_BASE_DIR"),
-		StorageType:    storageType(os.Getenv("GOPHOTO_STORAGE_TYPE")),
-		BucketName:     os.Getenv("GOPHOTO_BUCKET_NAME"),
-		SigningKey:     []byte(os.Getenv("GOPHOTO_SIGNING_KEY")),
+		UseTemplateCache: os.Getenv("GOPHOTO_USE_TEMPLATE_CACHE") == "true",
+		HttpServerAddr:   os.Getenv("GOPHOTO_HTTP_SERVER_ADDR"),
+		DatabaseSource:   os.Getenv("GOPHOTO_DSN"),
+		RedisAddress:     os.Getenv("GOPHOTO_REDIS_ADDR"),
+		BaseDir:          os.Getenv("GOPHOTO_BASE_DIR"),
+		StorageType:      storageType(os.Getenv("GOPHOTO_STORAGE_TYPE")),
+		BucketName:       os.Getenv("GOPHOTO_BUCKET_NAME"),
+		SigningKey:       []byte(os.Getenv("GOPHOTO_SIGNING_KEY")),
 	}
 
 	if cfg.StaticDir == "" {

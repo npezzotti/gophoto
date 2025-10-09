@@ -2,15 +2,15 @@ package web
 
 import (
 	"context"
-	"html/template"
 	"log"
 	"net/http"
 	"os"
 
 	"github.com/alexedwards/scs/v2"
-	"github.com/npezzotti/gophoto/config"
-	"github.com/npezzotti/gophoto/db"
-	"github.com/npezzotti/gophoto/store"
+	"github.com/npezzotti/gophoto/internal/config"
+	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/pkg/template"
+	"github.com/npezzotti/gophoto/internal/store"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -33,13 +33,13 @@ type application struct {
 	srv            *http.Server
 	database       *db.Queries
 	store          store.Store
-	templateCache  map[string]*template.Template
+	templateCache  template.TemplateCache
 	sessionManager *scs.SessionManager
 	InfoLog        *log.Logger
 	ErrorLog       *log.Logger
 }
 
-func NewApplication(redisClient *redis.Client, cfg *config.Config, sess *scs.SessionManager, db *db.Queries, s store.Store, tc map[string]*template.Template) *application {
+func NewApplication(redisClient *redis.Client, cfg *config.Config, sess *scs.SessionManager, db *db.Queries, s store.Store, tc template.TemplateCache) *application {
 	app := &application{
 		redisClient:    redisClient,
 		config:         cfg,

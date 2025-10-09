@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/npezzotti/gophoto/db"
-	"github.com/npezzotti/gophoto/pagination"
-	"github.com/npezzotti/gophoto/store"
-	"github.com/npezzotti/gophoto/workers"
+	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/internal/store"
+	"github.com/npezzotti/gophoto/internal/workers"
+	"github.com/npezzotti/gophoto/pkg/pagination"
 )
 
 const (

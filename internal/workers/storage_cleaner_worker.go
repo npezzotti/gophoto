@@ -7,8 +7,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/npezzotti/gophoto/db"
-	"github.com/npezzotti/gophoto/store"
+	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/internal/store"
 )
 
 // The StorageCleanerWorker periodically checks for orphaned photos in the storage

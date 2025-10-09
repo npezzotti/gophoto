@@ -21,11 +21,12 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/npezzotti/gophoto/config"
-	"github.com/npezzotti/gophoto/db"
-	"github.com/npezzotti/gophoto/store"
-	"github.com/npezzotti/gophoto/web"
-	"github.com/npezzotti/gophoto/workers"
+	"github.com/npezzotti/gophoto/internal/config"
+	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/internal/store"
+	"github.com/npezzotti/gophoto/internal/web"
+	"github.com/npezzotti/gophoto/internal/workers"
+	"github.com/npezzotti/gophoto/pkg/template"
 )
 
 func main() {
@@ -65,7 +66,7 @@ func main() {
 	}
 	defer redisClient.Close()
 
-	ts, err := web.NewTemplateCache()
+	tc, err := template.NewTemplateCache()
 	if err != nil {
 		log.Fatal("error creating template cache:", err)
 	}
@@ -74,7 +75,7 @@ func main() {
 	sessionManager.Store = postgresstore.New(dbConn)
 	gob.Register(web.Flash{})
 
-	app := web.NewApplication(redisClient, cfg, sessionManager, querier, photoStore, ts)
+	app := web.NewApplication(redisClient, cfg, sessionManager, querier, photoStore, tc)
 
 	storageCleanerWorker := workers.NewStorageCleanerWorker(querier, photoStore, app.InfoLog, workers.DefaultFrequency)
 	storageCleanerWorker.Run()

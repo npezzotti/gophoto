@@ -8,7 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 
-	"github.com/npezzotti/gophoto/db"
+	"github.com/npezzotti/gophoto/internal/db"
 	"golang.org/x/crypto/bcrypt"
 )
 

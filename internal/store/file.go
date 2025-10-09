@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/npezzotti/gophoto/utils"
+	"github.com/npezzotti/gophoto/pkg/utils"
 )
 
 type FileStore struct {

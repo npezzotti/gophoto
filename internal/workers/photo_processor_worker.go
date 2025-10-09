@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/h2non/bimg"
-	"github.com/npezzotti/gophoto/config"
-	"github.com/npezzotti/gophoto/db"
-	"github.com/npezzotti/gophoto/store"
+	"github.com/npezzotti/gophoto/internal/config"
+	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/internal/store"
 	"github.com/redis/go-redis/v9"
 )
 

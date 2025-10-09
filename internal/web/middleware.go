@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/justinas/nosurf"
-	"github.com/npezzotti/gophoto/utils"
+	"github.com/npezzotti/gophoto/pkg/utils"
 )
 
 type middleware func(http.Handler) http.Handler

@@ -3,7 +3,7 @@ package store
 import (
 	"fmt"
 
-	"github.com/npezzotti/gophoto/db"
+	"github.com/npezzotti/gophoto/internal/db"
 )
 
 func BuildPhotoPath(key string, variant db.PhotoVariant) string {
