@@ -9,8 +9,8 @@ import (
 	"github.com/alexedwards/scs/v2"
 	"github.com/npezzotti/gophoto/internal/config"
 	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/pkg/store"
 	"github.com/npezzotti/gophoto/pkg/template"
-	"github.com/npezzotti/gophoto/internal/store"
 	"github.com/redis/go-redis/v9"
 )
 

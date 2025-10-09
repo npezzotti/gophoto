@@ -4,7 +4,17 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"fmt"
+
+	"github.com/npezzotti/gophoto/internal/db"
 )
+
+// BuildPhotoPath constructs a hierarchical file path for storing photos based on the provided key and variant.
+func BuildPhotoPath(key string, variant db.PhotoVariant) string {
+	shardLvl1 := key[0:2]
+	shardLvl2 := key[2:4]
+
+	return fmt.Sprintf("/%s/%s/%s/%s", shardLvl1, shardLvl2, key, (string(variant)))
+}
 
 // CreateMessage creates a message string for signing by combining the file path and expiration timestamp.
 func CreateMessage(path string, expiresUnix int64) string {

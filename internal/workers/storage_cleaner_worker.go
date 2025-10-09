@@ -8,7 +8,8 @@ import (
 	"time"
 
 	"github.com/npezzotti/gophoto/internal/db"
-	"github.com/npezzotti/gophoto/internal/store"
+	"github.com/npezzotti/gophoto/pkg/store"
+	"github.com/npezzotti/gophoto/pkg/utils"
 )
 
 // The StorageCleanerWorker periodically checks for orphaned photos in the storage
@@ -78,7 +79,7 @@ func (scw *StorageCleanerWorker) cleanStorage() {
 			continue
 		}
 		for _, m := range metadata {
-			path := store.BuildPhotoPath(photo.Key, m.Variant)
+			path := utils.BuildPhotoPath(photo.Key, m.Variant)
 			if err := scw.store.Delete(ctx, path); err != nil {
 				if !errors.Is(err, store.ErrNotExist) {
 					scw.log.Printf("error deleting file with key %s: %s", path, err.Error())

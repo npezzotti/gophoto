@@ -12,8 +12,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/npezzotti/gophoto/internal/db"
-	"github.com/npezzotti/gophoto/internal/store"
 	"github.com/npezzotti/gophoto/internal/workers"
+	"github.com/npezzotti/gophoto/pkg/utils"
 )
 
 type UserResponse struct {
@@ -28,11 +28,11 @@ func (a *application) newUserResponse(ctx context.Context, user *db.GetUserByIdR
 	var thumbUrl, avatarUrl string
 	var err error
 	if user.ProfilePictureKey.Valid {
-		thumbUrl, err = a.store.GenerateURL(ctx, store.BuildPhotoPath(user.ProfilePictureKey.String, db.PhotoVariantThumb))
+		thumbUrl, err = a.store.GenerateURL(ctx, utils.BuildPhotoPath(user.ProfilePictureKey.String, db.PhotoVariantThumb))
 		if err != nil {
 			a.ErrorLog.Println("error reading profile picture from store:", err)
 		}
-		avatarUrl, err = a.store.GenerateURL(ctx, store.BuildPhotoPath(user.ProfilePictureKey.String, db.PhotoVariantAvatar))
+		avatarUrl, err = a.store.GenerateURL(ctx, utils.BuildPhotoPath(user.ProfilePictureKey.String, db.PhotoVariantAvatar))
 		if err != nil {
 			a.ErrorLog.Println("error reading profile picture from store:", err)
 		}
@@ -313,7 +313,7 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 			return
 		}
 
-		if err := a.store.Write(r.Context(), store.BuildPhotoPath(key, db.PhotoVariantOriginal), f); err != nil {
+		if err := a.store.Write(r.Context(), utils.BuildPhotoPath(key, db.PhotoVariantOriginal), f); err != nil {
 			a.ErrorLog.Printf("error writing profile picture to storage: %s", err)
 			a.Flash(r, "Error uploading profile picture. Please try again.", flashErr)
 			http.Redirect(w, r, "/profile", http.StatusSeeOther)

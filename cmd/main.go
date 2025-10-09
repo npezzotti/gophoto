@@ -23,9 +23,9 @@ import (
 
 	"github.com/npezzotti/gophoto/internal/config"
 	"github.com/npezzotti/gophoto/internal/db"
-	"github.com/npezzotti/gophoto/internal/store"
 	"github.com/npezzotti/gophoto/internal/web"
 	"github.com/npezzotti/gophoto/internal/workers"
+	"github.com/npezzotti/gophoto/pkg/store"
 	"github.com/npezzotti/gophoto/pkg/template"
 )
 

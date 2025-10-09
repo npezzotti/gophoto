@@ -13,7 +13,8 @@ import (
 	"github.com/h2non/bimg"
 	"github.com/npezzotti/gophoto/internal/config"
 	"github.com/npezzotti/gophoto/internal/db"
-	"github.com/npezzotti/gophoto/internal/store"
+	"github.com/npezzotti/gophoto/pkg/store"
+	"github.com/npezzotti/gophoto/pkg/utils"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -148,7 +149,7 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 		}
 	}()
 
-	photoReader, err := ppw.store.Read(context.Background(), store.BuildPhotoPath(photo.Key, db.PhotoVariantOriginal))
+	photoReader, err := ppw.store.Read(context.Background(), utils.BuildPhotoPath(photo.Key, db.PhotoVariantOriginal))
 	if err != nil {
 		processingErr = true
 		return fmt.Errorf("error reading original photo from store: %v", err)
@@ -203,7 +204,7 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 			continue
 		}
 
-		if err := ppw.store.Write(context.Background(), store.BuildPhotoPath(photo.Key, photoMeta.Variant), bytes.NewReader(processedImg)); err != nil {
+		if err := ppw.store.Write(context.Background(), utils.BuildPhotoPath(photo.Key, photoMeta.Variant), bytes.NewReader(processedImg)); err != nil {
 			processingErr = true
 			ppw.log.Printf("error writing %s image to store: %v", size.Variant, err)
 			continue

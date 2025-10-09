@@ -14,9 +14,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/npezzotti/gophoto/internal/db"
-	"github.com/npezzotti/gophoto/internal/store"
 	"github.com/npezzotti/gophoto/internal/workers"
 	"github.com/npezzotti/gophoto/pkg/pagination"
+	"github.com/npezzotti/gophoto/pkg/utils"
 )
 
 const (
@@ -52,7 +52,7 @@ func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsB
 
 	var coverUrl string
 	if len(coverPhotos) > 0 {
-		coverUrl, err = a.store.GenerateURL(ctx, store.BuildPhotoPath(coverPhotos[0].Key, db.PhotoVariantThumb))
+		coverUrl, err = a.store.GenerateURL(ctx, utils.BuildPhotoPath(coverPhotos[0].Key, db.PhotoVariantThumb))
 		if err != nil {
 			a.ErrorLog.Printf("error generating url for %s: %s\n", coverPhotos[0].Key, err)
 		}
@@ -67,17 +67,17 @@ func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsB
 }
 
 func (a *application) newUserImageResponse(ctx context.Context, photo db.Photo) *UserImageResponse {
-	original, err := a.store.GenerateURL(ctx, store.BuildPhotoPath(photo.Key, db.PhotoVariantOriginal))
+	original, err := a.store.GenerateURL(ctx, utils.BuildPhotoPath(photo.Key, db.PhotoVariantOriginal))
 	if err != nil {
 		a.ErrorLog.Printf("error generating url for photo %d: %s\n", photo.ID, err.Error())
 	}
 
-	thumbnail, err := a.store.GenerateURL(ctx, store.BuildPhotoPath(photo.Key, db.PhotoVariantThumb))
+	thumbnail, err := a.store.GenerateURL(ctx, utils.BuildPhotoPath(photo.Key, db.PhotoVariantThumb))
 	if err != nil {
 		a.ErrorLog.Printf("error generating url for photo %d: %s\n", photo.ID, err.Error())
 	}
 
-	large, err := a.store.GenerateURL(ctx, store.BuildPhotoPath(photo.Key, db.PhotoVariantLarge))
+	large, err := a.store.GenerateURL(ctx, utils.BuildPhotoPath(photo.Key, db.PhotoVariantLarge))
 	if err != nil {
 		a.ErrorLog.Printf("error generating url for photo %d: %s\n", photo.ID, err.Error())
 	}
@@ -454,7 +454,7 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := a.store.Write(r.Context(), store.BuildPhotoPath(photo.Key, photoMeta.Variant), f); err != nil {
+	if err := a.store.Write(r.Context(), utils.BuildPhotoPath(photo.Key, photoMeta.Variant), f); err != nil {
 		a.ErrorLog.Printf("error writing photo to storage: %s\n", err.Error())
 		resp := map[string]string{"error": strings.ToLower(http.StatusText(http.StatusInternalServerError))}
 		if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {

@@ -6,17 +6,6 @@ import (
 	"io"
 )
 
-type FileName string
-
-const (
-	FileNameOriginal  FileName = "original"
-	FileNameThumbnail FileName = "thumbnail"
-	FileNameSmall     FileName = "small"
-	FileNameMedium    FileName = "medium"
-	FileNameLarge     FileName = "large"
-	FileNameAvatar    FileName = "avatar"
-)
-
 var ErrNotExist error = errors.New("file does not exist")
 
 type Store interface {
