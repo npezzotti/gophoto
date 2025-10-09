@@ -70,7 +70,7 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if !sf.Validate() {
-			td := a.newTemplateData(r)
+			td := a.generateTemplateData(r)
 			td.Form = sf
 
 			w.WriteHeader(http.StatusForbidden)
@@ -107,7 +107,7 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 		a.Flash(r, "Account successfully created.", flashInfo)
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 	case http.MethodGet:
-		td := a.newTemplateData(r)
+		td := a.generateTemplateData(r)
 		td.Form = &SignupForm{}
 
 		if err := a.renderTemplate(w, td, "signup.html"); err != nil {
@@ -141,7 +141,7 @@ func (a *application) logoutHandler(w http.ResponseWriter, r *http.Request) {
 
 func (a *application) profileHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		td := a.newTemplateData(r)
+		td := a.generateTemplateData(r)
 		if err := a.renderTemplate(w, td, "profile.html"); err != nil {
 			a.ErrorLog.Printf("error rendering template: %s", err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -157,7 +157,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 	switch r.Method {
 	case http.MethodGet:
 		user := a.getUserFromRequest(r)
-		td := a.newTemplateData(r)
+		td := a.generateTemplateData(r)
 		td.AddPhotoUploadAction = "/profile/photo/edit"
 		td.Form = &EditProfileForm{
 			FirstName: user.FirstName,
@@ -187,7 +187,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 		}
 
 		if !epf.Validate() {
-			td := a.newTemplateData(r)
+			td := a.generateTemplateData(r)
 			td.Form = epf
 			if err := a.renderTemplate(w, td, "edit-profile.html"); err != nil {
 				a.ErrorLog.Printf("error rendering template: %s", err)

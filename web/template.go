@@ -24,7 +24,7 @@ type templateData struct {
 	AddPhotoUploadAction string
 }
 
-func (a *application) newTemplateData(r *http.Request) *templateData {
+func (a *application) generateTemplateData(r *http.Request) *templateData {
 	td := &templateData{
 		CSRFToken: nosurf.Token(r),
 	}
@@ -76,15 +76,20 @@ func NewTemplateCache() (map[string]*template.Template, error) {
 		return nil, err
 	}
 
+	partials, err := filepath.Glob("./templates/partials/*.html")
+	if err != nil {
+		return nil, err
+	}
+
 	for _, page := range pages {
 		name := filepath.Base(page)
+
 		patterns := []string{
 			"./templates/base.html",
-			"./templates/partials/photo_upload_modal.html",
-			"./templates/partials/header.html",
-			"./templates/partials/footer.html",
 			page,
 		}
+
+		patterns = append(patterns, partials...)
 
 		ts, err := template.New(name).ParseFiles(patterns...)
 		if err != nil {

@@ -138,7 +138,7 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 				images = append(images, imageResponse)
 			}
 
-			td := a.newTemplateData(r)
+			td := a.generateTemplateData(r)
 			td.Album = album
 			td.Images = images
 			td.Paginator = pagination
@@ -180,7 +180,7 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 			albumResponse = append(albumResponse, a)
 		}
 
-		td := a.newTemplateData(r)
+		td := a.generateTemplateData(r)
 		td.Albums = albumResponse
 		td.Paginator = pagination
 
@@ -604,7 +604,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if !lf.Validate() {
-			td := a.newTemplateData(r)
+			td := a.generateTemplateData(r)
 			td.Form = lf
 			if err := a.renderTemplate(w, td, "login.html"); err != nil {
 				a.ErrorLog.Printf("error rendering template: %s", err)
@@ -619,7 +619,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				a.Flash(r, "No account found with that email address.", flashErr)
-				td := a.newTemplateData(r)
+				td := a.generateTemplateData(r)
 				td.Form = lf
 
 				w.WriteHeader(http.StatusForbidden)
@@ -639,7 +639,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 		if !passwordsMatch(user.PasswordHash, lf.Password) {
 			a.Flash(r, "Incorrect password.", flashErr)
 
-			td := a.newTemplateData(r)
+			td := a.generateTemplateData(r)
 			td.Form = lf
 
 			if err := a.renderTemplate(w, td, "login.html"); err != nil {
@@ -670,7 +670,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 		// Default redirect
 		http.Redirect(w, r, "/albums", http.StatusSeeOther)
 	case http.MethodGet:
-		td := a.newTemplateData(r)
+		td := a.generateTemplateData(r)
 		td.Form = &LoginForm{}
 		if err := a.renderTemplate(w, td, "login.html"); err != nil {
 			a.ErrorLog.Printf("error rendering template: %s", err)
@@ -686,7 +686,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 func (a *application) aboutHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		td := a.newTemplateData(r)
+		td := a.generateTemplateData(r)
 		if err := a.renderTemplate(w, td, "about.html"); err != nil {
 			a.ErrorLog.Printf("error rendering template: %s", err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
