@@ -62,6 +62,12 @@ func (a *application) protected(next http.Handler) http.Handler {
 			return
 		}
 
+		// Disable caching for authenticated routes to prevent 
+		// users from seeing cached content after logging out
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+
 		next.ServeHTTP(w, r)
 	})
 }
