@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/npezzotti/gophoto/pkg/utils"
+	"github.com/npezzotti/gophoto/internal/signature"
 )
 
 type FileStore struct {
@@ -38,18 +38,18 @@ func NewFileStore(baseDir string, secretKey []byte) (*FileStore, error) {
 }
 
 func (fs *FileStore) GenerateURL(ctx context.Context, path string) (string, error) {
-	f := fs.path(path)
-	if _, err := os.Stat(f); err != nil {
+	filePath := fs.path(path)
+	if _, err := os.Stat(filePath); err != nil {
 		return "", fmt.Errorf("error stating file: %w", err)
 	}
 
-	// Generate a presigned URL
+	urlPath := filepath.Join("/", filePath)
 	expiry := time.Now().Add(15 * time.Minute)
-	message := utils.CreateMessage(f, expiry.Unix())
-	signature := utils.GenerateHmac(message, fs.secretKey)
+	message := signature.CreateMessage(urlPath, expiry.Unix())
+	signature := signature.GenerateHmac(message, fs.secretKey)
 	b64Sig := base64.URLEncoding.EncodeToString(signature)
 
-	return filepath.Join("/", f) + fmt.Sprintf("?expires=%d&signature=%s", expiry.Unix(), b64Sig), nil
+	return fmt.Sprintf("%s?expires=%d&signature=%s", urlPath, expiry.Unix(), b64Sig), nil
 }
 
 func (fs *FileStore) Read(ctx context.Context, path string) (io.ReadCloser, error) {

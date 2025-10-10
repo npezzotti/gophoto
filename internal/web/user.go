@@ -13,7 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/npezzotti/gophoto/internal/db"
 	"github.com/npezzotti/gophoto/internal/workers"
-	"github.com/npezzotti/gophoto/pkg/utils"
+	"github.com/npezzotti/gophoto/internal/utils"
 )
 
 type UserResponse struct {

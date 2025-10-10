@@ -13,8 +13,8 @@ import (
 	"github.com/h2non/bimg"
 	"github.com/npezzotti/gophoto/internal/config"
 	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/internal/utils"
 	"github.com/npezzotti/gophoto/pkg/store"
-	"github.com/npezzotti/gophoto/pkg/utils"
 	"github.com/redis/go-redis/v9"
 )
 

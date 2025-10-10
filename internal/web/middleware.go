@@ -5,11 +5,10 @@ import (
 	"encoding/base64"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/justinas/nosurf"
-	"github.com/npezzotti/gophoto/pkg/utils"
+	"github.com/npezzotti/gophoto/internal/signature"
 )
 
 type middleware func(http.Handler) http.Handler
@@ -79,7 +78,7 @@ func noSurf(next http.Handler) http.Handler {
 // validatePresignedURL is a middleware that validates the presigned URL for accessing uploads.
 func (a *application) validatePresignedURL(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !a.validateSignedURL(r) {
+		if !a.validUrl(r) {
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 			return
 		}
@@ -88,7 +87,7 @@ func (a *application) validatePresignedURL(next http.Handler) http.Handler {
 	})
 }
 
-func (a *application) validateSignedURL(r *http.Request) bool {
+func (a *application) validUrl(r *http.Request) bool {
 	queryParams := r.URL.Query()
 	expiryStr := queryParams.Get("expires")
 	b64signature := queryParams.Get("signature")
@@ -111,6 +110,7 @@ func (a *application) validateSignedURL(r *http.Request) bool {
 		return false
 	}
 
-	message := utils.CreateMessage(strings.TrimPrefix(r.URL.Path, "/"), expiry)
-	return utils.VerifySignature(message, receivedSig, a.config.SigningKey)
+	message := signature.CreateMessage(r.URL.Path, expiry)
+
+	return signature.VerifySignature(message, receivedSig, a.config.SigningKey)
 }

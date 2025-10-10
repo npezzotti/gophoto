@@ -16,7 +16,7 @@ import (
 	"github.com/npezzotti/gophoto/internal/db"
 	"github.com/npezzotti/gophoto/internal/workers"
 	"github.com/npezzotti/gophoto/pkg/pagination"
-	"github.com/npezzotti/gophoto/pkg/utils"
+	"github.com/npezzotti/gophoto/internal/utils"
 )
 
 const (

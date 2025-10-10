@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/internal/utils"
 	"github.com/npezzotti/gophoto/pkg/store"
-	"github.com/npezzotti/gophoto/pkg/utils"
 )
 
 // The StorageCleanerWorker periodically checks for orphaned photos in the storage
