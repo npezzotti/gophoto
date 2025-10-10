@@ -270,6 +270,12 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 	switch r.Method {
 	case http.MethodGet:
 		user := a.getUserFromRequest(r)
+		if user == nil {
+			a.flash(r, "User not found.", flashErr)
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
 		td := a.generateTemplateData(r)
 		td.AddPhotoUploadAction = "/profile/photo/edit"
 		td.Form = &forms.EditProfileForm{
@@ -311,6 +317,12 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 		}
 
 		user := a.getUserFromRequest(r)
+		if user == nil {
+			a.flash(r, "User not found.", flashErr)
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
 		pwdHash := user.PasswordHash
 		if epf.Password != "" {
 			// User wants to change their password
@@ -402,6 +414,12 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 		key := uuid.New().String()
 
 		user := a.getUserFromRequest(r)
+		if user == nil {
+			a.flash(r, "User not found.", flashErr)
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
 		createPhotoParams := db.CreatePhotoParams{
 			UserID: sql.NullInt32{Int32: user.ID, Valid: true},
 			Key:    key,
@@ -480,6 +498,12 @@ func (a *application) deleteAccountHandler(w http.ResponseWriter, r *http.Reques
 	switch r.Method {
 	case http.MethodGet:
 		user := a.getUserFromRequest(r)
+		if user == nil {
+			a.flash(r, "User not found.", flashErr)
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
 		// Delete user account. This cascades to delete all albums and album_photos entries. Photos are not immediately deleted,
 		// but will be cleaned up by the storage cleaner worker.
 		if err := a.database.DeleteUser(r.Context(), user.ID); err != nil {

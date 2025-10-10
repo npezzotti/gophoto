@@ -94,9 +94,13 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		user := a.getUserFromRequest(r)
-		id_str := r.URL.Query().Get("id")
+		if user == nil {
+			a.flash(r, "User not found.", flashErr)
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
 
-		if id_str != "" {
+		if id_str := r.URL.Query().Get("id"); id_str != "" {
 			// Request for specific album
 			id, err := strconv.Atoi(id_str)
 			if err != nil {
@@ -207,6 +211,12 @@ func (a *application) createAlbumHandler(w http.ResponseWriter, r *http.Request)
 		}
 
 		user := a.getUserFromRequest(r)
+		if user == nil {
+			a.flash(r, "User not found.", flashErr)
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
 		album, err := a.database.CreateAlbum(r.Context(), db.CreateAlbumParams{
 			UserID: user.ID,
 			Title:  r.Form.Get("title"),
@@ -261,6 +271,12 @@ func (a *application) updateAlbumHandler(w http.ResponseWriter, r *http.Request)
 		}
 
 		user := a.getUserFromRequest(r)
+		if user == nil {
+			a.flash(r, "User not found.", flashErr)
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
 		if user.ID != album.UserID {
 			a.flash(r, strings.ToLower(http.StatusText(http.StatusNotFound)), flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
@@ -319,6 +335,12 @@ func (a *application) deleteAlbumHandler(w http.ResponseWriter, r *http.Request)
 		}
 
 		user := a.getUserFromRequest(r)
+		if user == nil {
+			a.flash(r, "User not found.", flashErr)
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
 		if user.ID != album.UserID {
 			a.flash(r, strings.ToLower(http.StatusText(http.StatusNotFound)), flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
@@ -367,6 +389,12 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	user := a.getUserFromRequest(r)
+	if user == nil {
+		a.flash(r, "User not found.", flashErr)
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
 	if user.ID != album.UserID {
 		resp := map[string]string{"error": "album not found"}
 		if err := a.writeJsonResp(w, http.StatusNotFound, resp); err != nil {
@@ -522,8 +550,14 @@ func (a *application) photoStatusHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		// Ensure photo belongs to user
-		if !photo.UserID.Valid || photo.UserID.Int32 != a.getUserFromRequest(r).ID {
+		user := a.getUserFromRequest(r)
+		if user == nil {
+			a.flash(r, "User not found.", flashErr)
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
+		if !photo.UserID.Valid || photo.UserID.Int32 != user.ID {
 			a.writeJsonResp(w, http.StatusNotFound, map[string]string{"error": "photo not found"})
 			return
 		}
@@ -568,6 +602,13 @@ func (a *application) deletePhotoHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	user := a.getUserFromRequest(r)
+	if user == nil {
+		a.flash(r, "User not found.", flashErr)
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
+	// Ensure photo belongs to user
 	if !photo.UserID.Valid || photo.UserID.Int32 != user.ID {
 		a.flash(r, strings.ToLower(http.StatusText(http.StatusNotFound)), flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
