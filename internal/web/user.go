@@ -35,12 +35,12 @@ func (a *application) getUserFromRequest(r *http.Request) *db.GetUserByIdRow {
 			if err != sql.ErrNoRows {
 				a.ErrorLog.Printf("error querying user: %s\n", err.Error())
 			}
-			return &db.GetUserByIdRow{}
+			return nil
 		}
 		return &userRow
 	}
 
-	return &db.GetUserByIdRow{}
+	return nil
 }
 
 func (a *application) newUserResponse(ctx context.Context, user *db.GetUserByIdRow) *UserResponse {

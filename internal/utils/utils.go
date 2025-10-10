@@ -8,6 +8,7 @@ import (
 
 // BuildPhotoPath constructs a hierarchical file path for storing photos based on the provided key and variant.
 func BuildPhotoPath(key string, variant db.PhotoVariant) string {
+	// Use the first four characters of the UUID to create a two-level directory structure.
 	shardLvl1 := key[0:2]
 	shardLvl2 := key[2:4]
 

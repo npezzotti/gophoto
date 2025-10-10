@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	PagesGlob     = "./templates/pages/*.html"
+	PagesGlob    = "./templates/pages/*.html"
 	PartialsGlob = "./templates/partials/*.html"
-	BaseTemplate  = "./templates/base.html"
+	BaseTemplate = "./templates/base.html"
 )
 
 type templateData struct {
@@ -34,7 +34,10 @@ func (a *application) generateTemplateData(r *http.Request) *templateData {
 		CSRFToken: nosurf.Token(r),
 	}
 
-	td.User = a.newUserResponse(r.Context(), a.getUserFromRequest(r))
+	user := a.getUserFromRequest(r)
+	if user != nil {
+		td.User = a.newUserResponse(r.Context(), user)
+	}
 
 	flash, ok := a.sessionManager.Pop(r.Context(), SessionKeyFlash).(Flash)
 	if ok {
