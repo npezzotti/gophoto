@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"os"
+	"path/filepath"
 )
 
 type storageType string
@@ -42,7 +43,7 @@ func LoadConfigFromEnv() (*Config, error) {
 	}
 
 	if cfg.StaticDir == "" {
-		cfg.StaticDir = "./assets"
+		cfg.StaticDir = filepath.Join(".", "assets")
 	}
 
 	if cfg.HttpServerAddr == "" {

@@ -57,8 +57,8 @@ func (a *application) newUserResponse(ctx context.Context, user *db.GetUserByIdR
 		}
 	} else {
 		// No profile picture set, use defaults
-		thumbUrl = filepath.Join("/", a.config.StaticDir, DefaultProfileThumbnailPath)
-		avatarUrl = filepath.Join("/", a.config.StaticDir, DefaultProfileAvatarPath)
+		thumbUrl = filepath.Join(a.config.StaticDir, DefaultProfileThumbnailPath)
+		avatarUrl = filepath.Join(a.config.StaticDir, DefaultProfileAvatarPath)
 	}
 
 	return &UserResponse{
