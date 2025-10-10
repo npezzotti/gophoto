@@ -60,10 +60,14 @@
                         <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
                     </div>
                 </div>
-                <a href="/profile" class="btn btn-outline-secondary">Back</a>
-                <button class="btn btn-outline-primary ">Submit</button>
-                <button class="btn btn-danger" type="button" data-bs-toggle="modal"
-                    data-bs-target="#deleteAccountPrompt">Delete account</button>
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div>
+                        <a href="/profile" class="btn btn-outline-secondary">Back</a>
+                        <button class="btn btn-outline-primary">Submit</button>
+                    </div>
+                    <button class="btn btn-danger" type="button" data-bs-toggle="modal"
+                        data-bs-target="#deleteAccountPrompt">Delete account</button>
+                </div>
             </form>
             <div class="modal fade" id="deleteAccountPrompt" data-bs-backdrop="static" data-bs-keyboard="false"
                 tabindex="-1" aria-labelledby="staticBackdropLabel" aria-hidden="true">
