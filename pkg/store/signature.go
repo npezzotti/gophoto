@@ -13,6 +13,7 @@ func CreateMessage(path string, expiresUnix int64) string {
 }
 
 // generateHmac generates an HMAC signature for the given message using the provided secret key.
+// It returns the computed HMAC as a byte slice.
 func generateHmac(message string, secret []byte) []byte {
 	h := hmac.New(sha256.New, secret)
 	h.Write([]byte(message))
@@ -20,7 +21,10 @@ func generateHmac(message string, secret []byte) []byte {
 }
 
 // VerifySignature verifies that the provided HMAC signature matches the expected signature for a given message and secret key.
-func VerifySignature(message string, messageMac, secret []byte) bool {
+func VerifySignature(message string, providedMac, secret []byte) bool {
 	expectedMac := generateHmac(message, secret)
-	return hmac.Equal(messageMac, expectedMac)
+	if len(providedMac) != len(expectedMac) {
+		return false
+	}
+	return hmac.Equal(providedMac, expectedMac)
 }
