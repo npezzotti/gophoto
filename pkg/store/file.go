@@ -8,8 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/npezzotti/gophoto/internal/signature"
 )
 
 type FileStore struct {
@@ -45,8 +43,8 @@ func (fs *FileStore) GenerateURL(ctx context.Context, path string) (string, erro
 
 	urlPath := filepath.Join("/", filePath)
 	expiry := time.Now().Add(15 * time.Minute)
-	message := signature.CreateMessage(urlPath, expiry.Unix())
-	signature := signature.GenerateHmac(message, fs.secretKey)
+	message := CreateMessage(urlPath, expiry.Unix())
+	signature := GenerateHmac(message, fs.secretKey)
 	b64Sig := base64.URLEncoding.EncodeToString(signature)
 
 	return fmt.Sprintf("%s?expires=%d&signature=%s", urlPath, expiry.Unix(), b64Sig), nil

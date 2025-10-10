@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/justinas/nosurf"
-	"github.com/npezzotti/gophoto/internal/signature"
+	"github.com/npezzotti/gophoto/pkg/store"
 )
 
 type middleware func(http.Handler) http.Handler
@@ -110,7 +110,7 @@ func (a *application) validUrl(r *http.Request) bool {
 		return false
 	}
 
-	message := signature.CreateMessage(r.URL.Path, expiry)
+	message := store.CreateMessage(r.URL.Path, expiry)
 
-	return signature.VerifySignature(message, receivedSig, a.config.SigningKey)
+	return store.VerifySignature(message, receivedSig, a.config.SigningKey)
 }

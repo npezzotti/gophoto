@@ -1,4 +1,4 @@
-package signature
+package store
 
 import (
 	"crypto/hmac"
