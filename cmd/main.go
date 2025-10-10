@@ -62,7 +62,7 @@ func main() {
 	}
 	defer redisClient.Close()
 
-	tc, err := template.NewTemplateCache()
+	tc, err := template.NewTemplateCache(web.PagesGlob, web.PartialsGlob, web.BaseTemplate)
 	if err != nil {
 		log.Fatal("error creating template cache:", err)
 	}

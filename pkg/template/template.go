@@ -29,15 +29,15 @@ func (tc *TemplateCache) RenderTemplate(w io.Writer, tmpl string, data any) erro
 	return nil
 }
 
-func NewTemplateCache() (TemplateCache, error) {
+func NewTemplateCache(pagesGlob, partialsGlob, baseTemplate string) (TemplateCache, error) {
 	cache := make(TemplateCache)
 
-	pages, err := filepath.Glob("./templates/pages/*.html")
+	pages, err := filepath.Glob(pagesGlob)
 	if err != nil {
 		return nil, err
 	}
 
-	partials, err := filepath.Glob("./templates/partials/*.html")
+	partials, err := filepath.Glob(partialsGlob)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func NewTemplateCache() (TemplateCache, error) {
 	for _, page := range pages {
 		name := filepath.Base(page)
 
-		patterns := append([]string{"./templates/base.html"}, partials...)
+		patterns := append([]string{baseTemplate}, partials...)
 		patterns = append(patterns, page)
 
 		ts, err := template.New(name).ParseFiles(patterns...)

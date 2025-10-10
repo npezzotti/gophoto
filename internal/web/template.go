@@ -11,6 +11,12 @@ import (
 	"github.com/npezzotti/gophoto/pkg/template"
 )
 
+const (
+	PagesGlob     = "./templates/pages/*.html"
+	PartialsGlob = "./templates/partials/*.html"
+	BaseTemplate  = "./templates/base.html"
+)
+
 type templateData struct {
 	Form                 forms.Form
 	Flash                *Flash
@@ -44,7 +50,7 @@ func (a *application) renderTemplate(w http.ResponseWriter, data *templateData, 
 	if a.config.UseTemplateCache {
 		tc = a.templateCache
 	} else {
-		tc, _ = template.NewTemplateCache()
+		tc, _ = template.NewTemplateCache(PagesGlob, PartialsGlob, BaseTemplate)
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=UTF-8")
