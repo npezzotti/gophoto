@@ -1,10 +1,10 @@
-package web
+package forms
 
 import (
 	"regexp"
 )
 
-const emailRegex = `^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$`
+const EmailRegex = `^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$`
 
 type Form interface {
 	Validate() bool
@@ -53,7 +53,7 @@ func (sf *SignupForm) Validate() bool {
 	if sf.Email == "" {
 		sf.Errors["Email"] = "Email required"
 	} else {
-		matched, _ := regexp.Match(emailRegex, []byte(sf.Email))
+		matched, _ := regexp.Match(EmailRegex, []byte(sf.Email))
 		if !matched {
 			sf.Errors["Email"] = "Please enter a valid email"
 		}
@@ -92,7 +92,7 @@ func (epf *EditProfileForm) Validate() bool {
 	if epf.Email == "" {
 		epf.Errors["Email"] = "Email required"
 	} else {
-		matched, _ := regexp.Match(emailRegex, []byte(epf.Email))
+		matched, _ := regexp.Match(EmailRegex, []byte(epf.Email))
 		if !matched {
 			epf.Errors["Email"] = "Please enter a valid email"
 		}

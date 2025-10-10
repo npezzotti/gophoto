@@ -14,7 +14,7 @@ type Flash struct {
 	Level   flashClass
 }
 
-func (a *application) Flash(r *http.Request, msg string, level flashClass) {
+func (a *application) flash(r *http.Request, msg string, level flashClass) {
 	flash := Flash{
 		Message: msg,
 		Level:   level,

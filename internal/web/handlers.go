@@ -14,9 +14,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/npezzotti/gophoto/internal/db"
-	"github.com/npezzotti/gophoto/internal/workers"
-	"github.com/npezzotti/gophoto/pkg/pagination"
 	"github.com/npezzotti/gophoto/internal/utils"
+	"github.com/npezzotti/gophoto/internal/workers"
+	"github.com/npezzotti/gophoto/pkg/forms"
+	"github.com/npezzotti/gophoto/pkg/pagination"
 )
 
 const (
@@ -101,7 +102,7 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 			id, err := strconv.Atoi(id_str)
 			if err != nil {
 				a.ErrorLog.Println("error converting string to int", err)
-				a.Flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
+				a.flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
 				http.Redirect(w, r, "/albums", http.StatusSeeOther)
 				return
 			}
@@ -109,13 +110,13 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 			album, err := a.database.GetAlbum(r.Context(), int32(id))
 			if err != nil {
 				a.ErrorLog.Println("error getting album:", err)
-				a.Flash(r, strings.ToLower(http.StatusText(http.StatusNotFound)), flashErr)
+				a.flash(r, strings.ToLower(http.StatusText(http.StatusNotFound)), flashErr)
 				http.Redirect(w, r, "/albums", http.StatusSeeOther)
 				return
 			}
 
 			if user.ID != album.UserID {
-				a.Flash(r, strings.ToLower(http.StatusText(http.StatusNotFound)), flashErr)
+				a.flash(r, strings.ToLower(http.StatusText(http.StatusNotFound)), flashErr)
 				http.Redirect(w, r, "/albums", http.StatusSeeOther)
 				return
 			}
@@ -127,7 +128,7 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 				Offset:  int32(pagination.Offset()),
 			})
 			if err != nil {
-				a.Flash(r, strings.ToLower(http.StatusText(http.StatusInternalServerError)), flashErr)
+				a.flash(r, strings.ToLower(http.StatusText(http.StatusInternalServerError)), flashErr)
 				http.Redirect(w, r, "/albums", http.StatusSeeOther)
 				return
 			}
@@ -200,7 +201,7 @@ func (a *application) createAlbumHandler(w http.ResponseWriter, r *http.Request)
 		if err := r.ParseForm(); err != nil {
 			if err := r.ParseForm(); err != nil {
 				a.ErrorLog.Println("error parsing form:", err)
-				a.Flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
+				a.flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
 				http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 				return
 			}
@@ -213,12 +214,12 @@ func (a *application) createAlbumHandler(w http.ResponseWriter, r *http.Request)
 		})
 		if err != nil {
 			a.ErrorLog.Println("error creating album:", err)
-			a.Flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
+			a.flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 			return
 		}
 
-		a.Flash(r, fmt.Sprintf("Successfully created album \"%s\"!", album.Title), flashInfo)
+		a.flash(r, fmt.Sprintf("Successfully created album \"%s\"!", album.Title), flashInfo)
 		http.Redirect(w, r, fmt.Sprintf("/albums?id=%d", album.ID), http.StatusSeeOther)
 	default:
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
@@ -232,7 +233,7 @@ func (a *application) updateAlbumHandler(w http.ResponseWriter, r *http.Request)
 		if err := r.ParseForm(); err != nil {
 			if err := r.ParseForm(); err != nil {
 				a.ErrorLog.Println("error parsing form:", err)
-				a.Flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
+				a.flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
 				http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 				return
 			}
@@ -242,7 +243,7 @@ func (a *application) updateAlbumHandler(w http.ResponseWriter, r *http.Request)
 		album_id, err := strconv.Atoi(album_id_str)
 		if err != nil {
 			a.ErrorLog.Println("error converting string to int:", err)
-			a.Flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
+			a.flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 			return
 		}
@@ -255,14 +256,14 @@ func (a *application) updateAlbumHandler(w http.ResponseWriter, r *http.Request)
 			} else {
 				flashMsg = "Error retrieving album"
 			}
-			a.Flash(r, strings.ToLower(flashMsg), flashErr)
+			a.flash(r, strings.ToLower(flashMsg), flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 			return
 		}
 
 		user := a.getUserFromRequest(r)
 		if user.ID != album.UserID {
-			a.Flash(r, strings.ToLower(http.StatusText(http.StatusNotFound)), flashErr)
+			a.flash(r, strings.ToLower(http.StatusText(http.StatusNotFound)), flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 			return
 		}
@@ -275,12 +276,12 @@ func (a *application) updateAlbumHandler(w http.ResponseWriter, r *http.Request)
 		}
 		if err := a.database.UpdateAlbum(r.Context(), album_params); err != nil {
 			a.ErrorLog.Println("error updating album:", err)
-			a.Flash(r, strings.ToLower(http.StatusText(http.StatusInternalServerError)), flashErr)
+			a.flash(r, strings.ToLower(http.StatusText(http.StatusInternalServerError)), flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 			return
 		}
 
-		a.Flash(r, "Album updated!", flashInfo)
+		a.flash(r, "Album updated!", flashInfo)
 		http.Redirect(w, r, fmt.Sprintf("/albums?id=%d", album.ID), http.StatusSeeOther)
 	default:
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
@@ -293,14 +294,14 @@ func (a *application) deleteAlbumHandler(w http.ResponseWriter, r *http.Request)
 	case http.MethodGet:
 		id_str := r.URL.Query().Get("id")
 		if id_str == "" {
-			a.Flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
+			a.flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 			return
 		}
 		id, err := strconv.Atoi(id_str)
 		if err != nil {
 			a.ErrorLog.Println("error converting string to int", err)
-			a.Flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
+			a.flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 			return
 		}
@@ -313,26 +314,26 @@ func (a *application) deleteAlbumHandler(w http.ResponseWriter, r *http.Request)
 			} else {
 				flashMsg = "Error retrieving album"
 			}
-			a.Flash(r, strings.ToLower(flashMsg), flashErr)
+			a.flash(r, strings.ToLower(flashMsg), flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 			return
 		}
 
 		user := a.getUserFromRequest(r)
 		if user.ID != album.UserID {
-			a.Flash(r, strings.ToLower(http.StatusText(http.StatusNotFound)), flashErr)
+			a.flash(r, strings.ToLower(http.StatusText(http.StatusNotFound)), flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 			return
 		}
 
 		if err := a.database.DeleteAlbum(r.Context(), int32(album.ID)); err != nil {
 			a.ErrorLog.Println("error deleting album:", err)
-			a.Flash(r, strings.ToLower(http.StatusText(http.StatusInternalServerError)), flashErr)
+			a.flash(r, strings.ToLower(http.StatusText(http.StatusInternalServerError)), flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 			return
 		}
 
-		a.Flash(r, fmt.Sprintf("Successfully deleted album %q.", album.Title), flashInfo)
+		a.flash(r, fmt.Sprintf("Successfully deleted album %q.", album.Title), flashInfo)
 		http.Redirect(w, r, "/albums", http.StatusSeeOther)
 	default:
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
@@ -547,7 +548,7 @@ func (a *application) deletePhotoHandler(w http.ResponseWriter, r *http.Request)
 
 	id_str := r.URL.Query().Get("id")
 	if id_str == "" {
-		a.Flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
+		a.flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 		return
 	}
@@ -555,21 +556,21 @@ func (a *application) deletePhotoHandler(w http.ResponseWriter, r *http.Request)
 	id, err := strconv.Atoi(id_str)
 	if err != nil {
 		a.ErrorLog.Println("error parsing id:", err)
-		a.Flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
+		a.flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 		return
 	}
 
 	photo, err := a.database.GetAlbumPhoto(r.Context(), int32(id))
 	if err != nil {
-		a.Flash(r, strings.ToLower(http.StatusText(http.StatusNotFound)), flashErr)
+		a.flash(r, strings.ToLower(http.StatusText(http.StatusNotFound)), flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 		return
 	}
 
 	user := a.getUserFromRequest(r)
 	if photo.UserID != user.ID {
-		a.Flash(r, strings.ToLower(http.StatusText(http.StatusNotFound)), flashErr)
+		a.flash(r, strings.ToLower(http.StatusText(http.StatusNotFound)), flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 		return
 	}
@@ -580,12 +581,12 @@ func (a *application) deletePhotoHandler(w http.ResponseWriter, r *http.Request)
 		AlbumID: photo.AlbumID,
 	}); err != nil {
 		a.ErrorLog.Println("error removing photo from album:", err)
-		a.Flash(r, strings.ToLower(http.StatusText(http.StatusInternalServerError)), flashErr)
+		a.flash(r, strings.ToLower(http.StatusText(http.StatusInternalServerError)), flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 		return
 	}
 
-	a.Flash(r, "Photo successfully deleted.", flashInfo)
+	a.flash(r, "Photo successfully deleted.", flashInfo)
 	http.Redirect(w, r, fmt.Sprintf("/albums?id=%d", photo.AlbumID), http.StatusSeeOther)
 }
 
@@ -593,12 +594,12 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
 		if err := r.ParseForm(); err != nil {
-			a.Flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
+			a.flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
 
-		lf := &LoginForm{
+		lf := &forms.LoginForm{
 			Email:    r.Form.Get("email"),
 			Password: r.Form.Get("password"),
 		}
@@ -618,7 +619,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 		user, err := a.database.GetUserByEmail(r.Context(), lf.Email)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				a.Flash(r, "No account found with that email address.", flashErr)
+				a.flash(r, "No account found with that email address.", flashErr)
 				td := a.generateTemplateData(r)
 				td.Form = lf
 
@@ -630,14 +631,14 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			} else {
 				a.ErrorLog.Printf("error getting user by email: %s", err)
-				a.Flash(r, "Internal server error.", flashErr)
+				a.flash(r, "Internal server error.", flashErr)
 				http.Redirect(w, r, "/login", http.StatusSeeOther)
 			}
 			return
 		}
 
 		if !passwordsMatch(user.PasswordHash, lf.Password) {
-			a.Flash(r, "Incorrect password.", flashErr)
+			a.flash(r, "Incorrect password.", flashErr)
 
 			td := a.generateTemplateData(r)
 			td.Form = lf
@@ -653,7 +654,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 		if err := a.sessionManager.RenewToken(r.Context()); err != nil {
 			a.ErrorLog.Printf("error renewing token: %s", err)
-			a.Flash(r, "Internal server error.", flashErr)
+			a.flash(r, "Internal server error.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
@@ -671,7 +672,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/albums", http.StatusSeeOther)
 	case http.MethodGet:
 		td := a.generateTemplateData(r)
-		td.Form = &LoginForm{}
+		td.Form = &forms.LoginForm{}
 		if err := a.renderTemplate(w, td, "login.html"); err != nil {
 			a.ErrorLog.Printf("error rendering template: %s", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)

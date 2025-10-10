@@ -6,12 +6,13 @@ import (
 
 	"github.com/justinas/nosurf"
 	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/pkg/forms"
 	"github.com/npezzotti/gophoto/pkg/pagination"
 	"github.com/npezzotti/gophoto/pkg/template"
 )
 
 type templateData struct {
-	Form                 Form
+	Form                 forms.Form
 	Flash                *Flash
 	User                 *UserResponse
 	Albums               []*AlbumResponse

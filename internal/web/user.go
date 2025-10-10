@@ -12,8 +12,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/npezzotti/gophoto/internal/db"
-	"github.com/npezzotti/gophoto/internal/workers"
 	"github.com/npezzotti/gophoto/internal/utils"
+	"github.com/npezzotti/gophoto/internal/workers"
+	"github.com/npezzotti/gophoto/pkg/forms"
 )
 
 type UserResponse struct {
@@ -56,12 +57,12 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		if err := r.ParseForm(); err != nil {
 			a.ErrorLog.Println("error parsing form:", err)
-			a.Flash(r, "Error processing form. Please try again.", flashErr)
+			a.flash(r, "Error processing form. Please try again.", flashErr)
 			http.Redirect(w, r, "/signup", http.StatusSeeOther)
 			return
 		}
 
-		sf := &SignupForm{
+		sf := &forms.SignupForm{
 			FirstName:       r.Form.Get("first_name"),
 			LastName:        r.Form.Get("last_name"),
 			Email:           r.Form.Get("email"),
@@ -85,7 +86,7 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 		passwdHash, err := hashPassword(sf.Password)
 		if err != nil {
 			a.ErrorLog.Println("error hashing password:", err)
-			a.Flash(r, strings.ToLower(http.StatusText(http.StatusInternalServerError)), flashErr)
+			a.flash(r, strings.ToLower(http.StatusText(http.StatusInternalServerError)), flashErr)
 			http.Redirect(w, r, "/signup", http.StatusSeeOther)
 			return
 		}
@@ -99,16 +100,16 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 		_, err = a.database.CreateUser(r.Context(), user_params)
 		if err != nil {
 			a.ErrorLog.Println(err)
-			a.Flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
+			a.flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
 			http.Redirect(w, r, "/signup", http.StatusSeeOther)
 			return
 		}
 
-		a.Flash(r, "Account successfully created.", flashInfo)
+		a.flash(r, "Account successfully created.", flashInfo)
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 	case http.MethodGet:
 		td := a.generateTemplateData(r)
-		td.Form = &SignupForm{}
+		td.Form = &forms.SignupForm{}
 
 		if err := a.renderTemplate(w, td, "signup.html"); err != nil {
 			a.ErrorLog.Printf("error rendering template: %s", err)
@@ -126,7 +127,7 @@ func (a *application) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		if err := a.sessionManager.Destroy(r.Context()); err != nil {
 			a.ErrorLog.Println("error deleting session:", err)
-			a.Flash(r, "Error logging out. Please try again.", flashErr)
+			a.flash(r, "Error logging out. Please try again.", flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 			return
 		}
@@ -159,7 +160,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 		user := a.getUserFromRequest(r)
 		td := a.generateTemplateData(r)
 		td.AddPhotoUploadAction = "/profile/photo/edit"
-		td.Form = &EditProfileForm{
+		td.Form = &forms.EditProfileForm{
 			FirstName: user.FirstName,
 			LastName:  user.LastName,
 			Email:     user.Email,
@@ -173,12 +174,12 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 	case http.MethodPost:
 		if err := r.ParseForm(); err != nil {
 			a.ErrorLog.Println("error parsing form:", err)
-			a.Flash(r, "Error processing form. Please try again.", flashErr)
+			a.flash(r, "Error processing form. Please try again.", flashErr)
 			http.Redirect(w, r, "/signup", http.StatusSeeOther)
 			return
 		}
 
-		epf := &EditProfileForm{
+		epf := &forms.EditProfileForm{
 			FirstName:       r.PostFormValue("first_name"),
 			LastName:        r.PostFormValue("last_name"),
 			Email:           r.PostFormValue("email"),
@@ -204,7 +205,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 			hash, err := hashPassword(epf.Password)
 			if err != nil {
 				a.ErrorLog.Println("error hashing password:", err)
-				a.Flash(r, "Error updating profile. Please try again.", flashErr)
+				a.flash(r, "Error updating profile. Please try again.", flashErr)
 				http.Redirect(w, r, "/profile", http.StatusSeeOther)
 				return
 			}
@@ -221,12 +222,12 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 		})
 		if err != nil {
 			a.ErrorLog.Printf("error updating user %d: %s\n", user.ID, err.Error())
-			a.Flash(r, "Error updating profile. Please try again.", flashErr)
+			a.flash(r, "Error updating profile. Please try again.", flashErr)
 			http.Redirect(w, r, "/profile", http.StatusSeeOther)
 			return
 		}
 
-		a.Flash(r, "Successfully updated profile.", flashInfo)
+		a.flash(r, "Successfully updated profile.", flashInfo)
 		http.Redirect(w, r, "/profile", http.StatusSeeOther)
 		return
 	default:
@@ -296,7 +297,7 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 		photo, err := a.database.CreatePhoto(r.Context(), createPhotoParams)
 		if err != nil {
 			a.ErrorLog.Printf("error creating photo record: %s", err)
-			a.Flash(r, "Error uploading profile picture. Please try again.", flashErr)
+			a.flash(r, "Error uploading profile picture. Please try again.", flashErr)
 			http.Redirect(w, r, "/profile", http.StatusSeeOther)
 			return
 		}
@@ -308,14 +309,14 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 			MimeType: filetype,
 		}); err != nil {
 			a.ErrorLog.Printf("error creating photo metadata record: %s", err)
-			a.Flash(r, "Error uploading profile picture. Please try again.", flashErr)
+			a.flash(r, "Error uploading profile picture. Please try again.", flashErr)
 			http.Redirect(w, r, "/profile", http.StatusSeeOther)
 			return
 		}
 
 		if err := a.store.Write(r.Context(), utils.BuildPhotoPath(key, db.PhotoVariantOriginal), f); err != nil {
 			a.ErrorLog.Printf("error writing profile picture to storage: %s", err)
-			a.Flash(r, "Error uploading profile picture. Please try again.", flashErr)
+			a.flash(r, "Error uploading profile picture. Please try again.", flashErr)
 			http.Redirect(w, r, "/profile", http.StatusSeeOther)
 			return
 		}
@@ -343,7 +344,7 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 		})
 		if err != nil {
 			a.ErrorLog.Println("error updating user:", err)
-			a.Flash(r, "Error updating profile picture, Please try again.", flashErr)
+			a.flash(r, "Error updating profile picture, Please try again.", flashErr)
 			http.Redirect(w, r, "/profile", http.StatusSeeOther)
 			return
 		}
@@ -368,7 +369,7 @@ func (a *application) deleteAccountHandler(w http.ResponseWriter, r *http.Reques
 		user := a.getUserFromRequest(r)
 		if err := a.database.DeleteUser(r.Context(), user.ID); err != nil {
 			a.ErrorLog.Println("error deleting user:", err)
-			a.Flash(r, "Error deleting account. Please try again.", flashErr)
+			a.flash(r, "Error deleting account. Please try again.", flashErr)
 			http.Redirect(w, r, "/profile", http.StatusSeeOther)
 			return
 		}
@@ -377,7 +378,7 @@ func (a *application) deleteAccountHandler(w http.ResponseWriter, r *http.Reques
 			a.ErrorLog.Println("error deleting session:", err)
 		}
 
-		a.Flash(r, "Your account has been deleted.", flashInfo)
+		a.flash(r, "Your account has been deleted.", flashInfo)
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	default:
