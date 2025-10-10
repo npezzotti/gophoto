@@ -43,11 +43,9 @@ func NewTemplateCache(pagesGlob, partialsGlob, baseTemplate string) (TemplateCac
 	}
 
 	for _, page := range pages {
+		patterns := append([]string{baseTemplate, page}, partials...)
+
 		name := filepath.Base(page)
-
-		patterns := append([]string{baseTemplate}, partials...)
-		patterns = append(patterns, page)
-
 		ts, err := template.New(name).ParseFiles(patterns...)
 		if err != nil {
 			return nil, err
