@@ -1,4 +1,4 @@
-FROM golang:1.25.1-alpine
+FROM golang:1.25.2-alpine
 
 # Install vips and its development files for bimg
 RUN apk add --no-cache build-base vips-dev
