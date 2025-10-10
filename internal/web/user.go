@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -23,6 +24,23 @@ type UserResponse struct {
 	Email                   string
 	ProfilePictureThumbURL  string
 	ProfilePictureAvatarURL string
+}
+
+// getUserFromRequest retrieves the authenticated user's details from the request context.
+func (a *application) getUserFromRequest(r *http.Request) *db.GetUserByIdRow {
+	if userId, ok := r.Context().Value(AuthenticatedUserId).(int32); ok {
+		userRow, err := a.database.GetUserById(r.Context(), userId)
+		if err != nil {
+			a.ErrorLog.Printf("error getting user by id from request: %s", err.Error())
+			if err != sql.ErrNoRows {
+				a.ErrorLog.Printf("error querying user: %s\n", err.Error())
+			}
+			return &db.GetUserByIdRow{}
+		}
+		return &userRow
+	}
+
+	return &db.GetUserByIdRow{}
 }
 
 func (a *application) newUserResponse(ctx context.Context, user *db.GetUserByIdRow) *UserResponse {
@@ -114,6 +132,100 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 		if err := a.renderTemplate(w, td, "signup.html"); err != nil {
 			a.ErrorLog.Printf("error rendering template: %s", err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+	default:
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		return
+	}
+}
+
+func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodPost:
+		if err := r.ParseForm(); err != nil {
+			a.flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
+		lf := &forms.LoginForm{
+			Email:    r.Form.Get("email"),
+			Password: r.Form.Get("password"),
+		}
+
+		if !lf.Validate() {
+			td := a.generateTemplateData(r)
+			td.Form = lf
+			if err := a.renderTemplate(w, td, "login.html"); err != nil {
+				a.ErrorLog.Printf("error rendering template: %s", err)
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+
+		user, err := a.database.GetUserByEmail(r.Context(), lf.Email)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				a.flash(r, "No account found with that email address.", flashErr)
+				td := a.generateTemplateData(r)
+				td.Form = lf
+
+				w.WriteHeader(http.StatusForbidden)
+				if err := a.renderTemplate(w, td, "login.html"); err != nil {
+					a.ErrorLog.Printf("error rendering template: %s", err)
+					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+					return
+				}
+			} else {
+				a.ErrorLog.Printf("error getting user by email: %s", err)
+				a.flash(r, "Internal server error.", flashErr)
+				http.Redirect(w, r, "/login", http.StatusSeeOther)
+			}
+			return
+		}
+
+		if !passwordsMatch(user.PasswordHash, lf.Password) {
+			a.flash(r, "Incorrect password.", flashErr)
+
+			td := a.generateTemplateData(r)
+			td.Form = lf
+
+			if err := a.renderTemplate(w, td, "login.html"); err != nil {
+				a.ErrorLog.Printf("error rendering template: %s", err)
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+
+		if err := a.sessionManager.RenewToken(r.Context()); err != nil {
+			a.ErrorLog.Printf("error renewing token: %s", err)
+			a.flash(r, "Internal server error.", flashErr)
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
+		a.sessionManager.Put(r.Context(), SessionKeyUserID, user.ID)
+
+		// Redirect to intended path after login
+		path := a.sessionManager.PopString(r.Context(), SessionKeyRedirectPath)
+		if path != "" {
+			http.Redirect(w, r, path, http.StatusSeeOther)
+			return
+		}
+
+		// Default redirect
+		http.Redirect(w, r, "/albums", http.StatusSeeOther)
+	case http.MethodGet:
+		td := a.generateTemplateData(r)
+		td.Form = &forms.LoginForm{}
+		if err := a.renderTemplate(w, td, "login.html"); err != nil {
+			a.ErrorLog.Printf("error rendering template: %s", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	default:

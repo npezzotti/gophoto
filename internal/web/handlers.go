@@ -16,7 +16,6 @@ import (
 	"github.com/npezzotti/gophoto/internal/db"
 	"github.com/npezzotti/gophoto/internal/utils"
 	"github.com/npezzotti/gophoto/internal/workers"
-	"github.com/npezzotti/gophoto/pkg/forms"
 	"github.com/npezzotti/gophoto/pkg/pagination"
 )
 
@@ -590,100 +589,6 @@ func (a *application) deletePhotoHandler(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, fmt.Sprintf("/albums?id=%d", photo.AlbumID), http.StatusSeeOther)
 }
 
-func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodPost:
-		if err := r.ParseForm(); err != nil {
-			a.flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
-			return
-		}
-
-		lf := &forms.LoginForm{
-			Email:    r.Form.Get("email"),
-			Password: r.Form.Get("password"),
-		}
-
-		if !lf.Validate() {
-			td := a.generateTemplateData(r)
-			td.Form = lf
-			if err := a.renderTemplate(w, td, "login.html"); err != nil {
-				a.ErrorLog.Printf("error rendering template: %s", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
-
-		user, err := a.database.GetUserByEmail(r.Context(), lf.Email)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				a.flash(r, "No account found with that email address.", flashErr)
-				td := a.generateTemplateData(r)
-				td.Form = lf
-
-				w.WriteHeader(http.StatusForbidden)
-				if err := a.renderTemplate(w, td, "login.html"); err != nil {
-					a.ErrorLog.Printf("error rendering template: %s", err)
-					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-					return
-				}
-			} else {
-				a.ErrorLog.Printf("error getting user by email: %s", err)
-				a.flash(r, "Internal server error.", flashErr)
-				http.Redirect(w, r, "/login", http.StatusSeeOther)
-			}
-			return
-		}
-
-		if !passwordsMatch(user.PasswordHash, lf.Password) {
-			a.flash(r, "Incorrect password.", flashErr)
-
-			td := a.generateTemplateData(r)
-			td.Form = lf
-
-			if err := a.renderTemplate(w, td, "login.html"); err != nil {
-				a.ErrorLog.Printf("error rendering template: %s", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
-
-		if err := a.sessionManager.RenewToken(r.Context()); err != nil {
-			a.ErrorLog.Printf("error renewing token: %s", err)
-			a.flash(r, "Internal server error.", flashErr)
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
-			return
-		}
-
-		a.sessionManager.Put(r.Context(), SessionKeyUserID, user.ID)
-
-		// Redirect to intended path after login
-		path := a.sessionManager.PopString(r.Context(), SessionKeyRedirectPath)
-		if path != "" {
-			http.Redirect(w, r, path, http.StatusSeeOther)
-			return
-		}
-
-		// Default redirect
-		http.Redirect(w, r, "/albums", http.StatusSeeOther)
-	case http.MethodGet:
-		td := a.generateTemplateData(r)
-		td.Form = &forms.LoginForm{}
-		if err := a.renderTemplate(w, td, "login.html"); err != nil {
-			a.ErrorLog.Printf("error rendering template: %s", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	default:
-		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
-		return
-	}
-}
-
 func (a *application) aboutHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -697,4 +602,11 @@ func (a *application) aboutHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 		return
 	}
+}
+
+// writeJsonResp writes the provided data as a JSON response with the specified HTTP status code.
+func (a *application) writeJsonResp(w http.ResponseWriter, status int, data any) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	return json.NewEncoder(w).Encode(data)
 }

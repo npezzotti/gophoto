@@ -1,14 +1,11 @@
 package web
 
 import (
-	"database/sql"
-	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 
-	"github.com/npezzotti/gophoto/internal/db"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -38,30 +35,6 @@ func isAuthenticated(r *http.Request) bool {
 	}
 
 	return false
-}
-
-// getUserFromRequest retrieves the authenticated user's details from the request context.
-func (a *application) getUserFromRequest(r *http.Request) *db.GetUserByIdRow {
-	if userId, ok := r.Context().Value(AuthenticatedUserId).(int32); ok {
-		userRow, err := a.database.GetUserById(r.Context(), userId)
-		if err != nil {
-			a.ErrorLog.Printf("error getting user by id from request: %s", err.Error())
-			if err != sql.ErrNoRows {
-				a.ErrorLog.Printf("error querying user: %s\n", err.Error())
-			}
-			return &db.GetUserByIdRow{}
-		}
-		return &userRow
-	}
-
-	return &db.GetUserByIdRow{}
-}
-
-// writeJsonResp writes the provided data as a JSON response with the specified HTTP status code.
-func (a *application) writeJsonResp(w http.ResponseWriter, status int, data any) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	return json.NewEncoder(w).Encode(data)
 }
 
 // detectContentType reads the first 512 bytes of the provided file to determine its content type.
