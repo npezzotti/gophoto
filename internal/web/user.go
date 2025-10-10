@@ -213,12 +213,13 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 		}
 
 		_, err := a.database.UpdateUser(r.Context(), db.UpdateUserParams{
-			ID:           user.ID,
-			FirstName:    epf.FirstName,
-			LastName:     epf.LastName,
-			Email:        epf.Email,
-			PasswordHash: pwdHash,
-			UpdatedAt:    time.Now(),
+			ID:               user.ID,
+			FirstName:        epf.FirstName,
+			LastName:         epf.LastName,
+			Email:            epf.Email,
+			PasswordHash:     pwdHash,
+			ProfilePictureID: sql.NullInt32{Int32: user.ProfilePictureID.Int32, Valid: user.ProfilePictureID.Valid},
+			UpdatedAt:        time.Now(),
 		})
 		if err != nil {
 			a.ErrorLog.Printf("error updating user %d: %s\n", user.ID, err.Error())
