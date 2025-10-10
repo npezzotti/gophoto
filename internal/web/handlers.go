@@ -415,7 +415,7 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 
 	key := uuid.New().String()
 	photo, err := a.database.CreatePhoto(r.Context(), db.CreatePhotoParams{
-		UserID: user.ID,
+		UserID: sql.NullInt32{Int32: user.ID, Valid: true},
 		Key:    key,
 		Status: db.PhotoStatusProcessing,
 	})
@@ -524,7 +524,7 @@ func (a *application) photoStatusHandler(w http.ResponseWriter, r *http.Request)
 		}
 
 		// Ensure photo belongs to user
-		if photo.UserID != a.getUserFromRequest(r).ID {
+		if !photo.UserID.Valid || photo.UserID.Int32 != a.getUserFromRequest(r).ID {
 			a.writeJsonResp(w, http.StatusNotFound, map[string]string{"error": "photo not found"})
 			return
 		}
@@ -569,7 +569,7 @@ func (a *application) deletePhotoHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	user := a.getUserFromRequest(r)
-	if photo.UserID != user.ID {
+	if !photo.UserID.Valid || photo.UserID.Int32 != user.ID {
 		a.flash(r, strings.ToLower(http.StatusText(http.StatusNotFound)), flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 		return

@@ -291,7 +291,7 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 
 		user := a.getUserFromRequest(r)
 		createPhotoParams := db.CreatePhotoParams{
-			UserID: user.ID,
+			UserID: sql.NullInt32{Int32: user.ID, Valid: true},
 			Key:    key,
 			Status: db.PhotoStatusProcessing,
 		}
@@ -368,6 +368,8 @@ func (a *application) deleteAccountHandler(w http.ResponseWriter, r *http.Reques
 	switch r.Method {
 	case http.MethodGet:
 		user := a.getUserFromRequest(r)
+		// Delete user account. This cascades to delete all albums and album_photos entries. Photos are not immediately deleted,
+		// but will be cleaned up by the storage cleaner worker.
 		if err := a.database.DeleteUser(r.Context(), user.ID); err != nil {
 			a.ErrorLog.Println("error deleting user:", err)
 			a.flash(r, "Error deleting account. Please try again.", flashErr)

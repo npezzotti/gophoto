@@ -19,7 +19,7 @@ CREATE TYPE photo_status AS ENUM (
 
 CREATE TABLE photos (
     id SERIAL PRIMARY KEY,
-    user_id INT NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+    user_id INT REFERENCES users(id) ON DELETE SET NULL,
     key VARCHAR(250) NOT NULL,
     status photo_status NOT NULL DEFAULT 'processing',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,

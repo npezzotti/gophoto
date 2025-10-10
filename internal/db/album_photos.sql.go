@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"time"
 )
 
@@ -34,7 +35,7 @@ WHERE p.id = $1 LIMIT 1
 
 type GetAlbumPhotoRow struct {
 	ID        int32
-	UserID    int32
+	UserID    sql.NullInt32
 	Key       string
 	Status    PhotoStatus
 	CreatedAt time.Time

@@ -115,7 +115,7 @@ type AlbumPhoto struct {
 
 type Photo struct {
 	ID        int32
-	UserID    int32
+	UserID    sql.NullInt32
 	Key       string
 	Status    PhotoStatus
 	CreatedAt time.Time

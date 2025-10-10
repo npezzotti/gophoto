@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"time"
 )
 
@@ -24,7 +25,7 @@ RETURNING id, user_id, key, status, created_at, updated_at
 `
 
 type CreatePhotoParams struct {
-	UserID int32
+	UserID sql.NullInt32
 	Key    string
 	Status PhotoStatus
 }
