@@ -36,9 +36,11 @@
 
     <div class="row gy-4">
         {{ range .Albums }}
-        <div class="col-xl-3 col-lg-4 col-md-6 col-sm-12 mb-4">
-            <div class="card" style="width: 300px;"> 
-                <img src="{{ .AlbumCoverUrl }}" class="card-img-top object-fit-contain bg-light" alt="Album cover" style="height: 300px;">
+        <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+            <div class="card"> 
+                <div class="square-container bg-light rounded-top">
+                    <img src="{{ .AlbumCoverUrl }}" class="card-img-top w-100 h-100 object-fit-contain" alt="Album cover">
+                </div>
                 <div class="card-body">
                     <h5 class="card-title">{{ .Album.Title }}</h5>
                     <p class="card-text">{{ .Album.NumPhotos }} Photos</p>
