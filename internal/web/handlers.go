@@ -148,7 +148,7 @@ func (a *application) generateAlbumImageResponse(ctx context.Context, photo db.P
 func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		user := a.getUserFromRequest(r)
+		user := a.extractUserFromRequest(r)
 		if user == nil {
 			a.flash(r, "User not found.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -265,7 +265,7 @@ func (a *application) createAlbumHandler(w http.ResponseWriter, r *http.Request)
 			}
 		}
 
-		user := a.getUserFromRequest(r)
+		user := a.extractUserFromRequest(r)
 		if user == nil {
 			a.flash(r, "User not found.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -325,7 +325,7 @@ func (a *application) updateAlbumHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		user := a.getUserFromRequest(r)
+		user := a.extractUserFromRequest(r)
 		if user == nil {
 			a.flash(r, "User not found.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -389,7 +389,7 @@ func (a *application) deleteAlbumHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		user := a.getUserFromRequest(r)
+		user := a.extractUserFromRequest(r)
 		if user == nil {
 			a.flash(r, "User not found.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -443,7 +443,7 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	user := a.getUserFromRequest(r)
+	user := a.extractUserFromRequest(r)
 	if user == nil {
 		a.flash(r, "User not found.", flashErr)
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -631,7 +631,7 @@ func (a *application) photoStatusHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		user := a.getUserFromRequest(r)
+		user := a.extractUserFromRequest(r)
 		if user == nil {
 			a.flash(r, "User not found.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -682,7 +682,7 @@ func (a *application) deletePhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	user := a.getUserFromRequest(r)
+	user := a.extractUserFromRequest(r)
 	if user == nil {
 		a.flash(r, "User not found.", flashErr)
 		http.Redirect(w, r, "/login", http.StatusSeeOther)

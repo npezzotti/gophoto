@@ -27,8 +27,8 @@ type UserResponse struct {
 	ProfilePictureAvatarURL string
 }
 
-// getUserFromRequest retrieves the authenticated user's details from the request context.
-func (a *application) getUserFromRequest(r *http.Request) *db.GetUserByIdRow {
+// extractUserFromRequest retrieves the authenticated user's details from the request context.
+func (a *application) extractUserFromRequest(r *http.Request) *db.GetUserByIdRow {
 	if userId, ok := r.Context().Value(AuthenticatedUserId).(int32); ok {
 		userRow, err := a.database.GetUserById(r.Context(), userId)
 		if err != nil {
@@ -54,6 +54,7 @@ func (a *application) newUserResponse(ctx context.Context, user *db.GetUserByIdR
 		}
 
 		for _, m := range meta {
+			// Skip original variant as it's not meant to be directly served
 			if m.Variant == db.PhotoVariantOriginal {
 				continue
 			}
@@ -76,7 +77,8 @@ func (a *application) newUserResponse(ctx context.Context, user *db.GetUserByIdR
 				URL:    url,
 			})
 
-			if m.Variant == db.PhotoVariantSmall {
+			// Set default source for medium variant
+			if m.Variant == db.PhotoVariantMedium {
 				defaultSrc = url
 			}
 		}
@@ -311,7 +313,7 @@ func (a *application) profileHandler(w http.ResponseWriter, r *http.Request) {
 func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		user := a.getUserFromRequest(r)
+		user := a.extractUserFromRequest(r)
 		if user == nil {
 			a.flash(r, "User not found.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -358,7 +360,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		user := a.getUserFromRequest(r)
+		user := a.extractUserFromRequest(r)
 		if user == nil {
 			a.flash(r, "User not found.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -455,7 +457,7 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 
 		key := uuid.New().String()
 
-		user := a.getUserFromRequest(r)
+		user := a.extractUserFromRequest(r)
 		if user == nil {
 			a.flash(r, "User not found.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -546,7 +548,7 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 func (a *application) deleteAccountHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		user := a.getUserFromRequest(r)
+		user := a.extractUserFromRequest(r)
 		if user == nil {
 			a.flash(r, "User not found.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
