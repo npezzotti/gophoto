@@ -100,7 +100,7 @@ func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsB
 	}
 }
 
-func (a *application) generateAlbumImageResponse(ctx context.Context, photo db.Photo) *ImageResponse {
+func (a *application) generateAlbumImageResponse(ctx context.Context, photo db.Photo) ImageResponse {
 	photoMeta, err := a.database.GetPhotoMetadataByPhotoID(ctx, photo.ID)
 	if err != nil {
 		a.ErrorLog.Printf("error getting metadata for photo %d: %s", photo.ID, err.Error())
@@ -136,7 +136,7 @@ func (a *application) generateAlbumImageResponse(ctx context.Context, photo db.P
 		}
 	}
 
-	return &ImageResponse{
+	return ImageResponse{
 		Image:       photo,
 		Alt:         photo.Key,
 		OriginalSrc: originalUrl,
@@ -191,7 +191,7 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			images := []*ImageResponse{}
+			images := []ImageResponse{}
 			for _, photo := range photos {
 				imageResponse := a.generateAlbumImageResponse(r.Context(), photo)
 				images = append(images, imageResponse)
