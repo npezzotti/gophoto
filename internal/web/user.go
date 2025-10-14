@@ -54,19 +54,30 @@ func (a *application) newUserResponse(ctx context.Context, user *db.GetUserByIdR
 		}
 
 		for _, m := range meta {
+			if m.Variant == db.PhotoVariantOriginal {
+				continue
+			}
+
 			path, err := utils.BuildPhotoPath(user.ProfilePictureKey.String, m.Variant, utils.MimeType(m.MimeType))
 			if err != nil {
 				a.ErrorLog.Printf("error building photo path for user profile picture: %s", err)
 				continue
 			}
+
+			url, err := a.store.GenerateURL(ctx, path)
+			if err != nil {
+				a.ErrorLog.Printf("error generating url for user profile picture: %s", err)
+				continue
+			}
+
 			sources = append(sources, Image{
 				Width:  m.Width,
 				Height: m.Height,
-				URL:    path,
+				URL:    url,
 			})
 
 			if m.Variant == db.PhotoVariantSmall {
-				defaultSrc = path
+				defaultSrc = url
 			}
 		}
 	}
