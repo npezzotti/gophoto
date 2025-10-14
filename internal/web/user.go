@@ -33,7 +33,7 @@ func (a *application) getUserFromRequest(r *http.Request) *db.GetUserByIdRow {
 		if err != nil {
 			a.ErrorLog.Printf("error getting user by id from request: %s", err.Error())
 			if err != sql.ErrNoRows {
-				a.ErrorLog.Printf("error querying user: %s\n", err.Error())
+				a.ErrorLog.Printf("error querying user: %s", err.Error())
 			}
 			return nil
 		}
@@ -45,13 +45,20 @@ func (a *application) getUserFromRequest(r *http.Request) *db.GetUserByIdRow {
 
 func (a *application) newUserResponse(ctx context.Context, user *db.GetUserByIdRow) *UserResponse {
 	var thumbUrl, avatarUrl string
-	var err error
 	if user.ProfilePictureKey.Valid {
-		thumbUrl, err = a.store.GenerateURL(ctx, utils.BuildPhotoPath(user.ProfilePictureKey.String, db.PhotoVariantThumb))
+		thumbPath, err := utils.BuildPhotoPath(user.ProfilePictureKey.String, db.PhotoVariantThumb, utils.MimeTypeWEBP)
+		if err != nil {
+			a.ErrorLog.Printf("error building photo path: %s", err)
+		}
+		thumbUrl, err = a.store.GenerateURL(ctx, thumbPath)
 		if err != nil {
 			a.ErrorLog.Println("error reading profile picture from store:", err)
 		}
-		avatarUrl, err = a.store.GenerateURL(ctx, utils.BuildPhotoPath(user.ProfilePictureKey.String, db.PhotoVariantAvatar))
+		avatarPath, err := utils.BuildPhotoPath(user.ProfilePictureKey.String, db.PhotoVariantAvatar, utils.MimeTypeWEBP)
+		if err != nil {
+			a.ErrorLog.Printf("error building photo path: %s", err)
+		}
+		avatarUrl, err = a.store.GenerateURL(ctx, avatarPath)
 		if err != nil {
 			a.ErrorLog.Println("error reading profile picture from store:", err)
 		}
@@ -346,7 +353,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 			UpdatedAt:        time.Now(),
 		})
 		if err != nil {
-			a.ErrorLog.Printf("error updating user %d: %s\n", user.ID, err.Error())
+			a.ErrorLog.Printf("error updating user %d: %s", user.ID, err.Error())
 			a.flash(r, "Error updating profile. Please try again.", flashErr)
 			http.Redirect(w, r, "/profile", http.StatusSeeOther)
 			return
@@ -401,7 +408,7 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 			return
 		}
 
-		if !strings.HasPrefix(filetype, "image/") {
+		if !strings.HasPrefix(filetype, "image/") || !utils.ValidateMimeType(filetype) {
 			resp := map[string]string{"error": "file type not allowed"}
 			if err := a.writeJsonResp(w, http.StatusBadRequest, resp); err != nil {
 				a.ErrorLog.Println("error writing json response:", err)
@@ -445,7 +452,14 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 			return
 		}
 
-		if err := a.store.Write(r.Context(), utils.BuildPhotoPath(key, db.PhotoVariantOriginal), f); err != nil {
+		path, err := utils.BuildPhotoPath(key, db.PhotoVariantOriginal, utils.MimeType(filetype))
+		if err != nil {
+			a.ErrorLog.Printf("error building photo path: %s", err)
+			a.flash(r, "Error uploading profile picture. Please try again.", flashErr)
+			http.Redirect(w, r, "/profile", http.StatusSeeOther)
+			return
+		}
+		if err := a.store.Write(r.Context(), path, f); err != nil {
 			a.ErrorLog.Printf("error writing profile picture to storage: %s", err)
 			a.flash(r, "Error uploading profile picture. Please try again.", flashErr)
 			http.Redirect(w, r, "/profile", http.StatusSeeOther)
@@ -453,14 +467,14 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 		}
 
 		// Process photo in background
-		processingJob, err := json.Marshal(workers.PhotoProcessingJob{Type: workers.JobTypeProfilePic, PhotoID: photo.ID})
+		processingJob, err := json.Marshal(workers.PhotoProcessingJob{Type: workers.JobTypeUserPhoto, PhotoID: photo.ID})
 		if err != nil {
-			a.ErrorLog.Printf("error marshalling photo processing job: %s\n", err.Error())
+			a.ErrorLog.Printf("error marshalling photo processing job: %s", err.Error())
 			return
 		}
 		err = a.redisClient.Publish(context.Background(), workers.PhotoProcessingQueue, processingJob).Err()
 		if err != nil {
-			a.ErrorLog.Printf("error publishing photo processing job: %s\n", err.Error())
+			a.ErrorLog.Printf("error publishing photo processing job: %s", err.Error())
 			return
 		}
 

@@ -1,11 +1,13 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -13,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/h2non/bimg"
 	"github.com/npezzotti/gophoto/internal/db"
 	"github.com/npezzotti/gophoto/internal/utils"
 	"github.com/npezzotti/gophoto/internal/workers"
@@ -27,14 +30,6 @@ const (
 	DefaultAlbumCover           = "images/album_cover.webp"
 )
 
-type UserImageResponse struct {
-	Image        db.Photo
-	URL          string
-	OriginalURL  string
-	ThumbnailURL string
-	LargeURL     string
-}
-
 type AlbumResponse struct {
 	Album         db.ListAlbumsByUserRow
 	AlbumCoverUrl string
@@ -47,14 +42,19 @@ func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsB
 		Limit:   1,
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		a.ErrorLog.Printf("error getting album cover: %s\n", err)
+		a.ErrorLog.Printf("error getting album cover: %s", err)
 	}
 
 	var coverUrl string
 	if len(coverPhotos) > 0 {
-		coverUrl, err = a.store.GenerateURL(ctx, utils.BuildPhotoPath(coverPhotos[0].Key, db.PhotoVariantThumb))
+		path, err := utils.BuildPhotoPath(coverPhotos[0].Key, db.PhotoVariantThumb, utils.MimeTypeWEBP)
 		if err != nil {
-			a.ErrorLog.Printf("error generating url for %s: %s\n", coverPhotos[0].Key, err)
+			a.ErrorLog.Printf("error building path for %s: %s", coverPhotos[0].Key, err)
+		}
+
+		coverUrl, err = a.store.GenerateURL(ctx, path)
+		if err != nil {
+			a.ErrorLog.Printf("error generating url for %s: %s", coverPhotos[0].Key, err)
 		}
 	} else {
 		coverUrl = filepath.Join(a.config.StaticDir, DefaultAlbumCover)
@@ -66,27 +66,48 @@ func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsB
 	}
 }
 
-func (a *application) newUserImageResponse(ctx context.Context, photo db.Photo) *UserImageResponse {
-	original, err := a.store.GenerateURL(ctx, utils.BuildPhotoPath(photo.Key, db.PhotoVariantOriginal))
+func (a *application) generateAlbumImageResponse(ctx context.Context, photo db.Photo) *AlbumImageResponse {
+	photoMeta, err := a.database.GetPhotoMetadataByPhotoID(ctx, photo.ID)
 	if err != nil {
-		a.ErrorLog.Printf("error generating url for photo %d: %s\n", photo.ID, err.Error())
+		a.ErrorLog.Printf("error getting metadata for photo %d: %s", photo.ID, err.Error())
 	}
 
-	thumbnail, err := a.store.GenerateURL(ctx, utils.BuildPhotoPath(photo.Key, db.PhotoVariantThumb))
-	if err != nil {
-		a.ErrorLog.Printf("error generating url for photo %d: %s\n", photo.ID, err.Error())
+	var sources []Image
+	var originalUrl, defaultUrl string
+	for _, meta := range photoMeta {
+		path, err := utils.BuildPhotoPath(photo.Key, meta.Variant, utils.MimeType(meta.MimeType))
+		if err != nil {
+			a.ErrorLog.Printf("error building path for photo %d variant %s: %s", photo.ID, meta.Variant, err.Error())
+		}
+
+		url, err := a.store.GenerateURL(ctx, path)
+		if err != nil {
+			a.ErrorLog.Printf("error generating url for photo %d: %s", photo.ID, err.Error())
+		}
+
+		if meta.Variant != db.PhotoVariantOriginal {
+			sources = append(sources, Image{
+				Width:  meta.Width,
+				Height: meta.Height,
+				URL:    url,
+			})
+		}
+
+		switch meta.Variant {
+		case db.PhotoVariantOriginal:
+			originalUrl = url
+		case db.PhotoVariantLarge:
+			defaultUrl = url
+		default:
+		}
 	}
 
-	large, err := a.store.GenerateURL(ctx, utils.BuildPhotoPath(photo.Key, db.PhotoVariantLarge))
-	if err != nil {
-		a.ErrorLog.Printf("error generating url for photo %d: %s\n", photo.ID, err.Error())
-	}
-
-	return &UserImageResponse{
-		Image:        photo,
-		OriginalURL:  original,
-		ThumbnailURL: thumbnail,
-		LargeURL:     large,
+	return &AlbumImageResponse{
+		Image:       photo,
+		Alt:         photo.Key,
+		OriginalSrc: originalUrl,
+		DefaultSrc:  defaultUrl,
+		Sources:     sources,
 	}
 }
 
@@ -136,9 +157,9 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			images := []*UserImageResponse{}
+			images := []*AlbumImageResponse{}
 			for _, photo := range photos {
-				imageResponse := a.newUserImageResponse(r.Context(), photo)
+				imageResponse := a.generateAlbumImageResponse(r.Context(), photo)
 				images = append(images, imageResponse)
 			}
 
@@ -173,7 +194,7 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 			Offset: int32(pagination.Offset()),
 		})
 		if err != nil {
-			a.ErrorLog.Printf("error listing albums: %s\n", err.Error())
+			a.ErrorLog.Printf("error listing albums: %s", err.Error())
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -296,7 +317,7 @@ func (a *application) updateAlbumHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		a.flash(r, "Album updated!", flashInfo)
+		a.flash(r, "Album successfully updated.", flashInfo)
 		http.Redirect(w, r, fmt.Sprintf("/albums?id=%d", album.ID), http.StatusSeeOther)
 	default:
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
@@ -432,7 +453,7 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if !strings.HasPrefix(filetype, "image/") {
+	if !strings.HasPrefix(filetype, "image/") || !utils.ValidateMimeType(filetype) {
 		resp := map[string]string{"error": "file type not allowed"}
 		if err := a.writeJsonResp(w, http.StatusBadRequest, resp); err != nil {
 			a.ErrorLog.Println("error writing json response:", err)
@@ -455,9 +476,31 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	buf, err := io.ReadAll(f)
+	if err != nil {
+		a.ErrorLog.Println("error reading uploaded file:", err)
+		resp := map[string]string{"error": strings.ToLower(http.StatusText(http.StatusInternalServerError))}
+		if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
+			a.ErrorLog.Println("error writing json response:", err)
+		}
+		return
+	}
+
+	meta, err := bimg.NewImage(buf).Size()
+	if err != nil {
+		a.ErrorLog.Println("error getting image size:", err)
+		resp := map[string]string{"error": strings.ToLower(http.StatusText(http.StatusInternalServerError))}
+		if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
+			a.ErrorLog.Println("error writing json response:", err)
+		}
+		return
+	}
+
 	photoMeta, err := a.database.CreatePhotoMetadata(r.Context(), db.CreatePhotoMetadataParams{
 		PhotoID:  photo.ID,
 		Variant:  db.PhotoVariantOriginal,
+		Width:    int32(meta.Width),
+		Height:   int32(meta.Height),
 		FileSize: sql.NullInt64{Int64: fh.Size, Valid: true},
 		MimeType: filetype,
 	})
@@ -482,8 +525,12 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := a.store.Write(r.Context(), utils.BuildPhotoPath(photo.Key, photoMeta.Variant), f); err != nil {
-		a.ErrorLog.Printf("error writing photo to storage: %s\n", err.Error())
+	path, err := utils.BuildPhotoPath(photo.Key, photoMeta.Variant, utils.MimeType(filetype))
+	if err != nil {
+		a.ErrorLog.Printf("error building photo path: %s", err.Error())
+	}
+	if err := a.store.Write(r.Context(), path, bytes.NewReader(buf)); err != nil {
+		a.ErrorLog.Printf("error writing photo to storage: %s", err.Error())
 		resp := map[string]string{"error": strings.ToLower(http.StatusText(http.StatusInternalServerError))}
 		if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
 			a.ErrorLog.Println("error writing json response:", err)
@@ -494,13 +541,13 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 	// Process photo in background
 	processingJob, err := json.Marshal(workers.PhotoProcessingJob{Type: workers.JobTypeAlbumPhoto, PhotoID: photo.ID})
 	if err != nil {
-		a.ErrorLog.Printf("error marshalling photo processing job: %s\n", err.Error())
+		a.ErrorLog.Printf("error marshalling photo processing job: %s", err.Error())
 		return
 	}
 
 	err = a.redisClient.Publish(context.Background(), workers.PhotoProcessingQueue, processingJob).Err()
 	if err != nil {
-		a.ErrorLog.Printf("error publishing photo processing job: %s\n", err.Error())
+		a.ErrorLog.Printf("error publishing photo processing job: %s", err.Error())
 		return
 	}
 

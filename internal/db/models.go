@@ -126,6 +126,8 @@ type PhotoMetadatum struct {
 	ID        int32
 	PhotoID   int32
 	Variant   PhotoVariant
+	Width     int32
+	Height    int32
 	FileSize  sql.NullInt64
 	MimeType  string
 	CreatedAt time.Time

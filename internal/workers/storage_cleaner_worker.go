@@ -79,7 +79,11 @@ func (scw *StorageCleanerWorker) cleanStorage() {
 			continue
 		}
 		for _, m := range metadata {
-			path := utils.BuildPhotoPath(photo.Key, m.Variant)
+			path, err := utils.BuildPhotoPath(photo.Key, m.Variant, utils.MimeType(m.MimeType))
+			if err != nil {
+				scw.log.Printf("error building path for photo %d variant %s: %s", photo.ID, m.Variant, err.Error())
+				continue
+			}
 			if err := scw.store.Delete(ctx, path); err != nil {
 				if !errors.Is(err, store.ErrNotExist) {
 					scw.log.Printf("error deleting file with key %s: %s", path, err.Error())

@@ -11,6 +11,22 @@
     width: 12rem;
 }
 
-.toast-body {
-    font-size: 1.15rem;
+.square-container {
+    position: relative;
+    width: 100%;
+    padding-bottom: 100%;
+    /* Creates 1:1 aspect ratio */
+    overflow: hidden;
+}
+
+.square-container img {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.album-photo-container:hover {
+    transform: scale(1.02);
+    transition: transform 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }

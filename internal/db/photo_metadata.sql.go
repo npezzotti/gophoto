@@ -14,20 +14,26 @@ const createPhotoMetadata = `-- name: CreatePhotoMetadata :one
 INSERT INTO photo_metadata (
   photo_id,
   variant,
+  width,
+  height,
   file_size,
   mime_type
 ) VALUES (
   $1,
   $2,
   $3,
-  $4
+  $4,
+  $5,
+  $6
 )
-RETURNING id, photo_id, variant, file_size, mime_type, created_at
+RETURNING id, photo_id, variant, width, height, file_size, mime_type, created_at
 `
 
 type CreatePhotoMetadataParams struct {
 	PhotoID  int32
 	Variant  PhotoVariant
+	Width    int32
+	Height   int32
 	FileSize sql.NullInt64
 	MimeType string
 }
@@ -36,6 +42,8 @@ func (q *Queries) CreatePhotoMetadata(ctx context.Context, arg CreatePhotoMetada
 	row := q.db.QueryRowContext(ctx, createPhotoMetadata,
 		arg.PhotoID,
 		arg.Variant,
+		arg.Width,
+		arg.Height,
 		arg.FileSize,
 		arg.MimeType,
 	)
@@ -44,6 +52,8 @@ func (q *Queries) CreatePhotoMetadata(ctx context.Context, arg CreatePhotoMetada
 		&i.ID,
 		&i.PhotoID,
 		&i.Variant,
+		&i.Width,
+		&i.Height,
 		&i.FileSize,
 		&i.MimeType,
 		&i.CreatedAt,
@@ -52,7 +62,7 @@ func (q *Queries) CreatePhotoMetadata(ctx context.Context, arg CreatePhotoMetada
 }
 
 const getPhotoMetadataByPhotoID = `-- name: GetPhotoMetadataByPhotoID :many
-SELECT id, photo_id, variant, file_size, mime_type, created_at FROM photo_metadata
+SELECT id, photo_id, variant, width, height, file_size, mime_type, created_at FROM photo_metadata
 WHERE photo_id = $1
 `
 
@@ -69,6 +79,8 @@ func (q *Queries) GetPhotoMetadataByPhotoID(ctx context.Context, photoID int32) 
 			&i.ID,
 			&i.PhotoID,
 			&i.Variant,
+			&i.Width,
+			&i.Height,
 			&i.FileSize,
 			&i.MimeType,
 			&i.CreatedAt,
@@ -84,4 +96,30 @@ func (q *Queries) GetPhotoMetadataByPhotoID(ctx context.Context, photoID int32) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const getPhotoMetadataByPhotoIDAndVariant = `-- name: GetPhotoMetadataByPhotoIDAndVariant :one
+SELECT id, photo_id, variant, width, height, file_size, mime_type, created_at FROM photo_metadata
+where photo_id = $1 AND variant = $2
+`
+
+type GetPhotoMetadataByPhotoIDAndVariantParams struct {
+	PhotoID int32
+	Variant PhotoVariant
+}
+
+func (q *Queries) GetPhotoMetadataByPhotoIDAndVariant(ctx context.Context, arg GetPhotoMetadataByPhotoIDAndVariantParams) (PhotoMetadatum, error) {
+	row := q.db.QueryRowContext(ctx, getPhotoMetadataByPhotoIDAndVariant, arg.PhotoID, arg.Variant)
+	var i PhotoMetadatum
+	err := row.Scan(
+		&i.ID,
+		&i.PhotoID,
+		&i.Variant,
+		&i.Width,
+		&i.Height,
+		&i.FileSize,
+		&i.MimeType,
+		&i.CreatedAt,
+	)
+	return i, err
 }

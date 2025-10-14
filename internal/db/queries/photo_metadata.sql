@@ -6,12 +6,20 @@ WHERE photo_id = $1;
 INSERT INTO photo_metadata (
   photo_id,
   variant,
+  width,
+  height,
   file_size,
   mime_type
 ) VALUES (
   $1,
   $2,
   $3,
-  $4
+  $4,
+  $5,
+  $6
 )
 RETURNING *;
+
+-- name: GetPhotoMetadataByPhotoIDAndVariant :one
+SELECT * FROM photo_metadata
+where photo_id = $1 AND variant = $2;

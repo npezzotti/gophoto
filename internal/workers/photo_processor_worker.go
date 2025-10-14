@@ -21,8 +21,8 @@ import (
 type JobType string
 
 const (
-	JobTypeAlbumPhoto JobType = "user_photo"
-	JobTypeProfilePic JobType = "profile_picture"
+	JobTypeAlbumPhoto JobType = "album_photo"
+	JobTypeUserPhoto  JobType = "user_photo"
 )
 
 type PhotoProcessingJob struct {
@@ -40,14 +40,16 @@ type ImageOpts struct {
 }
 
 var (
-	UserPhotoSizes []ImageOpts = []ImageOpts{
-		{Variant: db.PhotoVariantThumb, Width: 300, Height: 300, Quality: 80, Type: bimg.WEBP},
+	AlbumPhotoSizes []ImageOpts = []ImageOpts{
+		{Variant: db.PhotoVariantThumb, Width: 150, Height: 150, Quality: 70, Type: bimg.WEBP},
+		{Variant: db.PhotoVariantSmall, Width: 400, Height: 300, Quality: 80, Type: bimg.WEBP},
+		{Variant: db.PhotoVariantMedium, Width: 800, Height: 600, Quality: 80, Type: bimg.WEBP},
 		{Variant: db.PhotoVariantLarge, Width: 1920, Height: 1080, Quality: 90, Type: bimg.WEBP},
 	}
 
 	ProfilePicSizes []ImageOpts = []ImageOpts{
 		{Variant: db.PhotoVariantAvatar, Width: 100, Height: 100, Quality: 80, Type: bimg.WEBP},
-		{Variant: db.PhotoVariantThumb, Width: 300, Height: 300, Quality: 80, Type: bimg.WEBP},
+		{Variant: db.PhotoVariantThumb, Width: 150, Height: 150, Quality: 70, Type: bimg.WEBP},
 	}
 )
 
@@ -113,8 +115,8 @@ func (ppw *PhotoProcessorWorker) handleJob(msg *redis.Message) error {
 	var sizes []ImageOpts
 	switch processingJob.Type {
 	case JobTypeAlbumPhoto:
-		sizes = UserPhotoSizes
-	case JobTypeProfilePic:
+		sizes = AlbumPhotoSizes
+	case JobTypeUserPhoto:
 		sizes = ProfilePicSizes
 	default:
 		return fmt.Errorf("unknown photo type: %s", processingJob.Type)
@@ -142,6 +144,14 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 		return fmt.Errorf("error getting photo from database: %v", err)
 	}
 
+	originalMeta, err := ppw.db.GetPhotoMetadataByPhotoIDAndVariant(context.Background(), db.GetPhotoMetadataByPhotoIDAndVariantParams{
+		PhotoID: photo.ID,
+		Variant: db.PhotoVariantOriginal,
+	})
+	if err != nil {
+		return fmt.Errorf("error getting original photo metadata: %v", err)
+	}
+
 	var processingErr bool
 	defer func() {
 		if processingErr {
@@ -149,7 +159,12 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 		}
 	}()
 
-	photoReader, err := ppw.store.Read(context.Background(), utils.BuildPhotoPath(photo.Key, db.PhotoVariantOriginal))
+	path, err := utils.BuildPhotoPath(photo.Key, db.PhotoVariantOriginal, utils.MimeType(originalMeta.MimeType))
+	if err != nil {
+		processingErr = true
+		return fmt.Errorf("error building photo path for original variant: %v", err)
+	}
+	photoReader, err := ppw.store.Read(context.Background(), path)
 	if err != nil {
 		processingErr = true
 		return fmt.Errorf("error reading original photo from store: %v", err)
@@ -192,9 +207,18 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 			continue
 		}
 
+		imgSize, err := bimg.NewImage(processedImg).Size()
+		if err != nil {
+			processingErr = true
+			ppw.log.Printf("error getting size of processed %s image: %v", size.Variant, err)
+			continue
+		}
+
 		photoMeta, err := ppw.db.CreatePhotoMetadata(context.Background(), db.CreatePhotoMetadataParams{
 			PhotoID:  photo.ID,
 			Variant:  size.Variant,
+			Width:    int32(imgSize.Width),
+			Height:   int32(imgSize.Height),
 			FileSize: sql.NullInt64{Int64: int64(len(processedImg)), Valid: true},
 			MimeType: "image/webp",
 		})
@@ -204,7 +228,13 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 			continue
 		}
 
-		if err := ppw.store.Write(context.Background(), utils.BuildPhotoPath(photo.Key, photoMeta.Variant), bytes.NewReader(processedImg)); err != nil {
+		variantPath, err := utils.BuildPhotoPath(photo.Key, photoMeta.Variant, utils.MimeTypeWEBP)
+		if err != nil {
+			processingErr = true
+			ppw.log.Printf("error building photo path for %s variant: %v", size.Variant, err)
+			continue
+		}
+		if err := ppw.store.Write(context.Background(), variantPath, bytes.NewReader(processedImg)); err != nil {
 			processingErr = true
 			ppw.log.Printf("error writing %s image to store: %v", size.Variant, err)
 			continue

@@ -57,6 +57,8 @@ CREATE TABLE photo_metadata (
     id SERIAL PRIMARY KEY,
     photo_id INT NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
     variant photo_variant NOT NULL,
+    width INT NOT NULL,
+    height INT NOT NULL,
     file_size BIGINT,
     mime_type VARCHAR(50) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -5,6 +5,15 @@ photoUploadForm.addEventListener('submit', async e => {
   const submitButton = form.querySelector('[type="submit"]');
   if (submitButton) submitButton.disabled = true;
 
+  uploadPhoto(form).then(() => {
+    console.log("Photo upload initiated");
+  }).catch(err => {
+    console.error("Error uploading photo:", err);
+    if (submitButton) submitButton.disabled = false;
+  });
+});
+
+async function uploadPhoto(form) {
   try {
     const formData = new FormData(form);
     const response = await fetch(form.action, {
@@ -38,8 +47,7 @@ photoUploadForm.addEventListener('submit', async e => {
             let currentValue = parseInt(progressBar.getAttribute('aria-valuenow')) || 0;
             let maxValue = parseInt(progressBar.getAttribute('aria-valuemax')) || 100;
             currentValue = Math.min(currentValue + 10, maxValue);
-            progressBar.setAttribute('aria-valuenow', currentValue);
-            progressBar.style.width = `${currentValue}%`;
+            setProgress(progressBar, currentValue);
           }
 
           try {
@@ -52,8 +60,7 @@ photoUploadForm.addEventListener('submit', async e => {
               case "processed":
                 // Complete the progress bar
                 if (progressBar) {
-                  progressBar.setAttribute('aria-valuenow', 100);
-                  progressBar.style.width = `100%`;
+                  setProgress(progressBar, 100);
                 }
                 clearInterval(pollInterval);
 
@@ -63,7 +70,7 @@ photoUploadForm.addEventListener('submit', async e => {
                 }, 1000);
                 break;
               case "errored":
-                throw new Error("Error processing photo");
+                throw new Error("Photo processing failed");
               default:
                 throw new Error("Unknown photo status");
             }
@@ -81,6 +88,11 @@ photoUploadForm.addEventListener('submit', async e => {
       }, 500);
     }
   } catch (err) {
-    console.error("Error uploading photo:", err);
+    throw new Error("Error uploading photo: " + err);
   }
-});
+}
+
+function setProgress(bar, percent) {
+  bar.setAttribute('aria-valuenow', percent);
+  bar.style.width = `${percent}%`;
+}

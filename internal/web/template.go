@@ -23,7 +23,7 @@ type templateData struct {
 	User                 *UserResponse
 	Albums               []*AlbumResponse
 	Album                db.GetAlbumRow
-	Images               []*UserImageResponse
+	Images               []*AlbumImageResponse
 	Paginator            *pagination.Pagination
 	CSRFToken            string
 	AddPhotoUploadAction string
