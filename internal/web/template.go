@@ -19,7 +19,7 @@ const (
 
 type templateData struct {
 	Form                 forms.Form
-	Flash                Flash
+	Flash                *Flash
 	User                 *UserResponse
 	Albums               []*AlbumResponse
 	Album                db.GetAlbumRow
@@ -41,7 +41,7 @@ func (a *application) generateTemplateData(r *http.Request) *templateData {
 
 	flash, ok := a.sessionManager.Pop(r.Context(), SessionKeyFlash).(Flash)
 	if ok {
-		td.Flash = flash
+		td.Flash = &flash
 	}
 
 	return td
