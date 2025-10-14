@@ -18,7 +18,7 @@ type Size struct {
 	Size       string
 }
 
-type AlbumImageResponse struct {
+type ImageResponse struct {
 	Image       db.Photo
 	Alt         string
 	OriginalSrc string
@@ -26,7 +26,7 @@ type AlbumImageResponse struct {
 	Sources     []Image
 }
 
-func (ar *AlbumImageResponse) SrcSet() string {
+func (ar *ImageResponse) SrcSet() string {
 	var srcset []string
 	for _, source := range ar.Sources {
 		srcset = append(srcset, fmt.Sprintf("%s %dw", source.URL, source.Width))

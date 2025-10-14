@@ -62,9 +62,12 @@ func main() {
 	}
 	defer redisClient.Close()
 
-	tc, err := template.NewTemplateCache(web.PagesGlob, web.PartialsGlob, web.BaseTemplate)
-	if err != nil {
-		log.Fatal("error creating template cache:", err)
+	var tc template.TemplateCache
+	if cfg.UseTemplateCache {
+		tc, err = template.NewTemplateCache(web.PagesGlob, web.PartialsGlob, web.BaseTemplate)
+		if err != nil {
+			log.Fatal("error creating template cache: ", err)
+		}
 	}
 
 	sessionManager := scs.New()

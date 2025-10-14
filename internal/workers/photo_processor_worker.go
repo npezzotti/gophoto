@@ -48,8 +48,8 @@ var (
 	}
 
 	ProfilePicSizes []ImageOpts = []ImageOpts{
-		{Variant: db.PhotoVariantAvatar, Width: 100, Height: 100, Quality: 80, Type: bimg.WEBP},
-		{Variant: db.PhotoVariantThumb, Width: 150, Height: 150, Quality: 70, Type: bimg.WEBP},
+		{Variant: db.PhotoVariantAvatar, Width: 100, Height: 100, Quality: 70, Type: bimg.WEBP},
+		{Variant: db.PhotoVariantSmall, Width: 400, Height: 300, Quality: 80, Type: bimg.WEBP},
 	}
 )
 

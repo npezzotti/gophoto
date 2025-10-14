@@ -22,6 +22,7 @@ type UserResponse struct {
 	FirstName               string
 	LastName                string
 	Email                   string
+	ProfilePicture          ImageResponse
 	ProfilePictureThumbURL  string
 	ProfilePictureAvatarURL string
 }
@@ -44,36 +45,59 @@ func (a *application) getUserFromRequest(r *http.Request) *db.GetUserByIdRow {
 }
 
 func (a *application) newUserResponse(ctx context.Context, user *db.GetUserByIdRow) *UserResponse {
-	var thumbUrl, avatarUrl string
+	var sources []Image
+	var defaultSrc string
 	if user.ProfilePictureKey.Valid {
-		thumbPath, err := utils.BuildPhotoPath(user.ProfilePictureKey.String, db.PhotoVariantThumb, utils.MimeTypeWEBP)
+		meta, err := a.database.GetPhotoMetadataByPhotoID(ctx, user.ProfilePictureID.Int32)
 		if err != nil {
-			a.ErrorLog.Printf("error building photo path: %s", err)
+			a.ErrorLog.Printf("error getting photo metadata for user profile picture: %s", err)
 		}
-		thumbUrl, err = a.store.GenerateURL(ctx, thumbPath)
-		if err != nil {
-			a.ErrorLog.Println("error reading profile picture from store:", err)
+
+		for _, m := range meta {
+			path, err := utils.BuildPhotoPath(user.ProfilePictureKey.String, m.Variant, utils.MimeType(m.MimeType))
+			if err != nil {
+				a.ErrorLog.Printf("error building photo path for user profile picture: %s", err)
+				continue
+			}
+			sources = append(sources, Image{
+				Width:  m.Width,
+				Height: m.Height,
+				URL:    path,
+			})
+
+			if m.Variant == db.PhotoVariantSmall {
+				defaultSrc = path
+			}
 		}
-		avatarPath, err := utils.BuildPhotoPath(user.ProfilePictureKey.String, db.PhotoVariantAvatar, utils.MimeTypeWEBP)
-		if err != nil {
-			a.ErrorLog.Printf("error building photo path: %s", err)
-		}
-		avatarUrl, err = a.store.GenerateURL(ctx, avatarPath)
-		if err != nil {
-			a.ErrorLog.Println("error reading profile picture from store:", err)
-		}
-	} else {
-		// No profile picture set, use defaults
-		thumbUrl = filepath.Join(a.config.StaticDir, DefaultProfileThumbnailPath)
-		avatarUrl = filepath.Join(a.config.StaticDir, DefaultProfileAvatarPath)
+	}
+
+	if len(sources) == 0 {
+		thumbnailPath := filepath.Join(a.config.StaticDir, DefaultProfileThumbnailPath)
+		sources = append(sources,
+			Image{
+				Width:  300,
+				Height: 300,
+				URL:    thumbnailPath,
+			},
+			Image{
+				Width:  100,
+				Height: 100,
+				URL:    filepath.Join(a.config.StaticDir, DefaultProfileAvatarPath),
+			},
+		)
+
+		defaultSrc = thumbnailPath
 	}
 
 	return &UserResponse{
-		FirstName:               user.FirstName,
-		LastName:                user.LastName,
-		Email:                   user.Email,
-		ProfilePictureThumbURL:  thumbUrl,
-		ProfilePictureAvatarURL: avatarUrl,
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+		Email:     user.Email,
+		ProfilePicture: ImageResponse{
+			Alt:        fmt.Sprintf("%s %s's profile picture", user.FirstName, user.LastName),
+			Sources:    sources,
+			DefaultSrc: defaultSrc,
+		},
 	}
 }
 

@@ -31,8 +31,8 @@ const (
 )
 
 type AlbumResponse struct {
-	Album         db.ListAlbumsByUserRow
-	AlbumCoverUrl string
+	Album           db.ListAlbumsByUserRow
+	AlbumCoverImage ImageResponse
 }
 
 func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsByUserRow) *AlbumResponse {
@@ -45,28 +45,62 @@ func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsB
 		a.ErrorLog.Printf("error getting album cover: %s", err)
 	}
 
-	var coverUrl string
+	var imageResp ImageResponse
 	if len(coverPhotos) > 0 {
-		path, err := utils.BuildPhotoPath(coverPhotos[0].Key, db.PhotoVariantThumb, utils.MimeTypeWEBP)
+		meta, err := a.database.GetPhotoMetadataByPhotoID(ctx, coverPhotos[0].ID)
 		if err != nil {
-			a.ErrorLog.Printf("error building path for %s: %s", coverPhotos[0].Key, err)
+			a.ErrorLog.Printf("error getting metadata for photo %d: %s", coverPhotos[0].ID, err)
 		}
 
-		coverUrl, err = a.store.GenerateURL(ctx, path)
-		if err != nil {
-			a.ErrorLog.Printf("error generating url for %s: %s", coverPhotos[0].Key, err)
+		var sources []Image
+		var defaultSrc string
+		for _, m := range meta {
+			path, err := utils.BuildPhotoPath(coverPhotos[0].Key, m.Variant, utils.MimeType(m.MimeType))
+			if err != nil {
+				a.ErrorLog.Printf("error building path for %s: %s", coverPhotos[0].Key, err)
+				continue
+			}
+
+			url, err := a.store.GenerateURL(ctx, path)
+			if err != nil {
+				a.ErrorLog.Printf("error generating url for %s: %s", coverPhotos[0].Key, err)
+				continue
+			}
+
+			sources = append(sources, Image{
+				Width:  m.Width,
+				Height: m.Height,
+				URL:    url,
+			})
+
+			if m.Variant == db.PhotoVariantLarge {
+				defaultSrc = url
+			}
+		}
+
+		imageResp = ImageResponse{
+			Image:      coverPhotos[0],
+			Alt:        coverPhotos[0].Key,
+			DefaultSrc: defaultSrc,
+			Sources:    sources,
 		}
 	} else {
-		coverUrl = filepath.Join(a.config.StaticDir, DefaultAlbumCover)
+		imageResp = ImageResponse{
+			DefaultSrc: filepath.Join(a.config.StaticDir, DefaultAlbumCover),
+			Sources: []Image{
+				{Width: 400, Height: 300, URL: filepath.Join(a.config.StaticDir, DefaultAlbumCover)},
+			},
+			Alt: "Default album cover",
+		}
 	}
 
 	return &AlbumResponse{
-		Album:         album,
-		AlbumCoverUrl: coverUrl,
+		Album:           album,
+		AlbumCoverImage: imageResp,
 	}
 }
 
-func (a *application) generateAlbumImageResponse(ctx context.Context, photo db.Photo) *AlbumImageResponse {
+func (a *application) generateAlbumImageResponse(ctx context.Context, photo db.Photo) *ImageResponse {
 	photoMeta, err := a.database.GetPhotoMetadataByPhotoID(ctx, photo.ID)
 	if err != nil {
 		a.ErrorLog.Printf("error getting metadata for photo %d: %s", photo.ID, err.Error())
@@ -102,7 +136,7 @@ func (a *application) generateAlbumImageResponse(ctx context.Context, photo db.P
 		}
 	}
 
-	return &AlbumImageResponse{
+	return &ImageResponse{
 		Image:       photo,
 		Alt:         photo.Key,
 		OriginalSrc: originalUrl,
@@ -157,7 +191,7 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			images := []*AlbumImageResponse{}
+			images := []*ImageResponse{}
 			for _, photo := range photos {
 				imageResponse := a.generateAlbumImageResponse(r.Context(), photo)
 				images = append(images, imageResponse)
