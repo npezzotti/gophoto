@@ -45,7 +45,7 @@
                 <div class="card-body">
                     <h5 class="card-title">{{ .Album.Title }}</h5>
                     <p class="card-text">{{ .Album.NumPhotos }} Photo(s)</p>
-                    <p class="card-text"><small class="text-muted">Last updated {{ .Album.UpdatedAt.Format "2006-01-02 15:04" }}</small></p>
+                    <p class="card-text"><small class="text-muted">Last updated: <time data-timestamp="{{ .Album.UpdatedAt }}"></time></small></p>
                     <a href="/albums?id={{ .Album.ID }}" class="btn btn-primary">View Album</a>
                 </div>
             </div>
