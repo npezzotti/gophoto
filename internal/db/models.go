@@ -101,14 +101,17 @@ func (ns NullPhotoVariant) Value() (driver.Value, error) {
 }
 
 type Album struct {
-	ID        int32
-	UserID    int32
-	Title     string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID           int32
+	UserID       int32
+	Title        string
+	CoverPhotoID sql.NullInt32
+	NumPhotos    int32
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type AlbumPhoto struct {
+	ID      int32
 	AlbumID int32
 	PhotoID int32
 }

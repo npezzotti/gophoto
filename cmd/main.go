@@ -41,7 +41,7 @@ func main() {
 		log.Fatalln("failed running migrations:", err)
 	}
 
-	querier := db.New(dbConn)
+	repo := db.NewRepository(dbConn)
 
 	var photoStore store.Store
 	switch cfg.StorageType {
@@ -74,12 +74,12 @@ func main() {
 	sessionManager.Store = postgresstore.New(dbConn)
 	gob.Register(web.Flash{})
 
-	app := web.NewApplication(redisClient, cfg, sessionManager, querier, photoStore, tc)
+	app := web.NewApplication(redisClient, cfg, sessionManager, repo, photoStore, tc)
 
-	storageCleanerWorker := workers.NewStorageCleanerWorker(querier, photoStore, app.InfoLog, workers.DefaultFrequency)
+	storageCleanerWorker := workers.NewStorageCleanerWorker(repo, photoStore, app.InfoLog, workers.DefaultFrequency)
 	storageCleanerWorker.Run()
 
-	photoProcessorWorker := workers.NewPhotoProcessorWorker(redisClient, cfg, querier, photoStore, app.InfoLog)
+	photoProcessorWorker := workers.NewPhotoProcessorWorker(redisClient, cfg, repo, photoStore, app.InfoLog)
 	photoProcessorWorker.Run()
 
 	errChan := make(chan error)

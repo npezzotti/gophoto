@@ -55,14 +55,14 @@ var (
 
 type PhotoProcessorWorker struct {
 	redisClient *redis.Client
-	db          *db.Queries
+	db          *db.Repository
 	store       store.Store
 	log         *log.Logger
 	stopChan    chan struct{}
 	doneChan    chan bool
 }
 
-func NewPhotoProcessorWorker(redisClient *redis.Client, cfg *config.Config, db *db.Queries, s store.Store, l *log.Logger) *PhotoProcessorWorker {
+func NewPhotoProcessorWorker(redisClient *redis.Client, cfg *config.Config, db *db.Repository, s store.Store, l *log.Logger) *PhotoProcessorWorker {
 	return &PhotoProcessorWorker{
 		redisClient: redisClient,
 		db:          db,

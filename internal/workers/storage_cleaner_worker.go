@@ -15,7 +15,7 @@ import (
 // The StorageCleanerWorker periodically checks for orphaned photos in the storage
 // and deletes their backing files to free up space.
 type StorageCleanerWorker struct {
-	db       *db.Queries
+	db       *db.Repository
 	store    store.Store
 	log      *log.Logger
 	ticker   *time.Ticker
@@ -28,7 +28,7 @@ const (
 	DefaultTimeLimit = 10 * time.Minute
 )
 
-func NewStorageCleanerWorker(db *db.Queries, store store.Store, logger *log.Logger, frequency time.Duration) StorageCleanerWorker {
+func NewStorageCleanerWorker(db *db.Repository, store store.Store, logger *log.Logger, frequency time.Duration) StorageCleanerWorker {
 	return StorageCleanerWorker{
 		db:       db,
 		store:    store,

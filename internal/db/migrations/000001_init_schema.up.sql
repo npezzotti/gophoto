@@ -36,6 +36,8 @@ CREATE TABLE albums (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
+    cover_photo_id INT,
+    num_photos INT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -43,6 +45,7 @@ CREATE TABLE albums (
 CREATE INDEX idx_albums_user_id ON albums(user_id);
 
 CREATE TABLE album_photos (
+    id SERIAL PRIMARY KEY,
     album_id INT NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
     photo_id INT NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
     UNIQUE(album_id, photo_id)
@@ -50,6 +53,10 @@ CREATE TABLE album_photos (
 
 CREATE INDEX idx_album_photos_album_id ON album_photos(album_id);
 CREATE INDEX idx_album_photos_photo_id ON album_photos(photo_id);
+
+ALTER TABLE albums
+    ADD CONSTRAINT fk_albums_cover_photo_id
+    FOREIGN KEY (cover_photo_id) REFERENCES album_photos(id) ON DELETE SET NULL;
 
 CREATE TYPE photo_variant AS ENUM ('original', 'large', 'small', 'medium', 'thumb', 'avatar');
 

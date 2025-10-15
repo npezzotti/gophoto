@@ -31,7 +31,7 @@ type application struct {
 	redisClient    *redis.Client
 	config         *config.Config
 	srv            *http.Server
-	database       *db.Queries
+	database       *db.Repository
 	store          store.Store
 	templateCache  template.TemplateCache
 	sessionManager *scs.SessionManager
@@ -39,7 +39,7 @@ type application struct {
 	ErrorLog       *log.Logger
 }
 
-func NewApplication(redisClient *redis.Client, cfg *config.Config, sess *scs.SessionManager, db *db.Queries, s store.Store, tc template.TemplateCache) *application {
+func NewApplication(redisClient *redis.Client, cfg *config.Config, sess *scs.SessionManager, db *db.Repository, s store.Store, tc template.TemplateCache) *application {
 	app := &application{
 		redisClient:    redisClient,
 		config:         cfg,

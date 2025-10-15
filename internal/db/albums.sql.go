@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"time"
 )
 
@@ -28,7 +29,7 @@ INSERT INTO albums (
 ) VALUES (
   $1, $2
 )
-RETURNING id, user_id, title, created_at, updated_at
+RETURNING id, user_id, title, cover_photo_id, num_photos, created_at, updated_at
 `
 
 type CreateAlbumParams struct {
@@ -43,6 +44,8 @@ func (q *Queries) CreateAlbum(ctx context.Context, arg CreateAlbumParams) (Album
 		&i.ID,
 		&i.UserID,
 		&i.Title,
+		&i.CoverPhotoID,
+		&i.NumPhotos,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -61,19 +64,21 @@ func (q *Queries) DeleteAlbum(ctx context.Context, id int32) error {
 
 const getAlbum = `-- name: GetAlbum :one
 SELECT 
-  a.id, a.user_id, a.title, a.created_at, a.updated_at, 
+  a.id, a.user_id, a.title, a.cover_photo_id, a.num_photos, a.created_at, a.updated_at, 
   (SELECT COUNT(*) FROM album_photos WHERE album_id = a.id) AS num_photos
 FROM albums a
 WHERE a.id = $1
 `
 
 type GetAlbumRow struct {
-	ID        int32
-	UserID    int32
-	Title     string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	NumPhotos int64
+	ID           int32
+	UserID       int32
+	Title        string
+	CoverPhotoID sql.NullInt32
+	NumPhotos    int32
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	NumPhotos_2  int64
 }
 
 func (q *Queries) GetAlbum(ctx context.Context, id int32) (GetAlbumRow, error) {
@@ -83,19 +88,53 @@ func (q *Queries) GetAlbum(ctx context.Context, id int32) (GetAlbumRow, error) {
 		&i.ID,
 		&i.UserID,
 		&i.Title,
+		&i.CoverPhotoID,
+		&i.NumPhotos,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.NumPhotos,
+		&i.NumPhotos_2,
 	)
 	return i, err
 }
 
+const incrementAlbumPhotoCount = `-- name: IncrementAlbumPhotoCount :exec
+UPDATE albums
+SET num_photos = num_photos + 1
+WHERE id = $1
+`
+
+func (q *Queries) IncrementAlbumPhotoCount(ctx context.Context, id int32) error {
+	_, err := q.db.ExecContext(ctx, incrementAlbumPhotoCount, id)
+	return err
+}
+
 const listAlbumsByUser = `-- name: ListAlbumsByUser :many
-SELECT a.id, a.user_id, a.title, a.created_at, a.updated_at, COUNT(ap.*) AS num_photos
+SELECT                      
+  a.id, 
+  a.user_id,
+  a.title,
+  a.created_at,
+  a.updated_at,
+  p_cover.id AS cover_photo_id,
+  p_cover.key AS cover_photo_key,
+  COUNT(ap.id) AS num_photos
 FROM albums a
-  LEFT JOIN album_photos ap ON ap.album_id = a.id
+LEFT JOIN album_photos ap ON a.id = ap.album_id
+LEFT JOIN photos p ON p.id = ap.photo_id AND p.status = 'processed'
+LEFT JOIN photos p_cover ON p_cover.id = (
+  SELECT photo_id 
+  FROM album_photos 
+  WHERE id = a.cover_photo_id
+)
 WHERE a.user_id = $1
-GROUP BY a.id
+GROUP BY 
+  a.id, 
+  a.user_id, 
+  a.title, 
+  a.created_at, 
+  a.updated_at,
+  p_cover.id, 
+  p_cover.key
 LIMIT $2
 OFFSET $3
 `
@@ -107,12 +146,14 @@ type ListAlbumsByUserParams struct {
 }
 
 type ListAlbumsByUserRow struct {
-	ID        int32
-	UserID    int32
-	Title     string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	NumPhotos int64
+	ID            int32
+	UserID        int32
+	Title         string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	CoverPhotoID  sql.NullInt32
+	CoverPhotoKey sql.NullString
+	NumPhotos     int64
 }
 
 func (q *Queries) ListAlbumsByUser(ctx context.Context, arg ListAlbumsByUserParams) ([]ListAlbumsByUserRow, error) {
@@ -130,6 +171,8 @@ func (q *Queries) ListAlbumsByUser(ctx context.Context, arg ListAlbumsByUserPara
 			&i.Title,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CoverPhotoID,
+			&i.CoverPhotoKey,
 			&i.NumPhotos,
 		); err != nil {
 			return nil, err
@@ -145,13 +188,32 @@ func (q *Queries) ListAlbumsByUser(ctx context.Context, arg ListAlbumsByUserPara
 	return items, nil
 }
 
+const setAlbumCoverPhoto = `-- name: SetAlbumCoverPhoto :exec
+UPDATE albums
+SET 
+  cover_photo_id = $2,
+  updated_at = $3
+WHERE id = $1
+`
+
+type SetAlbumCoverPhotoParams struct {
+	ID           int32
+	CoverPhotoID sql.NullInt32
+	UpdatedAt    time.Time
+}
+
+func (q *Queries) SetAlbumCoverPhoto(ctx context.Context, arg SetAlbumCoverPhotoParams) error {
+	_, err := q.db.ExecContext(ctx, setAlbumCoverPhoto, arg.ID, arg.CoverPhotoID, arg.UpdatedAt)
+	return err
+}
+
 const updateAlbum = `-- name: UpdateAlbum :exec
 UPDATE albums
   SET user_id = $2,
   title = $3,
   updated_at = $4
 WHERE id = $1
-RETURNING id, user_id, title, created_at, updated_at
+RETURNING id, user_id, title, cover_photo_id, num_photos, created_at, updated_at
 `
 
 type UpdateAlbumParams struct {

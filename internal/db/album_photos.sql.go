@@ -11,9 +11,10 @@ import (
 	"time"
 )
 
-const addPhotoToAlbum = `-- name: AddPhotoToAlbum :exec
+const addPhotoToAlbum = `-- name: AddPhotoToAlbum :one
 INSERT INTO album_photos (album_id, photo_id)
 VALUES ($1, $2)
+RETURNING id, album_id, photo_id
 `
 
 type AddPhotoToAlbumParams struct {
@@ -21,9 +22,11 @@ type AddPhotoToAlbumParams struct {
 	PhotoID int32
 }
 
-func (q *Queries) AddPhotoToAlbum(ctx context.Context, arg AddPhotoToAlbumParams) error {
-	_, err := q.db.ExecContext(ctx, addPhotoToAlbum, arg.AlbumID, arg.PhotoID)
-	return err
+func (q *Queries) AddPhotoToAlbum(ctx context.Context, arg AddPhotoToAlbumParams) (AlbumPhoto, error) {
+	row := q.db.QueryRowContext(ctx, addPhotoToAlbum, arg.AlbumID, arg.PhotoID)
+	var i AlbumPhoto
+	err := row.Scan(&i.ID, &i.AlbumID, &i.PhotoID)
+	return i, err
 }
 
 const getAlbumPhoto = `-- name: GetAlbumPhoto :one

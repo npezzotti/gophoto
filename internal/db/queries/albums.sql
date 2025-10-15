@@ -6,11 +6,31 @@ FROM albums a
 WHERE a.id = $1;
 
 -- name: ListAlbumsByUser :many
-SELECT a.*, COUNT(ap.*) AS num_photos
+SELECT                      
+  a.id, 
+  a.user_id,
+  a.title,
+  a.num_photos,
+  a.created_at,
+  a.updated_at,
+  p_cover.id AS cover_photo_id,
+  p_cover.key AS cover_photo_key,
 FROM albums a
-  LEFT JOIN album_photos ap ON ap.album_id = a.id
+LEFT JOIN photos p_cover ON p_cover.id = (
+  SELECT photo_id 
+  FROM album_photos 
+  WHERE id = a.cover_photo_id 
+  LIMIT 1
+)
 WHERE a.user_id = $1
-GROUP BY a.id
+GROUP BY 
+  a.id, 
+  a.user_id, 
+  a.title, 
+  a.created_at, 
+  a.updated_at,
+  p_cover.id, 
+  p_cover.key
 LIMIT $2
 OFFSET $3;
 
@@ -22,6 +42,13 @@ INSERT INTO albums (
 )
 RETURNING *;
 
+-- name: SetAlbumCoverPhoto :exec
+UPDATE albums
+SET 
+  cover_photo_id = $2,
+  updated_at = $3
+WHERE id = $1;
+
 -- name: UpdateAlbum :exec
 UPDATE albums
   SET user_id = $2,
@@ -29,6 +56,11 @@ UPDATE albums
   updated_at = $4
 WHERE id = $1
 RETURNING *;
+
+-- name: IncrementAlbumPhotoCount :exec
+UPDATE albums
+SET num_photos = num_photos + 1
+WHERE id = $1;
 
 -- name: DeleteAlbum :exec
 DELETE FROM albums

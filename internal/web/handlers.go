@@ -36,34 +36,25 @@ type AlbumResponse struct {
 }
 
 func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsByUserRow) *AlbumResponse {
-	coverPhotos, err := a.database.ListPhotosByAlbum(ctx, db.ListPhotosByAlbumParams{
-		AlbumID: album.ID,
-		Offset:  0,
-		Limit:   1,
-	})
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		a.ErrorLog.Printf("error getting album cover: %s", err)
-	}
-
 	var imageResp ImageResponse
-	if len(coverPhotos) > 0 {
-		meta, err := a.database.GetPhotoMetadataByPhotoID(ctx, coverPhotos[0].ID)
+	if album.CoverPhotoID.Valid {
+		meta, err := a.database.GetPhotoMetadataByPhotoID(ctx, album.CoverPhotoID.Int32)
 		if err != nil {
-			a.ErrorLog.Printf("error getting metadata for photo %d: %s", coverPhotos[0].ID, err)
+			a.ErrorLog.Printf("error getting metadata for photo %d: %s", album.CoverPhotoID.Int32, err)
 		}
 
 		var sources []Image
 		var defaultSrc string
 		for _, m := range meta {
-			path, err := utils.BuildPhotoPath(coverPhotos[0].Key, m.Variant, utils.MimeType(m.MimeType))
+			path, err := utils.BuildPhotoPath(album.CoverPhotoKey.String, m.Variant, utils.MimeType(m.MimeType))
 			if err != nil {
-				a.ErrorLog.Printf("error building path for %s: %s", coverPhotos[0].Key, err)
+				a.ErrorLog.Printf("error building path for %s: %s", album.CoverPhotoKey.String, err)
 				continue
 			}
 
 			url, err := a.store.GenerateURL(ctx, path)
 			if err != nil {
-				a.ErrorLog.Printf("error generating url for %s: %s", coverPhotos[0].Key, err)
+				a.ErrorLog.Printf("error generating url for photo %d with variant %s: %s", album.CoverPhotoID.Int32, m.Variant, err)
 				continue
 			}
 
@@ -79,8 +70,8 @@ func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsB
 		}
 
 		imageResp = ImageResponse{
-			Image:      coverPhotos[0],
-			Alt:        coverPhotos[0].Key,
+			Image:      db.Photo{ID: album.CoverPhotoID.Int32, Key: album.CoverPhotoKey.String},
+			Alt:        album.CoverPhotoKey.String,
 			DefaultSrc: defaultSrc,
 			Sources:    sources,
 		}
@@ -495,21 +486,6 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	key := uuid.New().String()
-	photo, err := a.database.CreatePhoto(r.Context(), db.CreatePhotoParams{
-		UserID: sql.NullInt32{Int32: user.ID, Valid: true},
-		Key:    key,
-		Status: db.PhotoStatusProcessing,
-	})
-	if err != nil {
-		a.ErrorLog.Println("error creating photo:", err)
-		resp := map[string]string{"error": strings.ToLower(http.StatusText(http.StatusInternalServerError))}
-		if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		}
-		return
-	}
-
 	buf, err := io.ReadAll(f)
 	if err != nil {
 		a.ErrorLog.Println("error reading uploaded file:", err)
@@ -530,26 +506,27 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	photoMeta, err := a.database.CreatePhotoMetadata(r.Context(), db.CreatePhotoMetadataParams{
-		PhotoID:  photo.ID,
-		Variant:  db.PhotoVariantOriginal,
+	key := uuid.New().String()
+	photo, err := a.database.CreatePhotoWithOriginalMetadata(r.Context(), db.CreatePhotoWithOriginalMetadataParams{
+		UserID:   sql.NullInt32{Int32: user.ID, Valid: true},
+		Key:      key,
 		Width:    int32(meta.Width),
 		Height:   int32(meta.Height),
 		FileSize: sql.NullInt64{Int64: fh.Size, Valid: true},
 		MimeType: filetype,
 	})
 	if err != nil {
-		a.ErrorLog.Println("error creating photo metadata:", err)
+		a.ErrorLog.Println("error creating photo:", err)
 		resp := map[string]string{"error": strings.ToLower(http.StatusText(http.StatusInternalServerError))}
 		if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			a.ErrorLog.Println("error writing json response:", err)
 		}
 		return
 	}
 
-	if err := a.database.AddPhotoToAlbum(r.Context(), db.AddPhotoToAlbumParams{
-		AlbumID: album.ID,
+	if err = a.database.AddPhotoToAlbumWithCover(r.Context(), db.AddPhotoToAlbumParams{
 		PhotoID: photo.ID,
+		AlbumID: album.ID,
 	}); err != nil {
 		a.ErrorLog.Println("error adding photo to album:", err)
 		resp := map[string]string{"error": strings.ToLower(http.StatusText(http.StatusInternalServerError))}
@@ -559,7 +536,7 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	path, err := utils.BuildPhotoPath(photo.Key, photoMeta.Variant, utils.MimeType(filetype))
+	path, err := utils.BuildPhotoPath(photo.Key, db.PhotoVariantOriginal, utils.MimeType(filetype))
 	if err != nil {
 		a.ErrorLog.Printf("error building photo path: %s", err.Error())
 	}
