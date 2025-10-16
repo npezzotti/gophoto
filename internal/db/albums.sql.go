@@ -99,12 +99,19 @@ func (q *Queries) GetAlbum(ctx context.Context, id int32) (GetAlbumRow, error) {
 
 const incrementAlbumPhotoCount = `-- name: IncrementAlbumPhotoCount :exec
 UPDATE albums
-SET num_photos = num_photos + 1
+SET 
+  num_photos = num_photos + 1,
+  updated_at = $2
 WHERE id = $1
 `
 
-func (q *Queries) IncrementAlbumPhotoCount(ctx context.Context, id int32) error {
-	_, err := q.db.ExecContext(ctx, incrementAlbumPhotoCount, id)
+type IncrementAlbumPhotoCountParams struct {
+	ID        int32
+	UpdatedAt time.Time
+}
+
+func (q *Queries) IncrementAlbumPhotoCount(ctx context.Context, arg IncrementAlbumPhotoCountParams) error {
+	_, err := q.db.ExecContext(ctx, incrementAlbumPhotoCount, arg.ID, arg.UpdatedAt)
 	return err
 }
 
@@ -113,18 +120,17 @@ SELECT
   a.id, 
   a.user_id,
   a.title,
+  a.num_photos,
   a.created_at,
   a.updated_at,
   p_cover.id AS cover_photo_id,
-  p_cover.key AS cover_photo_key,
-  COUNT(ap.id) AS num_photos
+  p_cover.key AS cover_photo_key
 FROM albums a
-LEFT JOIN album_photos ap ON a.id = ap.album_id
-LEFT JOIN photos p ON p.id = ap.photo_id AND p.status = 'processed'
 LEFT JOIN photos p_cover ON p_cover.id = (
   SELECT photo_id 
   FROM album_photos 
-  WHERE id = a.cover_photo_id
+  WHERE id = a.cover_photo_id 
+  LIMIT 1
 )
 WHERE a.user_id = $1
 GROUP BY 
@@ -149,11 +155,11 @@ type ListAlbumsByUserRow struct {
 	ID            int32
 	UserID        int32
 	Title         string
+	NumPhotos     int32
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	CoverPhotoID  sql.NullInt32
 	CoverPhotoKey sql.NullString
-	NumPhotos     int64
 }
 
 func (q *Queries) ListAlbumsByUser(ctx context.Context, arg ListAlbumsByUserParams) ([]ListAlbumsByUserRow, error) {
@@ -169,11 +175,11 @@ func (q *Queries) ListAlbumsByUser(ctx context.Context, arg ListAlbumsByUserPara
 			&i.ID,
 			&i.UserID,
 			&i.Title,
+			&i.NumPhotos,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.CoverPhotoID,
 			&i.CoverPhotoKey,
-			&i.NumPhotos,
 		); err != nil {
 			return nil, err
 		}

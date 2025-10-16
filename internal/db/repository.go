@@ -44,7 +44,10 @@ func (r *Repository) AddPhotoToAlbumWithCover(ctx context.Context, arg AddPhotoT
 	}
 
 	// Increment the album's photo count
-	if err := q.IncrementAlbumPhotoCount(ctx, album.ID); err != nil {
+	if err := q.IncrementAlbumPhotoCount(ctx, IncrementAlbumPhotoCountParams{
+		ID:        album.ID,
+		UpdatedAt: time.Now(),
+	}); err != nil {
 		if err := tx.Rollback(); err != nil {
 			return fmt.Errorf("increment album photo count: %v, unable to rollback: %v", err, err)
 		}

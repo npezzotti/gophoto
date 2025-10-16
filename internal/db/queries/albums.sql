@@ -14,7 +14,7 @@ SELECT
   a.created_at,
   a.updated_at,
   p_cover.id AS cover_photo_id,
-  p_cover.key AS cover_photo_key,
+  p_cover.key AS cover_photo_key
 FROM albums a
 LEFT JOIN photos p_cover ON p_cover.id = (
   SELECT photo_id 
@@ -59,7 +59,9 @@ RETURNING *;
 
 -- name: IncrementAlbumPhotoCount :exec
 UPDATE albums
-SET num_photos = num_photos + 1
+SET 
+  num_photos = num_photos + 1,
+  updated_at = $2
 WHERE id = $1;
 
 -- name: DeleteAlbum :exec
