@@ -24,7 +24,7 @@ import (
 
 const (
 	FormFileName                = "file"
-	MaxUploadSize               = 50 << (10 * 2)
+	MaxUploadSize               = 50 << (10 * 2) // 50 MB
 	DefaultProfileThumbnailPath = "images/profile_thumb.webp"
 	DefaultProfileAvatarPath    = "images/profile_avatar.webp"
 	DefaultAlbumCover           = "images/album_cover.webp"
@@ -449,60 +449,49 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if err := r.ParseForm(); err != nil {
+		a.ErrorLog.Println("error parsing form:", err)
+		a.flash(r, "Error processing form. Please try again.", flashErr)
+		http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
+		return
+	}
+
 	f, fh, err := r.FormFile(FormFileName)
 	if err != nil {
-		a.ErrorLog.Printf("error getting file from form: %s", err)
-		resp := map[string]string{"error": strings.ToLower(http.StatusText(http.StatusBadRequest))}
-		if err := a.writeJsonResp(w, http.StatusBadRequest, resp); err != nil {
-			a.ErrorLog.Println("error writing json response:", err)
-		}
+		a.flash(r, "No file uploaded. Please try again.", flashErr)
+		http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 		return
 	}
 	defer f.Close()
 
-	if fh.Size > MaxUploadSize {
-		resp := map[string]string{"error": fmt.Sprintf("file size exceeds max upload size of %dMB", MaxUploadSize/1024/1024)}
-		if err := a.writeJsonResp(w, http.StatusBadRequest, resp); err != nil {
-			a.ErrorLog.Println("error writing json response:", err)
-		}
-		return
-	}
-
-	filetype, err := detectContentType(f)
+	fileType, err := detectContentType(f)
 	if err != nil {
-		a.ErrorLog.Println("error detecting content type:", err)
-		resp := map[string]string{"error": strings.ToLower(http.StatusText(http.StatusInternalServerError))}
-		if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-			a.ErrorLog.Println("error writing json response:", err)
-		}
+		a.ErrorLog.Printf("error detecting content type: %s", err)
+		a.flash(r, http.StatusText(http.StatusBadRequest), flashErr)
+		http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 		return
 	}
 
-	if !strings.HasPrefix(filetype, "image/") || !utils.ValidateMimeType(filetype) {
-		resp := map[string]string{"error": "file type not allowed"}
-		if err := a.writeJsonResp(w, http.StatusBadRequest, resp); err != nil {
-			a.ErrorLog.Println("error writing json response:", err)
-		}
+	if err := validatePhotoUpload(fileType, fh); err != nil {
+		a.ErrorLog.Println("error validating photo upload:", err)
+		a.flash(r, http.StatusText(http.StatusBadRequest), flashErr)
+		http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 		return
 	}
 
 	buf, err := io.ReadAll(f)
 	if err != nil {
-		a.ErrorLog.Println("error reading uploaded file:", err)
-		resp := map[string]string{"error": strings.ToLower(http.StatusText(http.StatusInternalServerError))}
-		if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-			a.ErrorLog.Println("error writing json response:", err)
-		}
+		a.ErrorLog.Printf("error reading uploaded file: %s", err)
+		a.flash(r, "Error reading uploaded file, please try again.", flashErr)
+		http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 		return
 	}
 
 	meta, err := bimg.NewImage(buf).Size()
 	if err != nil {
-		a.ErrorLog.Println("error getting image size:", err)
-		resp := map[string]string{"error": strings.ToLower(http.StatusText(http.StatusInternalServerError))}
-		if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-			a.ErrorLog.Println("error writing json response:", err)
-		}
+		a.ErrorLog.Printf("error getting image size: %s", err)
+		a.flash(r, http.StatusText(http.StatusBadRequest), flashErr)
+		http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 		return
 	}
 
@@ -512,15 +501,13 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 		Key:      key,
 		Width:    int32(meta.Width),
 		Height:   int32(meta.Height),
-		FileSize: sql.NullInt64{Int64: fh.Size, Valid: true},
-		MimeType: filetype,
+		FileSize: sql.NullInt64{Int64: int64(len(buf)), Valid: true},
+		MimeType: fileType,
 	})
 	if err != nil {
-		a.ErrorLog.Println("error creating photo:", err)
-		resp := map[string]string{"error": strings.ToLower(http.StatusText(http.StatusInternalServerError))}
-		if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-			a.ErrorLog.Println("error writing json response:", err)
-		}
+		a.ErrorLog.Printf("error creating photo: %s", err)
+		a.flash(r, "Error saving photo. Please try again.", flashErr)
+		http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 		return
 	}
 
@@ -536,16 +523,17 @@ func (a *application) createPhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	path, err := utils.BuildPhotoPath(photo.Key, db.PhotoVariantOriginal, utils.MimeType(filetype))
+	path, err := utils.BuildPhotoPath(key, db.PhotoVariantOriginal, utils.MimeType(fileType))
 	if err != nil {
-		a.ErrorLog.Printf("error building photo path: %s", err.Error())
+		a.ErrorLog.Printf("error building photo path: %s", err)
+		a.flash(r, "Error saving photo. Please try again.", flashErr)
+		http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
+		return
 	}
 	if err := a.store.Write(r.Context(), path, bytes.NewReader(buf)); err != nil {
-		a.ErrorLog.Printf("error writing photo to storage: %s", err.Error())
-		resp := map[string]string{"error": strings.ToLower(http.StatusText(http.StatusInternalServerError))}
-		if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-			a.ErrorLog.Println("error writing json response:", err)
-		}
+		a.ErrorLog.Printf("error writing photo to storage: %s", err)
+		a.flash(r, "Error saving photo. Please try again.", flashErr)
+		http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 		return
 	}
 

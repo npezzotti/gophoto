@@ -1,17 +1,20 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/h2non/bimg"
 	"github.com/npezzotti/gophoto/internal/db"
 	"github.com/npezzotti/gophoto/internal/utils"
 	"github.com/npezzotti/gophoto/internal/workers"
@@ -337,7 +340,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 		if err := r.ParseForm(); err != nil {
 			a.ErrorLog.Println("error parsing form:", err)
 			a.flash(r, "Error processing form. Please try again.", flashErr)
-			http.Redirect(w, r, "/signup", http.StatusSeeOther)
+			http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 			return
 		}
 
@@ -374,7 +377,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 			if err != nil {
 				a.ErrorLog.Println("error hashing password:", err)
 				a.flash(r, "Error updating profile. Please try again.", flashErr)
-				http.Redirect(w, r, "/profile", http.StatusSeeOther)
+				http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 				return
 			}
 			pwdHash = hash
@@ -392,7 +395,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 		if err != nil {
 			a.ErrorLog.Printf("error updating user %d: %s", user.ID, err.Error())
 			a.flash(r, "Error updating profile. Please try again.", flashErr)
-			http.Redirect(w, r, "/profile", http.StatusSeeOther)
+			http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 			return
 		}
 
@@ -410,52 +413,10 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 	case http.MethodPost:
 		if err := r.ParseForm(); err != nil {
 			a.ErrorLog.Println("error parsing form:", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			a.flash(r, "Error processing form. Please try again.", flashErr)
+			http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 			return
 		}
-
-		f, fh, err := r.FormFile(FormFileName)
-		if err != nil {
-			if err := a.writeJsonResp(w, http.StatusBadRequest, map[string]string{"error": strings.ToLower(http.StatusText(http.StatusBadRequest))}); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
-			return
-		}
-		defer f.Close()
-
-		if fh.Size > MaxUploadSize {
-			if err := a.writeJsonResp(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Profile picture exceeds maximum upload size of %dMB.", MaxUploadSize/1024/1024)}); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
-		}
-
-		filetype, err := detectContentType(f)
-		if err != nil {
-			a.ErrorLog.Println("error detecting content type:", err)
-			resp := map[string]string{"error": strings.ToLower(http.StatusText(http.StatusInternalServerError))}
-			if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
-			return
-		}
-
-		if !strings.HasPrefix(filetype, "image/") || !utils.ValidateMimeType(filetype) {
-			resp := map[string]string{"error": "file type not allowed"}
-			if err := a.writeJsonResp(w, http.StatusBadRequest, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
-			return
-		}
-
-		key := uuid.New().String()
 
 		user := a.extractUserFromRequest(r)
 		if user == nil {
@@ -464,54 +425,72 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 			return
 		}
 
-		createPhotoParams := db.CreatePhotoParams{
-			UserID: sql.NullInt32{Int32: user.ID, Valid: true},
-			Key:    key,
-			Status: db.PhotoStatusProcessing,
-		}
-		photo, err := a.database.CreatePhoto(r.Context(), createPhotoParams)
+		f, fh, err := r.FormFile(FormFileName)
 		if err != nil {
-			a.ErrorLog.Printf("error creating photo record: %s", err)
-			a.flash(r, "Error uploading profile picture. Please try again.", flashErr)
-			http.Redirect(w, r, "/profile", http.StatusSeeOther)
+			a.flash(r, "No file uploaded. Please try again.", flashErr)
+			http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
+			return
+		}
+		defer f.Close()
+
+		fileType, err := detectContentType(f)
+		if err != nil {
+			a.ErrorLog.Printf("error detecting content type: %s", err)
+			a.flash(r, http.StatusText(http.StatusBadRequest), flashErr)
+			http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 			return
 		}
 
-		if _, err = a.database.CreatePhotoMetadata(r.Context(), db.CreatePhotoMetadataParams{
-			PhotoID:  photo.ID,
-			Variant:  db.PhotoVariantOriginal,
-			FileSize: sql.NullInt64{Int64: fh.Size, Valid: true},
-			MimeType: filetype,
-		}); err != nil {
-			a.ErrorLog.Printf("error creating photo metadata record: %s", err)
-			a.flash(r, "Error uploading profile picture. Please try again.", flashErr)
-			http.Redirect(w, r, "/profile", http.StatusSeeOther)
+		if err := validatePhotoUpload(fileType, fh); err != nil {
+			a.ErrorLog.Println("error validating photo upload:", err)
+			a.flash(r, http.StatusText(http.StatusBadRequest), flashErr)
+			http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 			return
 		}
 
-		path, err := utils.BuildPhotoPath(key, db.PhotoVariantOriginal, utils.MimeType(filetype))
+		buf, err := io.ReadAll(f)
+		if err != nil {
+			a.ErrorLog.Printf("error reading uploaded file: %s", err)
+			a.flash(r, "Error reading uploaded file, please try again.", flashErr)
+			http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
+			return
+		}
+
+		meta, err := bimg.NewImage(buf).Size()
+		if err != nil {
+			a.ErrorLog.Printf("error getting image size: %s", err)
+			a.flash(r, http.StatusText(http.StatusBadRequest), flashErr)
+			http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
+			return
+		}
+
+		key := uuid.New().String()
+		photo, err := a.database.CreatePhotoWithOriginalMetadata(r.Context(), db.CreatePhotoWithOriginalMetadataParams{
+			UserID:   sql.NullInt32{Int32: user.ID, Valid: true},
+			Key:      key,
+			Width:    int32(meta.Width),
+			Height:   int32(meta.Height),
+			FileSize: sql.NullInt64{Int64: int64(len(buf)), Valid: true},
+			MimeType: fileType,
+		})
+		if err != nil {
+			a.ErrorLog.Printf("error creating photo: %s", err)
+			a.flash(r, "Error saving photo. Please try again.", flashErr)
+			http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
+			return
+		}
+
+		path, err := utils.BuildPhotoPath(key, db.PhotoVariantOriginal, utils.MimeType(fileType))
 		if err != nil {
 			a.ErrorLog.Printf("error building photo path: %s", err)
-			a.flash(r, "Error uploading profile picture. Please try again.", flashErr)
-			http.Redirect(w, r, "/profile", http.StatusSeeOther)
+			a.flash(r, "Error saving photo. Please try again.", flashErr)
+			http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 			return
 		}
-		if err := a.store.Write(r.Context(), path, f); err != nil {
-			a.ErrorLog.Printf("error writing profile picture to storage: %s", err)
-			a.flash(r, "Error uploading profile picture. Please try again.", flashErr)
-			http.Redirect(w, r, "/profile", http.StatusSeeOther)
-			return
-		}
-
-		// Process photo in background
-		processingJob, err := json.Marshal(workers.PhotoProcessingJob{Type: workers.JobTypeUserPhoto, PhotoID: photo.ID})
-		if err != nil {
-			a.ErrorLog.Printf("error marshalling photo processing job: %s", err.Error())
-			return
-		}
-		err = a.redisClient.Publish(context.Background(), workers.PhotoProcessingQueue, processingJob).Err()
-		if err != nil {
-			a.ErrorLog.Printf("error publishing photo processing job: %s", err.Error())
+		if err := a.store.Write(r.Context(), path, bytes.NewReader(buf)); err != nil {
+			a.ErrorLog.Printf("error writing photo to storage: %s", err)
+			a.flash(r, "Error saving photo. Please try again.", flashErr)
+			http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 			return
 		}
 
@@ -527,18 +506,25 @@ func (a *application) editProfilePictureHandler(w http.ResponseWriter, r *http.R
 		if err != nil {
 			a.ErrorLog.Println("error updating user:", err)
 			a.flash(r, "Error updating profile picture, Please try again.", flashErr)
-			http.Redirect(w, r, "/profile", http.StatusSeeOther)
+			http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]int32{"id": photo.ID}); err != nil {
-			a.ErrorLog.Println("error encoding json:", err)
+		// Process photo in background
+		processingJob, err := json.Marshal(workers.PhotoProcessingJob{Type: workers.JobTypeUserPhoto, PhotoID: photo.ID})
+		if err != nil {
+			a.ErrorLog.Printf("error marshalling photo processing job: %s", err)
+		}
+		err = a.redisClient.Publish(context.Background(), workers.PhotoProcessingQueue, processingJob).Err()
+		if err != nil {
+			a.ErrorLog.Printf("error publishing photo processing job: %s", err)
+		}
+
+		if err := a.writeJsonResp(w, http.StatusOK, map[string]int32{"id": photo.ID}); err != nil {
+			a.ErrorLog.Println("error writing json response:", err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-
-		return
 	default:
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 		return

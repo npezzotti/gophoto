@@ -5,7 +5,9 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"strings"
 
+	"github.com/npezzotti/gophoto/internal/utils"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -35,6 +37,17 @@ func isAuthenticated(r *http.Request) bool {
 	}
 
 	return false
+}
+
+func validatePhotoUpload(fileType string, fh *multipart.FileHeader) error {
+	if fh.Size > MaxUploadSize {
+		return fmt.Errorf("file size exceeds max upload size of %dMB", MaxUploadSize/1024/1024)
+	}
+
+	if !strings.HasPrefix(fileType, "image/") || !utils.ValidateMimeType(fileType) {
+		return fmt.Errorf("file type not allowed")
+	}
+	return nil
 }
 
 // detectContentType reads the first 512 bytes of the provided file to determine its content type.

@@ -104,9 +104,6 @@ func (ppw *PhotoProcessorWorker) Run() {
 
 // handleJob processes a single photo processing job message from the Redis queue.
 func (ppw *PhotoProcessorWorker) handleJob(msg *redis.Message) error {
-	ppw.log.Println("starting photo processing job")
-	defer ppw.log.Println("finished photo processing job")
-
 	var processingJob PhotoProcessingJob
 	if err := json.Unmarshal([]byte(msg.Payload), &processingJob); err != nil {
 		return fmt.Errorf("error unmarshalling message payload %q: %w", msg.Payload, err)
@@ -137,7 +134,7 @@ func (ppw *PhotoProcessorWorker) updatePhotoStatus(photo db.Photo, status db.Pho
 }
 
 func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) error {
-	ppw.log.Printf("starting photo processing job for photo ID %d", photoId)
+	ppw.log.Printf("processing photo ID %d", photoId)
 
 	photo, err := ppw.db.GetPhoto(context.Background(), photoId)
 	if err != nil {

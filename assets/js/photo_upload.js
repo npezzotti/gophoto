@@ -23,8 +23,8 @@ async function uploadPhoto(form) {
 
     if (response.ok) {
       const data = await response.json();
-      processingPhotoId = data.id;
 
+      processingPhotoId = data.id;
       if (!processingPhotoId) {
         throw new Error("No photo ID returned from server");
       }
@@ -86,6 +86,15 @@ async function uploadPhoto(form) {
           }
         }, 1000)
       }, 500);
+    } else {
+      // Follow redirect in response, error will be in flash message
+      if (response.status >= 300 && response.status < 400) {
+        const redirectUrl = response.headers.get('Location');
+        if (redirectUrl) {
+          window.location.href = redirectUrl;
+          return;
+        }
+      }
     }
   } catch (err) {
     throw new Error("Error uploading photo: " + err);
