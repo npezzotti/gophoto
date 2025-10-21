@@ -18,7 +18,7 @@ async function uploadPhoto(form) {
     const formData = new FormData(form);
     const response = await fetch(form.action, {
       method: form.method,
-      body: formData
+      body: formData,
     });
 
     if (response.ok) {
@@ -87,14 +87,10 @@ async function uploadPhoto(form) {
         }, 1000)
       }, 500);
     } else {
-      // Follow redirect in response, error will be in flash message
-      if (response.status >= 300 && response.status < 400) {
-        const redirectUrl = response.headers.get('Location');
-        if (redirectUrl) {
-          window.location.href = redirectUrl;
-          return;
-        }
-      }
+      console.log(response);
+      const resp = await response.json();
+      errorMessage = resp.error || "Unknown error uploading photo";
+      throw new Error(errorMessage);
     }
   } catch (err) {
     throw new Error("Error uploading photo: " + err);

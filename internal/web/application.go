@@ -79,7 +79,7 @@ func (a *application) routes() *http.ServeMux {
 	mux.Handle("/albums/delete", a.protected(http.HandlerFunc(a.deleteAlbumHandler)))
 	mux.Handle("/albums/new", a.protected(http.HandlerFunc(a.createAlbumHandler)))
 	mux.Handle("/photo/delete", a.protected(http.HandlerFunc(a.deletePhotoHandler)))
-	mux.Handle("/photo/new", a.protected(http.HandlerFunc(a.createPhotoHandler)))
+	mux.Handle("/api/photos", http.HandlerFunc(a.uploadPhotoHandler))
 	mux.Handle("/photo/status", a.protected(http.HandlerFunc(a.photoStatusHandler)))
 	mux.Handle("/login", http.HandlerFunc(a.loginHandler))
 	mux.HandleFunc("/signup", a.signupHandler)
@@ -87,7 +87,6 @@ func (a *application) routes() *http.ServeMux {
 	mux.HandleFunc("/about", a.aboutHandler)
 	mux.Handle("/profile", a.protected(http.HandlerFunc(a.profileHandler)))
 	mux.Handle("/profile/edit", a.protected(http.HandlerFunc(a.editProfileHandler)))
-	mux.Handle("/profile/photo/edit", a.protected(http.HandlerFunc(a.editProfilePictureHandler)))
 	mux.Handle("/profile/delete", a.protected(http.HandlerFunc(a.deleteAccountHandler)))
 	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
 
