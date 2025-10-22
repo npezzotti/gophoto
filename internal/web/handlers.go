@@ -458,6 +458,7 @@ func (a *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Request)
 
 	user, err := a.authenticateRequest(r)
 	if err != nil {
+		a.ErrorLog.Printf("authentication error: %v", err)
 		a.writeJsonErrorResp(w, http.StatusUnauthorized, strings.ToLower(http.StatusText(http.StatusUnauthorized)))
 		return
 	}
@@ -536,7 +537,7 @@ func (a *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := a.uploadPhotoToStorage(r.Context(), photo, buf, utils.MimeType(fileType)); err != nil {
+	if err := a.uploadPhotoToStorage(r.Context(), photo, buf, fileType); err != nil {
 		a.ErrorLog.Printf("error uploading photo %d to storage: %s", photo.ID, err)
 		resp := map[string]string{"error": http.StatusText(http.StatusInternalServerError)}
 		a.writeJsonResp(w, http.StatusInternalServerError, resp)
