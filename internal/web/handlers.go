@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -18,7 +17,6 @@ import (
 	"github.com/h2non/bimg"
 	"github.com/npezzotti/gophoto/internal/db"
 	"github.com/npezzotti/gophoto/internal/utils"
-	"github.com/npezzotti/gophoto/internal/workers"
 	"github.com/npezzotti/gophoto/pkg/pagination"
 )
 
@@ -408,424 +406,190 @@ func (a *application) deleteAlbumHandler(w http.ResponseWriter, r *http.Request)
 	}
 }
 
+func (a *application) uploadPhotoToStorage(ctx context.Context, photo db.Photo, buf []byte, fileType utils.MimeType) error {
+	path, err := utils.BuildPhotoPath(photo.Key, db.PhotoVariantOriginal, fileType)
+	if err != nil {
+		return fmt.Errorf("error building photo path: %w", err)
+	}
+	if err := a.store.Write(ctx, path, bytes.NewReader(buf)); err != nil {
+		return fmt.Errorf("error writing photo to storage: %w", err)
+	}
+	return nil
+}
+
+func (a *application) processUploadedFile(r *http.Request) ([]byte, utils.MimeType, bimg.ImageSize, error) {
+	if err := r.ParseForm(); err != nil {
+		return nil, "", bimg.ImageSize{}, fmt.Errorf("error parsing form: %w", err)
+	}
+
+	f, fh, err := r.FormFile(FormFileName)
+	if err != nil {
+		return nil, "", bimg.ImageSize{}, fmt.Errorf("error retrieving form file: %w", err)
+	}
+	defer f.Close()
+
+	fileType, err := detectContentType(f)
+	if err != nil {
+		return nil, "", bimg.ImageSize{}, fmt.Errorf("error detecting content type: %w", err)
+	}
+
+	if err := validatePhotoUpload(fileType, fh); err != nil {
+		return nil, "", bimg.ImageSize{}, fmt.Errorf("error validating photo upload: %w", err)
+	}
+
+	buf, err := io.ReadAll(f)
+	if err != nil {
+		return nil, "", bimg.ImageSize{}, fmt.Errorf("error reading uploaded file: %w", err)
+	}
+
+	meta, err := bimg.NewImage(buf).Size()
+	if err != nil {
+		return nil, "", bimg.ImageSize{}, fmt.Errorf("error getting image size: %w", err)
+	}
+
+	return buf, utils.MimeType(fileType), meta, nil
+}
+
 func (a *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 		return
 	}
 
-	if !isAuthenticated(r) {
-		resp := map[string]string{"error": http.StatusText(http.StatusUnauthorized)}
-		if err := a.writeJsonResp(w, http.StatusUnauthorized, resp); err != nil {
-			a.ErrorLog.Println("error writing json response:", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		}
+	user, err := a.authenticateRequest(r)
+	if err != nil {
+		a.writeJsonErrorResp(w, http.StatusUnauthorized, strings.ToLower(http.StatusText(http.StatusUnauthorized)))
 		return
 	}
 
-	a.InfoLog.Println(1)
-	switch photoType := r.URL.Query().Get("type"); photoType {
+	photoType := r.URL.Query().Get("type")
+	if photoType == "" {
+		a.writeJsonErrorResp(w, http.StatusBadRequest, "missing photo type")
+		return
+	}
+
+	buf, fileType, meta, err := a.processUploadedFile(r)
+	if err != nil {
+		a.ErrorLog.Println("error processing uploaded file:", err)
+		a.writeJsonErrorResp(w, http.StatusBadRequest, strings.ToLower(http.StatusText(http.StatusBadRequest)))
+		return
+	}
+
+	key := uuid.New().String()
+	var photo db.Photo
+	switch photoType {
 	case "album":
 		album_id_str := r.URL.Query().Get("id")
 		album_id, err := strconv.Atoi(album_id_str)
 		if err != nil {
-			resp := map[string]string{"error": "invalid album id"}
-			if err := a.writeJsonResp(w, http.StatusBadRequest, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
+			a.writeJsonErrorResp(w, http.StatusBadRequest, "invalid album id")
 			return
 		}
 
-		a.InfoLog.Println(2)
 		album, err := a.database.GetAlbum(r.Context(), int32(album_id))
 		if err != nil {
 			var respMsg string
 			if errors.Is(err, sql.ErrNoRows) {
-				respMsg = http.StatusText(http.StatusNotFound)
+				respMsg = strings.ToLower(http.StatusText(http.StatusNotFound))
 			} else {
 				a.ErrorLog.Println("error retrieving album:", err)
-				respMsg = http.StatusText(http.StatusInternalServerError)
+				respMsg = strings.ToLower(http.StatusText(http.StatusInternalServerError))
 			}
-			resp := map[string]string{"error": respMsg}
-			if err := a.writeJsonResp(w, http.StatusBadRequest, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
+			a.writeJsonErrorResp(w, http.StatusBadRequest, respMsg)
 			return
 		}
 
-		a.InfoLog.Println(3)
-		user := a.extractUserFromRequest(r)
-		if user == nil {
-			resp := map[string]string{"error": http.StatusText(http.StatusUnauthorized)}
-			if err := a.writeJsonResp(w, http.StatusUnauthorized, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		a.InfoLog.Println(4)
 		if user.ID != album.UserID {
-			resp := map[string]string{"error": http.StatusText(http.StatusNotFound)}
-			if err := a.writeJsonResp(w, http.StatusNotFound, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
+			a.writeJsonErrorResp(w, http.StatusNotFound, strings.ToLower(http.StatusText(http.StatusNotFound)))
 			return
 		}
 
-		a.InfoLog.Println(5)
-		if err := r.ParseForm(); err != nil {
-			a.ErrorLog.Println("error parsing form:", err)
-			resp := map[string]string{"error": http.StatusText(http.StatusBadRequest)}
-			if err := a.writeJsonResp(w, http.StatusBadRequest, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		a.InfoLog.Println(6)
-		f, fh, err := r.FormFile(FormFileName)
-		if err != nil {
-			resp := map[string]string{"error": http.StatusText(http.StatusBadRequest)}
-			if err := a.writeJsonResp(w, http.StatusBadRequest, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-		defer f.Close()
-
-		a.InfoLog.Println(7)
-		fileType, err := detectContentType(f)
-		if err != nil {
-			resp := map[string]string{"error": http.StatusText(http.StatusBadRequest)}
-			if err := a.writeJsonResp(w, http.StatusBadRequest, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		if err := validatePhotoUpload(fileType, fh); err != nil {
-			resp := map[string]string{"error": http.StatusText(http.StatusBadRequest)}
-			if err := a.writeJsonResp(w, http.StatusBadRequest, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		buf, err := io.ReadAll(f)
-		if err != nil {
-			a.ErrorLog.Printf("error reading uploaded file: %s", err)
-			resp := map[string]string{"error": http.StatusText(http.StatusInternalServerError)}
-			if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		meta, err := bimg.NewImage(buf).Size()
-		if err != nil {
-			a.ErrorLog.Printf("error getting image size: %s", err)
-			resp := map[string]string{"error": http.StatusText(http.StatusInternalServerError)}
-			if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		key := uuid.New().String()
-		photo, err := a.database.CreatePhotoWithOriginalMetadata(r.Context(), db.CreatePhotoWithOriginalMetadataParams{
+		photo, err = a.database.CreateAlbumPhotoWithOriginalMetadata(r.Context(), album.ID, db.CreatePhotoWithOriginalMetadataParams{
 			UserID:   sql.NullInt32{Int32: user.ID, Valid: true},
 			Key:      key,
 			Width:    int32(meta.Width),
 			Height:   int32(meta.Height),
 			FileSize: sql.NullInt64{Int64: int64(len(buf)), Valid: true},
-			MimeType: fileType,
+			MimeType: string(fileType),
 		})
 		if err != nil {
 			a.ErrorLog.Printf("error creating photo: %s", err)
-			resp := map[string]string{"error": http.StatusText(http.StatusInternalServerError)}
-			if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		if err = a.database.AddPhotoToAlbumWithCover(r.Context(), db.AddPhotoToAlbumParams{
-			PhotoID: photo.ID,
-			AlbumID: album.ID,
-		}); err != nil {
-			a.ErrorLog.Println("error adding photo to album:", err)
-			resp := map[string]string{"error": http.StatusText(http.StatusInternalServerError)}
-			if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		path, err := utils.BuildPhotoPath(key, db.PhotoVariantOriginal, utils.MimeType(fileType))
-		if err != nil {
-			a.ErrorLog.Printf("error building photo path: %s", err)
-			resp := map[string]string{"error": http.StatusText(http.StatusInternalServerError)}
-			if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-		if err := a.store.Write(r.Context(), path, bytes.NewReader(buf)); err != nil {
-			a.ErrorLog.Printf("error writing photo to storage: %s", err)
-			resp := map[string]string{"error": http.StatusText(http.StatusInternalServerError)}
-			if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		// Process photo in background
-		processingJob, err := json.Marshal(workers.PhotoProcessingJob{Type: workers.JobTypeAlbumPhoto, PhotoID: photo.ID})
-		if err != nil {
-			a.ErrorLog.Printf("error marshalling photo processing job for photo %d: %s", photo.ID, err.Error())
-		}
-
-		if processingJob != nil {
-			err = a.redisClient.Publish(context.Background(), workers.PhotoProcessingQueue, processingJob).Err()
-			if err != nil {
-				a.ErrorLog.Printf("error publishing photo processing job for photo %d: %s", photo.ID, err.Error())
-			}
-		}
-
-		if err := a.writeJsonResp(w, http.StatusOK, map[string]int32{"id": photo.ID}); err != nil {
-			a.ErrorLog.Println("error writing json response:", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			a.writeJsonErrorResp(w, http.StatusInternalServerError, strings.ToLower(http.StatusText(http.StatusInternalServerError)))
 			return
 		}
 	case "user":
-		if err := r.ParseForm(); err != nil {
-			a.ErrorLog.Println("error parsing form:", err)
-			resp := map[string]string{"error": http.StatusText(http.StatusBadRequest)}
-			if err := a.writeJsonResp(w, http.StatusBadRequest, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		user := a.extractUserFromRequest(r)
-		if user == nil {
-			resp := map[string]string{"error": http.StatusText(http.StatusUnauthorized)}
-			if err := a.writeJsonResp(w, http.StatusUnauthorized, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		f, fh, err := r.FormFile(FormFileName)
-		if err != nil {
-			resp := map[string]string{"error": http.StatusText(http.StatusBadRequest)}
-			if err := a.writeJsonResp(w, http.StatusBadRequest, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-		defer f.Close()
-
-		fileType, err := detectContentType(f)
-		if err != nil {
-			a.ErrorLog.Printf("error detecting content type: %s", err)
-			resp := map[string]string{"error": http.StatusText(http.StatusBadRequest)}
-			if err := a.writeJsonResp(w, http.StatusBadRequest, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		if err := validatePhotoUpload(fileType, fh); err != nil {
-			a.ErrorLog.Println("error validating photo upload:", err)
-			resp := map[string]string{"error": http.StatusText(http.StatusBadRequest)}
-			if err := a.writeJsonResp(w, http.StatusBadRequest, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		buf, err := io.ReadAll(f)
-		if err != nil {
-			a.ErrorLog.Printf("error reading uploaded file: %s", err)
-			resp := map[string]string{"error": http.StatusText(http.StatusInternalServerError)}
-			if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		meta, err := bimg.NewImage(buf).Size()
-		if err != nil {
-			a.ErrorLog.Printf("error getting image size: %s", err)
-			resp := map[string]string{"error": http.StatusText(http.StatusInternalServerError)}
-			if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		key := uuid.New().String()
-		photo, err := a.database.CreatePhotoWithOriginalMetadata(r.Context(), db.CreatePhotoWithOriginalMetadataParams{
+		photo, err = a.database.CreateUserPhotoWithOriginalMetadata(r.Context(), user, db.CreatePhotoWithOriginalMetadataParams{
 			UserID:   sql.NullInt32{Int32: user.ID, Valid: true},
 			Key:      key,
 			Width:    int32(meta.Width),
 			Height:   int32(meta.Height),
 			FileSize: sql.NullInt64{Int64: int64(len(buf)), Valid: true},
-			MimeType: fileType,
+			MimeType: string(fileType),
 		})
 		if err != nil {
 			a.ErrorLog.Printf("error creating photo: %s", err)
-			resp := map[string]string{"error": http.StatusText(http.StatusInternalServerError)}
-			if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		path, err := utils.BuildPhotoPath(key, db.PhotoVariantOriginal, utils.MimeType(fileType))
-		if err != nil {
-			a.ErrorLog.Printf("error building photo path: %s", err)
-			resp := map[string]string{"error": http.StatusText(http.StatusInternalServerError)}
-			if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-		if err := a.store.Write(r.Context(), path, bytes.NewReader(buf)); err != nil {
-			a.ErrorLog.Printf("error writing photo to storage: %s", err)
-			resp := map[string]string{"error": http.StatusText(http.StatusInternalServerError)}
-			if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		_, err = a.database.UpdateUser(r.Context(), db.UpdateUserParams{
-			ID:               user.ID,
-			FirstName:        user.FirstName,
-			LastName:         user.LastName,
-			Email:            user.Email,
-			PasswordHash:     user.PasswordHash,
-			ProfilePictureID: sql.NullInt32{Int32: photo.ID, Valid: true},
-			UpdatedAt:        time.Now(),
-		})
-		if err != nil {
-			a.ErrorLog.Println("error updating user:", err)
-			resp := map[string]string{"error": http.StatusText(http.StatusInternalServerError)}
-			if err := a.writeJsonResp(w, http.StatusInternalServerError, resp); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		// Process photo in background
-		processingJob, err := json.Marshal(workers.PhotoProcessingJob{Type: workers.JobTypeUserPhoto, PhotoID: photo.ID})
-		if err != nil {
-			a.ErrorLog.Printf("error marshalling photo processing job: %s", err)
-		}
-		if processingJob != nil {
-			err = a.redisClient.Publish(context.Background(), workers.PhotoProcessingQueue, processingJob).Err()
-			if err != nil {
-				a.ErrorLog.Printf("error publishing photo processing job: %s", err)
-			}
-		}
-
-		if err := a.writeJsonResp(w, http.StatusOK, map[string]int32{"id": photo.ID}); err != nil {
-			a.ErrorLog.Println("error writing json response:", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			a.writeJsonErrorResp(w, http.StatusInternalServerError, strings.ToLower(http.StatusText(http.StatusInternalServerError)))
 			return
 		}
 	default:
-		resp := map[string]string{"error": "invalid photo type"}
-		if err := a.writeJsonResp(w, http.StatusBadRequest, resp); err != nil {
-			a.ErrorLog.Println("error writing json response:", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		}
+		a.writeJsonErrorResp(w, http.StatusBadRequest, "invalid photo type")
 		return
 	}
+
+	if err := a.uploadPhotoToStorage(r.Context(), photo, buf, utils.MimeType(fileType)); err != nil {
+		a.ErrorLog.Printf("error uploading photo %d to storage: %s", photo.ID, err)
+		resp := map[string]string{"error": http.StatusText(http.StatusInternalServerError)}
+		a.writeJsonResp(w, http.StatusInternalServerError, resp)
+		return
+	}
+
+	if err := a.queuePhotoProcessing(r.Context(), photo); err != nil {
+		// Log the error but do not fail the request
+		a.ErrorLog.Printf("error queueing photo %d for processing: %s", photo.ID, err)
+	}
+
+	a.writeJsonResp(w, http.StatusOK, map[string]int32{"id": photo.ID})
 }
 
 func (a *application) photoStatusHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
+		user, err := a.authenticateRequest(r)
+		if err != nil {
+			a.writeJsonErrorResp(w, http.StatusUnauthorized, strings.ToLower(http.StatusText(http.StatusUnauthorized)))
+			return
+		}
+
 		id_str := r.URL.Query().Get("id")
 		if id_str == "" {
-			if err := a.writeJsonResp(w, http.StatusBadRequest, map[string]string{"error": strings.ToLower(http.StatusText(http.StatusBadRequest))}); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
+			a.writeJsonErrorResp(w, http.StatusBadRequest, strings.ToLower(http.StatusText(http.StatusBadRequest)))
+			return
 		}
 
 		id, err := strconv.Atoi(id_str)
 		if err != nil {
 			a.ErrorLog.Println("error converting string to int", err)
-			if err := a.writeJsonResp(w, http.StatusBadRequest, map[string]string{"error": strings.ToLower(http.StatusText(http.StatusBadRequest))}); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
+			a.writeJsonErrorResp(w, http.StatusBadRequest, strings.ToLower(http.StatusText(http.StatusBadRequest)))
 			return
 		}
 
 		photo, err := a.database.GetPhoto(r.Context(), int32(id))
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				if err := a.writeJsonResp(w, http.StatusNotFound, map[string]string{"error": "photo not found"}); err != nil {
-					a.ErrorLog.Println("error writing json response:", err)
-					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				}
+				a.writeJsonErrorResp(w, http.StatusNotFound, strings.ToLower(http.StatusText(http.StatusNotFound)))
 				return
 			}
 			a.ErrorLog.Println("error getting photo:", err)
-			if err := a.writeJsonResp(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"}); err != nil {
-				a.ErrorLog.Println("error writing json response:", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		user := a.extractUserFromRequest(r)
-		if user == nil {
-			a.flash(r, "User not found.", flashErr)
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			a.writeJsonErrorResp(w, http.StatusInternalServerError, strings.ToLower(http.StatusText(http.StatusInternalServerError)))
 			return
 		}
 
 		if !photo.UserID.Valid || photo.UserID.Int32 != user.ID {
-			a.writeJsonResp(w, http.StatusNotFound, map[string]string{"error": "photo not found"})
+			a.writeJsonErrorResp(w, http.StatusNotFound, strings.ToLower(http.StatusText(http.StatusNotFound)))
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		if err := a.writeJsonResp(w, http.StatusOK, map[string]string{"status": string(photo.Status)}); err != nil {
-			a.ErrorLog.Println("error writing json response:", err)
-			return
-		}
+		a.writeJsonResp(w, http.StatusOK, map[string]string{"status": string(photo.Status)})
 	default:
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 		return
@@ -902,11 +666,4 @@ func (a *application) aboutHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 		return
 	}
-}
-
-// writeJsonResp writes the provided data as a JSON response with the specified HTTP status code.
-func (a *application) writeJsonResp(w http.ResponseWriter, status int, data any) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	return json.NewEncoder(w).Encode(data)
 }

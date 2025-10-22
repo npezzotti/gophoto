@@ -7,7 +7,7 @@ import (
 
 var (
 	DefaultPage  = 1
-	DefaultLimit = 10
+	DefaultLimit = 12
 )
 
 type Pagination struct {

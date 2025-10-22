@@ -1,15 +1,34 @@
 package web
 
 import (
+	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"strings"
 
+	"github.com/npezzotti/gophoto/internal/db"
 	"github.com/npezzotti/gophoto/internal/utils"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// writeJsonResp writes the provided data as a JSON response with the specified HTTP status code.
+func (a *application) writeJsonResp(w http.ResponseWriter, status int, data any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		a.ErrorLog.Println("error writing json response:", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
+}
+
+func (a *application) writeJsonErrorResp(w http.ResponseWriter, status int, message string) {
+	resp := map[string]string{"error": message}
+	a.writeJsonResp(w, status, resp)
+}
 
 func hashPassword(password string) (string, error) {
 	passwdBytes := []byte(password)
@@ -30,6 +49,20 @@ func passwordsMatch(hash, password string) bool {
 	return err == nil
 }
 
+// Authenticate and extract user
+func (a *application) authenticateRequest(r *http.Request) (*db.GetUserByIdRow, error) {
+	if !isAuthenticated(r) {
+		return nil, fmt.Errorf("not authenticated")
+	}
+
+	user := a.extractUserFromRequest(r)
+	if user == nil {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	return user, nil
+}
+
 // isAuthenticated checks if the user is authenticated by looking for the IsAuthenticatedContextKey in the request context.
 func isAuthenticated(r *http.Request) bool {
 	if isAuthenticated, ok := r.Context().Value(IsAuthenticatedContextKey).(bool); ok {
@@ -37,6 +70,22 @@ func isAuthenticated(r *http.Request) bool {
 	}
 
 	return false
+}
+
+// extractUserFromRequest retrieves the authenticated user's details from the request context.
+func (a *application) extractUserFromRequest(r *http.Request) *db.GetUserByIdRow {
+	if userId, ok := r.Context().Value(AuthenticatedUserId).(int32); ok {
+		userRow, err := a.database.GetUserById(r.Context(), userId)
+		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				a.ErrorLog.Printf("error querying user: %s", err.Error())
+			}
+			return nil
+		}
+		return &userRow
+	}
+
+	return nil
 }
 
 func validatePhotoUpload(fileType string, fh *multipart.FileHeader) error {

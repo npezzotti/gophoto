@@ -24,23 +24,6 @@ type UserResponse struct {
 	ProfilePictureAvatarURL string
 }
 
-// extractUserFromRequest retrieves the authenticated user's details from the request context.
-func (a *application) extractUserFromRequest(r *http.Request) *db.GetUserByIdRow {
-	if userId, ok := r.Context().Value(AuthenticatedUserId).(int32); ok {
-		userRow, err := a.database.GetUserById(r.Context(), userId)
-		if err != nil {
-			a.ErrorLog.Printf("error getting user by id from request: %s", err.Error())
-			if err != sql.ErrNoRows {
-				a.ErrorLog.Printf("error querying user: %s", err.Error())
-			}
-			return nil
-		}
-		return &userRow
-	}
-
-	return nil
-}
-
 func (a *application) newUserResponse(ctx context.Context, user *db.GetUserByIdRow) *UserResponse {
 	var sources []Image
 	var defaultSrc string

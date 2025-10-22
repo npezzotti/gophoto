@@ -2,6 +2,8 @@ package web
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -9,6 +11,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 	"github.com/npezzotti/gophoto/internal/config"
 	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/internal/workers"
 	"github.com/npezzotti/gophoto/pkg/store"
 	"github.com/npezzotti/gophoto/pkg/template"
 	"github.com/redis/go-redis/v9"
@@ -80,7 +83,7 @@ func (a *application) routes() *http.ServeMux {
 	mux.Handle("/albums/new", a.protected(http.HandlerFunc(a.createAlbumHandler)))
 	mux.Handle("/photo/delete", a.protected(http.HandlerFunc(a.deletePhotoHandler)))
 	mux.Handle("/api/photos", http.HandlerFunc(a.uploadPhotoHandler))
-	mux.Handle("/photo/status", a.protected(http.HandlerFunc(a.photoStatusHandler)))
+	mux.Handle("/api/photos/status", http.HandlerFunc(a.photoStatusHandler))
 	mux.Handle("/login", http.HandlerFunc(a.loginHandler))
 	mux.HandleFunc("/signup", a.signupHandler)
 	mux.HandleFunc("/logout", a.logoutHandler)
@@ -96,4 +99,17 @@ func (a *application) routes() *http.ServeMux {
 	}
 
 	return mux
+}
+
+func (a *application) queuePhotoProcessing(ctx context.Context, photo db.Photo) error {
+	processingJob, err := json.Marshal(workers.PhotoProcessingJob{Type: workers.JobTypeAlbumPhoto, PhotoID: photo.ID})
+	if err != nil {
+		return fmt.Errorf("error marshalling photo processing job for photo %d: %s", photo.ID, err.Error())
+	}
+
+	err = a.redisClient.Publish(ctx, workers.PhotoProcessingQueue, processingJob).Err()
+	if err != nil {
+		return fmt.Errorf("error publishing photo processing job for photo %d: %s", photo.ID, err.Error())
+	}
+	return nil
 }
