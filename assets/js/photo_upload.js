@@ -109,8 +109,6 @@ async function pollPhotoProcessingStatus(photoId, progressBar, interval) {
         // Stop polling
         clearInterval(interval);
 
-        throw new Error("Test error");
-
         // Refresh the page after a short delay to show the new photo
         setTimeout(() => {
           location.reload();
