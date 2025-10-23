@@ -14,6 +14,11 @@ import (
 	"github.com/npezzotti/gophoto/internal/utils"
 )
 
+const (
+	FormFileName  = "file"
+	MaxUploadSize = 50 << (10 * 2) // 50 MB
+)
+
 func (a *application) processUploadedFile(r *http.Request) ([]byte, utils.MimeType, bimg.ImageSize, error) {
 	if err := r.ParseForm(); err != nil {
 		return nil, "", bimg.ImageSize{}, fmt.Errorf("error parsing form: %w", err)

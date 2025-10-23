@@ -18,8 +18,6 @@ import (
 )
 
 const (
-	FormFileName                = "file"
-	MaxUploadSize               = 50 << (10 * 2) // 50 MB
 	DefaultProfileThumbnailPath = "images/profile_thumb.webp"
 	DefaultProfileAvatarPath    = "images/profile_avatar.webp"
 	DefaultAlbumCover           = "images/album_cover.webp"
