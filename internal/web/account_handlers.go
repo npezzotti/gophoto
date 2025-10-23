@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/npezzotti/gophoto/internal/db"
@@ -128,7 +127,7 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 		passwdHash, err := hashPassword(sf.Password)
 		if err != nil {
 			a.ErrorLog.Println("error hashing password:", err)
-			a.flash(r, strings.ToLower(http.StatusText(http.StatusInternalServerError)), flashErr)
+			a.flash(r, http.StatusText(http.StatusInternalServerError), flashErr)
 			http.Redirect(w, r, "/signup", http.StatusSeeOther)
 			return
 		}
@@ -142,7 +141,7 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 		_, err = a.database.CreateUser(r.Context(), user_params)
 		if err != nil {
 			a.ErrorLog.Println(err)
-			a.flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
+			a.flash(r, http.StatusText(http.StatusBadRequest), flashErr)
 			http.Redirect(w, r, "/signup", http.StatusSeeOther)
 			return
 		}
@@ -168,7 +167,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
 		if err := r.ParseForm(); err != nil {
-			a.flash(r, strings.ToLower(http.StatusText(http.StatusBadRequest)), flashErr)
+			a.flash(r, http.StatusText(http.StatusBadRequest), flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}

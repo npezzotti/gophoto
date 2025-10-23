@@ -2,11 +2,14 @@ package web
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/alexedwards/scs/v2"
 	"github.com/npezzotti/gophoto/internal/config"
@@ -28,6 +31,13 @@ const (
 	SessionKeyRedirectPath = "redirectPath"
 	SessionKeyUserID       = "userID"
 	SessionKeyFlash        = "__flash"
+)
+
+type PhotoType string
+
+const (
+	PhotoTypeAlbumPhoto PhotoType = "album"
+	PhotoTypeUserPhoto  PhotoType = "user"
 )
 
 type application struct {
@@ -101,6 +111,36 @@ func (a *application) routes() *http.ServeMux {
 	return mux
 }
 
+// Authenticate and extract user
+func (a *application) authenticateRequest(r *http.Request) (*db.GetUserByIdRow, error) {
+	if !isAuthenticated(r) {
+		return nil, fmt.Errorf("not authenticated")
+	}
+
+	user := a.extractUserFromRequest(r)
+	if user == nil {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	return user, nil
+}
+
+// extractUserFromRequest retrieves the authenticated user's details from the request context.
+func (a *application) extractUserFromRequest(r *http.Request) *db.GetUserByIdRow {
+	if userId, ok := r.Context().Value(AuthenticatedUserId).(int32); ok {
+		userRow, err := a.database.GetUserById(r.Context(), userId)
+		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				a.ErrorLog.Printf("error querying user: %s", err.Error())
+			}
+			return nil
+		}
+		return &userRow
+	}
+
+	return nil
+}
+
 func (a *application) queuePhotoProcessing(ctx context.Context, photo db.Photo) error {
 	processingJob, err := json.Marshal(workers.PhotoProcessingJob{Type: workers.JobTypeAlbumPhoto, PhotoID: photo.ID})
 	if err != nil {
@@ -112,4 +152,19 @@ func (a *application) queuePhotoProcessing(ctx context.Context, photo db.Photo) 
 		return fmt.Errorf("error publishing photo processing job for photo %d: %s", photo.ID, err.Error())
 	}
 	return nil
+}
+
+// writeJsonResp writes the provided data as a JSON response with the specified HTTP status code.
+func (a *application) writeJsonResp(w http.ResponseWriter, status int, data any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		a.ErrorLog.Println("error writing json response:", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
+}
+
+func (a *application) writeJsonErrorResp(w http.ResponseWriter, status int, message string) {
+	resp := map[string]string{"error": strings.ToLower(message)}
+	a.writeJsonResp(w, status, resp)
 }
