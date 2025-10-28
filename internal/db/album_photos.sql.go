@@ -29,6 +29,21 @@ func (q *Queries) AddPhotoToAlbum(ctx context.Context, arg AddPhotoToAlbumParams
 	return i, err
 }
 
+const deleteAlbumPhoto = `-- name: DeleteAlbumPhoto :exec
+DELETE FROM album_photos
+WHERE album_id = $1 AND photo_id = $2
+`
+
+type DeleteAlbumPhotoParams struct {
+	AlbumID int32
+	PhotoID int32
+}
+
+func (q *Queries) DeleteAlbumPhoto(ctx context.Context, arg DeleteAlbumPhotoParams) error {
+	_, err := q.db.ExecContext(ctx, deleteAlbumPhoto, arg.AlbumID, arg.PhotoID)
+	return err
+}
+
 const getAlbumPhoto = `-- name: GetAlbumPhoto :one
 SELECT p.id, p.user_id, p.key, p.status, p.created_at, p.updated_at, ap.album_id
 FROM photos p
@@ -104,19 +119,4 @@ func (q *Queries) ListPhotosByAlbum(ctx context.Context, arg ListPhotosByAlbumPa
 		return nil, err
 	}
 	return items, nil
-}
-
-const removePhotoFromAlbum = `-- name: RemovePhotoFromAlbum :exec
-DELETE FROM album_photos
-WHERE album_id = $1 AND photo_id = $2
-`
-
-type RemovePhotoFromAlbumParams struct {
-	AlbumID int32
-	PhotoID int32
-}
-
-func (q *Queries) RemovePhotoFromAlbum(ctx context.Context, arg RemovePhotoFromAlbumParams) error {
-	_, err := q.db.ExecContext(ctx, removePhotoFromAlbum, arg.AlbumID, arg.PhotoID)
-	return err
 }

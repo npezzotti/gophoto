@@ -22,7 +22,7 @@ type templateData struct {
 	Flash                *Flash
 	User                 *UserResponse
 	Albums               []*AlbumResponse
-	Album                db.GetAlbumRow
+	Album                db.GetAlbumByIdRow
 	Images               []ImageResponse
 	Paginator            *pagination.Pagination
 	CSRFToken            string

@@ -1,4 +1,4 @@
--- name: GetAlbum :one
+-- name: GetAlbumById :one
 SELECT 
   a.*, 
   (SELECT COUNT(*) FROM album_photos WHERE album_id = a.id) AS num_photos
@@ -49,11 +49,12 @@ SET
   updated_at = $3
 WHERE id = $1;
 
--- name: UpdateAlbum :exec
+-- name: UpdateAlbum :one
 UPDATE albums
   SET user_id = $2,
   title = $3,
-  updated_at = $4
+  cover_photo_id = $4,
+  updated_at = $5
 WHERE id = $1
 RETURNING *;
 
@@ -61,6 +62,13 @@ RETURNING *;
 UPDATE albums
 SET 
   num_photos = num_photos + 1,
+  updated_at = $2
+WHERE id = $1;
+
+-- name: DecrementAlbumPhotoCount :exec
+UPDATE albums
+SET 
+  num_photos = GREATEST(num_photos - 1, 0),
   updated_at = $2
 WHERE id = $1;
 

@@ -52,6 +52,24 @@ func (q *Queries) CreateAlbum(ctx context.Context, arg CreateAlbumParams) (Album
 	return i, err
 }
 
+const decrementAlbumPhotoCount = `-- name: DecrementAlbumPhotoCount :exec
+UPDATE albums
+SET 
+  num_photos = GREATEST(num_photos - 1, 0),
+  updated_at = $2
+WHERE id = $1
+`
+
+type DecrementAlbumPhotoCountParams struct {
+	ID        int32
+	UpdatedAt time.Time
+}
+
+func (q *Queries) DecrementAlbumPhotoCount(ctx context.Context, arg DecrementAlbumPhotoCountParams) error {
+	_, err := q.db.ExecContext(ctx, decrementAlbumPhotoCount, arg.ID, arg.UpdatedAt)
+	return err
+}
+
 const deleteAlbum = `-- name: DeleteAlbum :exec
 DELETE FROM albums
 WHERE id = $1
@@ -62,7 +80,7 @@ func (q *Queries) DeleteAlbum(ctx context.Context, id int32) error {
 	return err
 }
 
-const getAlbum = `-- name: GetAlbum :one
+const getAlbumById = `-- name: GetAlbumById :one
 SELECT 
   a.id, a.user_id, a.title, a.cover_photo_id, a.num_photos, a.created_at, a.updated_at, 
   (SELECT COUNT(*) FROM album_photos WHERE album_id = a.id) AS num_photos
@@ -70,7 +88,7 @@ FROM albums a
 WHERE a.id = $1
 `
 
-type GetAlbumRow struct {
+type GetAlbumByIdRow struct {
 	ID           int32
 	UserID       int32
 	Title        string
@@ -81,9 +99,9 @@ type GetAlbumRow struct {
 	NumPhotos_2  int64
 }
 
-func (q *Queries) GetAlbum(ctx context.Context, id int32) (GetAlbumRow, error) {
-	row := q.db.QueryRowContext(ctx, getAlbum, id)
-	var i GetAlbumRow
+func (q *Queries) GetAlbumById(ctx context.Context, id int32) (GetAlbumByIdRow, error) {
+	row := q.db.QueryRowContext(ctx, getAlbumById, id)
+	var i GetAlbumByIdRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -213,28 +231,41 @@ func (q *Queries) SetAlbumCoverPhoto(ctx context.Context, arg SetAlbumCoverPhoto
 	return err
 }
 
-const updateAlbum = `-- name: UpdateAlbum :exec
+const updateAlbum = `-- name: UpdateAlbum :one
 UPDATE albums
   SET user_id = $2,
   title = $3,
-  updated_at = $4
+  cover_photo_id = $4,
+  updated_at = $5
 WHERE id = $1
 RETURNING id, user_id, title, cover_photo_id, num_photos, created_at, updated_at
 `
 
 type UpdateAlbumParams struct {
-	ID        int32
-	UserID    int32
-	Title     string
-	UpdatedAt time.Time
+	ID           int32
+	UserID       int32
+	Title        string
+	CoverPhotoID sql.NullInt32
+	UpdatedAt    time.Time
 }
 
-func (q *Queries) UpdateAlbum(ctx context.Context, arg UpdateAlbumParams) error {
-	_, err := q.db.ExecContext(ctx, updateAlbum,
+func (q *Queries) UpdateAlbum(ctx context.Context, arg UpdateAlbumParams) (Album, error) {
+	row := q.db.QueryRowContext(ctx, updateAlbum,
 		arg.ID,
 		arg.UserID,
 		arg.Title,
+		arg.CoverPhotoID,
 		arg.UpdatedAt,
 	)
-	return err
+	var i Album
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Title,
+		&i.CoverPhotoID,
+		&i.NumPhotos,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

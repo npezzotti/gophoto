@@ -14,7 +14,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 	"github.com/npezzotti/gophoto/internal/config"
 	"github.com/npezzotti/gophoto/internal/db"
-	"github.com/npezzotti/gophoto/internal/workers"
+	"github.com/npezzotti/gophoto/internal/service"
 	"github.com/npezzotti/gophoto/pkg/store"
 	"github.com/npezzotti/gophoto/pkg/template"
 	"github.com/redis/go-redis/v9"
@@ -50,6 +50,9 @@ type application struct {
 	sessionManager *scs.SessionManager
 	InfoLog        *log.Logger
 	ErrorLog       *log.Logger
+	userService    *service.UserService
+	albumService   *service.AlbumService
+	photoService   *service.PhotoService
 }
 
 func NewApplication(redisClient *redis.Client, cfg *config.Config, sess *scs.SessionManager, db *db.Repository, s store.Store, tc template.TemplateCache) *application {
@@ -60,6 +63,9 @@ func NewApplication(redisClient *redis.Client, cfg *config.Config, sess *scs.Ses
 		database:       db,
 		templateCache:  tc,
 		store:          s,
+		userService:    service.NewUserService(db),
+		albumService:   service.NewAlbumService(db),
+		photoService:   service.NewPhotoService(db, s, redisClient),
 	}
 
 	app.InfoLog = log.New(os.Stdout, "[INFO] ", log.Default().Flags())
@@ -128,7 +134,7 @@ func (a *application) authenticateRequest(r *http.Request) (*db.GetUserByIdRow, 
 // extractUserFromRequest retrieves the authenticated user's details from the request context.
 func (a *application) extractUserFromRequest(r *http.Request) *db.GetUserByIdRow {
 	if userId, ok := r.Context().Value(AuthenticatedUserId).(int32); ok {
-		userRow, err := a.database.GetUserById(r.Context(), userId)
+		userRow, err := a.userService.GetUserByID(r.Context(), userId)
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				a.ErrorLog.Printf("error querying user: %s", err.Error())
@@ -138,19 +144,6 @@ func (a *application) extractUserFromRequest(r *http.Request) *db.GetUserByIdRow
 		return &userRow
 	}
 
-	return nil
-}
-
-func (a *application) queuePhotoProcessing(ctx context.Context, photo db.Photo) error {
-	processingJob, err := json.Marshal(workers.PhotoProcessingJob{Type: workers.JobTypeAlbumPhoto, PhotoID: photo.ID})
-	if err != nil {
-		return fmt.Errorf("error marshalling photo processing job for photo %d: %s", photo.ID, err.Error())
-	}
-
-	err = a.redisClient.Publish(ctx, workers.PhotoProcessingQueue, processingJob).Err()
-	if err != nil {
-		return fmt.Errorf("error publishing photo processing job for photo %d: %s", photo.ID, err.Error())
-	}
 	return nil
 }
 

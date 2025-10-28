@@ -17,6 +17,6 @@ INSERT INTO album_photos (album_id, photo_id)
 VALUES ($1, $2)
 RETURNING *;
 
--- name: RemovePhotoFromAlbum :exec
+-- name: DeleteAlbumPhoto :exec
 DELETE FROM album_photos
 WHERE album_id = $1 AND photo_id = $2;

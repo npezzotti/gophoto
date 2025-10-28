@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
-	"time"
 
 	"github.com/npezzotti/gophoto/internal/db"
 	"github.com/npezzotti/gophoto/internal/utils"
@@ -27,7 +26,7 @@ func (a *application) newUserResponse(ctx context.Context, user *db.GetUserByIdR
 	var sources []Image
 	var defaultSrc string
 	if user.ProfilePictureKey.Valid {
-		meta, err := a.database.GetPhotoMetadataByPhotoID(ctx, user.ProfilePictureID.Int32)
+		meta, err := a.photoService.GetPhotoMetadataByPhotoID(ctx, user.ProfilePictureID.Int32)
 		if err != nil {
 			a.ErrorLog.Printf("error getting photo metadata for user profile picture: %s", err)
 		}
@@ -124,22 +123,7 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		passwdHash, err := hashPassword(sf.Password)
-		if err != nil {
-			a.ErrorLog.Println("error hashing password:", err)
-			a.flash(r, http.StatusText(http.StatusInternalServerError), flashErr)
-			http.Redirect(w, r, "/signup", http.StatusSeeOther)
-			return
-		}
-
-		user_params := db.CreateUserParams{
-			FirstName:    sf.FirstName,
-			LastName:     sf.LastName,
-			Email:        sf.Email,
-			PasswordHash: passwdHash,
-		}
-		_, err = a.database.CreateUser(r.Context(), user_params)
-		if err != nil {
+		if _, err := a.userService.CreateUser(r.Context(), sf.FirstName, sf.LastName, sf.Email, sf.Password); err != nil {
 			a.ErrorLog.Println(err)
 			a.flash(r, http.StatusText(http.StatusBadRequest), flashErr)
 			http.Redirect(w, r, "/signup", http.StatusSeeOther)
@@ -189,7 +173,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		user, err := a.database.GetUserByEmail(r.Context(), lf.Email)
+		user, err := a.userService.GetUserByEmail(r.Context(), lf.Email)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				a.flash(r, "No account found with that email address.", flashErr)
@@ -346,28 +330,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		pwdHash := user.PasswordHash
-		if epf.Password != "" {
-			// User wants to change their password
-			hash, err := hashPassword(epf.Password)
-			if err != nil {
-				a.ErrorLog.Println("error hashing password:", err)
-				a.flash(r, "Error updating profile. Please try again.", flashErr)
-				http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
-				return
-			}
-			pwdHash = hash
-		}
-
-		_, err := a.database.UpdateUser(r.Context(), db.UpdateUserParams{
-			ID:               user.ID,
-			FirstName:        epf.FirstName,
-			LastName:         epf.LastName,
-			Email:            epf.Email,
-			PasswordHash:     pwdHash,
-			ProfilePictureID: sql.NullInt32{Int32: user.ProfilePictureID.Int32, Valid: user.ProfilePictureID.Valid},
-			UpdatedAt:        time.Now(),
-		})
+		_, err := a.userService.UpdateUser(r.Context(), user, epf.FirstName, epf.LastName, epf.Email, epf.Password)
 		if err != nil {
 			a.ErrorLog.Printf("error updating user %d: %s", user.ID, err.Error())
 			a.flash(r, "Error updating profile. Please try again.", flashErr)
@@ -396,7 +359,7 @@ func (a *application) deleteAccountHandler(w http.ResponseWriter, r *http.Reques
 
 		// Delete user account. This cascades to delete all albums and album_photos entries. Photos are not immediately deleted,
 		// but will be cleaned up by the storage cleaner worker.
-		if err := a.database.DeleteUser(r.Context(), user.ID); err != nil {
+		if err := a.userService.DeleteUser(r.Context(), user.ID); err != nil {
 			a.ErrorLog.Println("error deleting user:", err)
 			a.flash(r, "Error deleting account. Please try again.", flashErr)
 			http.Redirect(w, r, "/profile", http.StatusSeeOther)

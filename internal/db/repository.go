@@ -19,15 +19,15 @@ func NewRepository(db *sql.DB) *Repository {
 	}
 }
 
-func (q *Queries) AddPhotoToAlbumWithCover(ctx context.Context, arg AddPhotoToAlbumParams) error {
-	album, err := q.GetAlbum(ctx, arg.AlbumID)
+func (q *Queries) AddPhotoToAlbumWithCover(ctx context.Context, arg AddPhotoToAlbumParams) (Album, error) {
+	album, err := q.GetAlbumById(ctx, arg.AlbumID)
 	if err != nil {
-		return fmt.Errorf("get album: %v", err)
+		return Album{}, fmt.Errorf("get album: %v", err)
 	}
 
 	albumPhoto, err := q.AddPhotoToAlbum(ctx, arg)
 	if err != nil {
-		return fmt.Errorf("add photo to album: %v", err)
+		return Album{}, fmt.Errorf("add photo to album: %v", err)
 	}
 
 	// Increment the album's photo count
@@ -35,20 +35,24 @@ func (q *Queries) AddPhotoToAlbumWithCover(ctx context.Context, arg AddPhotoToAl
 		ID:        album.ID,
 		UpdatedAt: time.Now(),
 	}); err != nil {
-		return fmt.Errorf("increment album photo count: %v", err)
+		return Album{}, fmt.Errorf("increment album photo count: %v", err)
 	}
 
+	var updatedAlbum Album
 	if !album.CoverPhotoID.Valid {
-		if err := q.SetAlbumCoverPhoto(ctx, SetAlbumCoverPhotoParams{
+		updatedAlbum, err = q.UpdateAlbum(ctx, UpdateAlbumParams{
 			ID:           album.ID,
+			UserID:       album.UserID,
+			Title:        album.Title,
 			CoverPhotoID: sql.NullInt32{Int32: albumPhoto.ID, Valid: true},
 			UpdatedAt:    time.Now(),
-		}); err != nil {
-			return fmt.Errorf("set album cover photo: %v", err)
+		})
+		if err != nil {
+			return Album{}, fmt.Errorf("set album cover photo: %v", err)
 		}
 	}
 
-	return nil
+	return updatedAlbum, nil
 }
 
 type CreatePhotoWithOriginalMetadataParams struct {
@@ -100,7 +104,7 @@ func (r *Repository) CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, a
 		return Photo{}, fmt.Errorf("create photo with original metadata: %v", err)
 	}
 
-	if err = q.AddPhotoToAlbumWithCover(ctx, AddPhotoToAlbumParams{
+	if _, err = q.AddPhotoToAlbumWithCover(ctx, AddPhotoToAlbumParams{
 		PhotoID: photo.ID,
 		AlbumID: albumId,
 	}); err != nil {
@@ -159,4 +163,39 @@ func (r *Repository) CreateUserPhotoWithOriginalMetadata(ctx context.Context, us
 	}
 
 	return photo, nil
+}
+
+func (r *Repository) RemovePhotoFromAlbum(ctx context.Context, albumId int32, photoId int32) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	q := r.WithTx(tx)
+
+	if err := q.DeleteAlbumPhoto(ctx, DeleteAlbumPhotoParams{
+		AlbumID: albumId,
+		PhotoID: photoId,
+	}); err != nil {
+		if err := tx.Rollback(); err != nil {
+			return fmt.Errorf("delete photo from album: %v, unable to rollback: %v", err, err)
+		}
+		return fmt.Errorf("delete photo from album: %v", err)
+	}
+
+	if err := q.DecrementAlbumPhotoCount(ctx, DecrementAlbumPhotoCountParams{ID: albumId, UpdatedAt: time.Now()}); err != nil {
+		if err := tx.Rollback(); err != nil {
+			return fmt.Errorf("decrement album photo count: %v, unable to rollback: %v", err, err)
+		}
+		return fmt.Errorf("decrement album photo count: %v", err)
+	}
+
+	if err = tx.Commit(); err != nil {
+		if err := tx.Rollback(); err != nil {
+			return fmt.Errorf("commit tx: %v, unable to rollback: %v", err, err)
+		}
+		return fmt.Errorf("commit tx: %v", err)
+	}
+
+	return nil
 }
