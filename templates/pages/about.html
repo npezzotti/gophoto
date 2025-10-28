@@ -5,12 +5,90 @@
 {{template "header" .}}
 
 <main class="container">
-    <h1>About</h1>
-    <p>
-        GoPhoto is a photo management application built with Go. Features include user accounts, album
-        management, image uploads to both local storage and AWS S3, and a dynamic user-friendly
-        interface built on Go's templating system.
-    </p>
+    <div class="row justify-content-center">
+        <div class="col-lg-10 col-xl-9">
+            <div class="p-4">
+                <div class="text-center mb-4 mb-md-5">
+                    <h1 class="display-3 header-title mb-2">About GoPhoto</h1>
+                    <p class="lead text-secondary">A Photo Management Solution Written In Go</p>
+                </div>
+                <p>
+                    GoPhoto is a photo management application primarily written in Go. It is designed to provide users
+                    with a simple and efficient way to upload and manage their photos.
+                </p>
+            </div>
+            <div class="row g-4 mb-4 mb-md-5">
+                <div class="col-sm-6 col-lg-3">
+                    <div class="feature-card p-4 rounded-3">
+                        <h5 class="fw-semibold mb-2">User Accounts</h5>
+                        <p class="text-secondary small mb-0">Secure authentication and personalized experience</p>
+                    </div>
+                </div>
+
+                <div class="col-sm-6 col-lg-3">
+                    <div class="feature-card p-4 rounded-3">
+                        <h5 class="fw-semibold mb-2">Album Management</h5>
+                        <p class="text-secondary small mb-0">Organize photos into custom albums effortlessly</p>
+                    </div>
+                </div>
+
+                <div class="col-sm-6 col-lg-3">
+                    <div class="feature-card p-4 rounded-3">
+                        <h5 class="fw-semibold mb-2">Cloud Storage</h5>
+                        <p class="text-secondary small mb-0">Configure GoPhoto to use local storage or AWS S3</p>
+                    </div>
+                </div>
+
+                <div class="col-sm-6 col-lg-3">
+                    <div class="feature-card p-4 rounded-3">
+                        <h5 class="fw-semibold mb-2">Session Management</h5>
+                        <p class="text-secondary small mb-0">User sessions are securely managed with JWTs</p>
+                    </div>
+                </div>
+                <div class="row g-4 mb-4 mb-md-5">
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="feature-card p-4 rounded-3">
+                            <h5 class="fw-semibold mb-2">User Accounts</h5>
+                            <p class="text-secondary small mb-0">Secure authentication and personalized experience</p>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="feature-card p-4 rounded-3">
+                            <h5 class="fw-semibold mb-2">Album Management</h5>
+                            <p class="text-secondary small mb-0">Organize photos into custom albums effortlessly</p>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="feature-card p-4 rounded-3">
+                            <h5 class="fw-semibold mb-2">Cloud Storage</h5>
+                            <p class="text-secondary small mb-0">Configure GoPhoto to use local storage or AWS S3</p>
+                        </div>
+                    </div>
+
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="feature-card p-4 rounded-3">
+                            <h5 class="fw-semibold mb-2">Session Management</h5>
+                            <p class="text-secondary small mb-0">User sessions are securely managed with JWTs</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="border-top pt-4 pt-md-5">
+                    <h6 class="text-center fw-semibold text-secondary mb-3">Technologies Used</h6>
+                    <div class="d-flex flex-wrap gap-3 justify-content-center">
+                        <span class="badge bg-dark  rounded-pill px-3 py-2">Go</span>
+                        <span class="badge bg-dark  rounded-pill px-3 py-2">AWS S3</span>
+                        <span class="badge bg-dark  rounded-pill px-3 py-2">bimg (Image Processing)</span>
+                        <span class="badge bg-dark  rounded-pill px-3 py-2">PostgreSQL</span>
+                        <span class="badge bg-dark  rounded-pill px-3 py-2">Redis</span>
+                        <span class="badge bg-dark  rounded-pill px-3 py-2">HTML Templates</span>
+                        <span class="badge bg-dark  rounded-pill px-3 py-2">Bootstrap</span>
+                        <span class="badge bg-dark  rounded-pill px-3 py-2">Javascript</span>
+                    </div>
+                </div>
+            </div>
+        </div>
 </main>
 
 {{template "footer" .}}
