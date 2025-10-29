@@ -115,11 +115,7 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 			td.Form = sf
 
 			w.WriteHeader(http.StatusForbidden)
-			if err := a.renderTemplate(w, td, "signup.html"); err != nil {
-				a.ErrorLog.Printf("error rendering template: %s", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
+			a.renderTemplate(w, td, "signup.html")
 			return
 		}
 
@@ -136,11 +132,7 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 		td := a.generateTemplateData(r)
 		td.Form = &forms.SignupForm{}
 
-		if err := a.renderTemplate(w, td, "signup.html"); err != nil {
-			a.ErrorLog.Printf("error rendering template: %s", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
+		a.renderTemplate(w, td, "signup.html")
 	default:
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 		return
@@ -164,11 +156,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 		if !lf.Validate() {
 			td := a.generateTemplateData(r)
 			td.Form = lf
-			if err := a.renderTemplate(w, td, "login.html"); err != nil {
-				a.ErrorLog.Printf("error rendering template: %s", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
+			a.renderTemplate(w, td, "login.html")
 			w.WriteHeader(http.StatusForbidden)
 			return
 		}
@@ -181,11 +169,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 				td.Form = lf
 
 				w.WriteHeader(http.StatusForbidden)
-				if err := a.renderTemplate(w, td, "login.html"); err != nil {
-					a.ErrorLog.Printf("error rendering template: %s", err)
-					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-					return
-				}
+				a.renderTemplate(w, td, "login.html")
 			} else {
 				a.ErrorLog.Printf("error getting user by email: %s", err)
 				a.flash(r, "Internal server error.", flashErr)
@@ -200,11 +184,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 			td := a.generateTemplateData(r)
 			td.Form = lf
 
-			if err := a.renderTemplate(w, td, "login.html"); err != nil {
-				a.ErrorLog.Printf("error rendering template: %s", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
+			a.renderTemplate(w, td, "login.html")
 			w.WriteHeader(http.StatusForbidden)
 			return
 		}
@@ -230,11 +210,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		td := a.generateTemplateData(r)
 		td.Form = &forms.LoginForm{}
-		if err := a.renderTemplate(w, td, "login.html"); err != nil {
-			a.ErrorLog.Printf("error rendering template: %s", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		a.renderTemplate(w, td, "login.html")
 	default:
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 		return
@@ -262,11 +238,7 @@ func (a *application) logoutHandler(w http.ResponseWriter, r *http.Request) {
 func (a *application) profileHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		td := a.generateTemplateData(r)
-		if err := a.renderTemplate(w, td, "profile.html"); err != nil {
-			a.ErrorLog.Printf("error rendering template: %s", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
+		a.renderTemplate(w, td, "profile.html")
 	} else {
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 		return
@@ -291,11 +263,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 			Email:     user.Email,
 		}
 
-		if err := a.renderTemplate(w, td, "edit-profile.html"); err != nil {
-			a.ErrorLog.Printf("error rendering template: %s", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
+		a.renderTemplate(w, td, "edit-profile.html")
 	case http.MethodPost:
 		if err := r.ParseForm(); err != nil {
 			a.ErrorLog.Println("error parsing form:", err)
@@ -315,11 +283,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 		if !epf.Validate() {
 			td := a.generateTemplateData(r)
 			td.Form = epf
-			if err := a.renderTemplate(w, td, "edit-profile.html"); err != nil {
-				a.ErrorLog.Printf("error rendering template: %s", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
+			a.renderTemplate(w, td, "edit-profile.html")
 			return
 		}
 

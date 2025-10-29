@@ -210,12 +210,7 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 			td.Paginator = pagination
 			td.AddPhotoUploadAction = fmt.Sprintf("/api/photos?type=album&id=%d", album.ID)
 
-			if err := a.renderTemplate(w, td, "album.html"); err != nil {
-				a.ErrorLog.Printf("error rendering template: %s", err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
-
+			a.renderTemplate(w, td, "album.html")
 			return
 		}
 
@@ -246,11 +241,7 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 		td.Albums = albumResponse
 		td.Paginator = pagination
 
-		if err := a.renderTemplate(w, td, "albums.html"); err != nil {
-			a.ErrorLog.Printf("error rendering template: %s", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
+		a.renderTemplate(w, td, "albums.html")
 	default:
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 	}
@@ -596,9 +587,5 @@ func (a *application) aboutHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	td := a.generateTemplateData(r)
-	if err := a.renderTemplate(w, td, "about.html"); err != nil {
-		a.ErrorLog.Printf("error rendering template: %s", err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
+	a.renderTemplate(w, td, "about.html")
 }

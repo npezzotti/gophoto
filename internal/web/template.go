@@ -1,7 +1,6 @@
 package web
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/justinas/nosurf"
@@ -47,7 +46,7 @@ func (a *application) generateTemplateData(r *http.Request) *templateData {
 	return td
 }
 
-func (a *application) renderTemplate(w http.ResponseWriter, data *templateData, tmpl string) error {
+func (a *application) renderTemplate(w http.ResponseWriter, data *templateData, tmpl string) {
 	var tc template.TemplateCache
 
 	if a.config.UseTemplateCache {
@@ -59,7 +58,8 @@ func (a *application) renderTemplate(w http.ResponseWriter, data *templateData, 
 	w.Header().Set("Content-Type", "text/html; charset=UTF-8")
 
 	if err := tc.RenderTemplate(w, tmpl, data); err != nil {
-		return fmt.Errorf("error rendering template %s: %w", tmpl, err)
+		a.ErrorLog.Printf("error rendering template %s: %v", tmpl, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
 	}
-	return nil
 }
