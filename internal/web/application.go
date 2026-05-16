@@ -45,7 +45,6 @@ type application struct {
 	config         *config.Config
 	srv            *http.Server
 	database       *db.Repository
-	store          store.Store
 	templateCache  template.TemplateCache
 	sessionManager *scs.SessionManager
 	InfoLog        *log.Logger
@@ -62,9 +61,8 @@ func NewApplication(redisClient *redis.Client, cfg *config.Config, sess *scs.Ses
 		sessionManager: sess,
 		database:       db,
 		templateCache:  tc,
-		store:          s,
-		userService:    service.NewUserService(db),
-		albumService:   service.NewAlbumService(db),
+		userService:    service.NewUserService(db, s, cfg),
+		albumService:   service.NewAlbumService(db, s, cfg),
 		photoService:   service.NewPhotoService(db, s, redisClient),
 	}
 
@@ -118,7 +116,7 @@ func (a *application) routes() *http.ServeMux {
 }
 
 // Authenticate and extract user
-func (a *application) authenticateRequest(r *http.Request) (*db.GetUserByIdRow, error) {
+func (a *application) authenticateRequest(r *http.Request) (*service.User, error) {
 	if !isAuthenticated(r) {
 		return nil, fmt.Errorf("not authenticated")
 	}
@@ -132,16 +130,16 @@ func (a *application) authenticateRequest(r *http.Request) (*db.GetUserByIdRow, 
 }
 
 // extractUserFromRequest retrieves the authenticated user's details from the request context.
-func (a *application) extractUserFromRequest(r *http.Request) *db.GetUserByIdRow {
+func (a *application) extractUserFromRequest(r *http.Request) *service.User {
 	if userId, ok := r.Context().Value(AuthenticatedUserId).(int32); ok {
-		userRow, err := a.userService.GetUserByID(r.Context(), userId)
+		userResp, err := a.userService.GetUserByID(r.Context(), userId)
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				a.ErrorLog.Printf("error querying user: %s", err.Error())
 			}
 			return nil
 		}
-		return &userRow
+		return userResp
 	}
 
 	return nil

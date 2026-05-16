@@ -1,159 +1,23 @@
 package web
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
-	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/npezzotti/gophoto/internal/db"
-	"github.com/npezzotti/gophoto/internal/utils"
 	"github.com/npezzotti/gophoto/pkg/pagination"
 )
 
 const (
-	DefaultProfileThumbnailPath = "images/profile_thumb.webp"
-	DefaultProfileAvatarPath    = "images/profile_avatar.webp"
-	DefaultAlbumCover           = "images/album_cover.webp"
-
 	FormFileName = "file"
 )
-
-type Image struct {
-	Width  int32
-	Height int32
-	URL    string
-}
 
 type Size struct {
 	MediaQuery string
 	Size       string
-}
-
-type ImageResponse struct {
-	Image       db.Photo
-	Alt         string
-	OriginalSrc string
-	DefaultSrc  string
-	Sources     []Image
-}
-
-func (ar *ImageResponse) SrcSet() string {
-	var srcset []string
-	for _, source := range ar.Sources {
-		srcset = append(srcset, fmt.Sprintf("%s %dw", source.URL, source.Width))
-	}
-	return strings.Join(srcset, ", ")
-}
-
-type AlbumResponse struct {
-	Album           db.ListAlbumsByUserRow
-	AlbumCoverImage ImageResponse
-}
-
-func (a *application) newAlbumResponse(ctx context.Context, album db.ListAlbumsByUserRow) *AlbumResponse {
-	var imageResp ImageResponse
-	if album.CoverPhotoID.Valid {
-		meta, err := a.photoService.GetPhotoMetadataByPhotoID(ctx, album.CoverPhotoID.Int32)
-		if err != nil {
-			a.ErrorLog.Printf("error getting metadata for photo %d: %s", album.CoverPhotoID.Int32, err)
-		}
-
-		var sources []Image
-		var defaultSrc string
-		for _, m := range meta {
-			path, err := utils.BuildPhotoPath(album.CoverPhotoKey.String, m.Variant, utils.MimeType(m.MimeType))
-			if err != nil {
-				a.ErrorLog.Printf("error building path for %s: %s", album.CoverPhotoKey.String, err)
-				continue
-			}
-
-			url, err := a.store.GenerateURL(ctx, path)
-			if err != nil {
-				a.ErrorLog.Printf("error generating url for photo %d with variant %s: %s", album.CoverPhotoID.Int32, m.Variant, err)
-				continue
-			}
-
-			sources = append(sources, Image{
-				Width:  m.Width,
-				Height: m.Height,
-				URL:    url,
-			})
-
-			if m.Variant == db.PhotoVariantLarge {
-				defaultSrc = url
-			}
-		}
-
-		imageResp = ImageResponse{
-			Image:      db.Photo{ID: album.CoverPhotoID.Int32, Key: album.CoverPhotoKey.String},
-			Alt:        album.CoverPhotoKey.String,
-			DefaultSrc: defaultSrc,
-			Sources:    sources,
-		}
-	} else {
-		imageResp = ImageResponse{
-			DefaultSrc: filepath.Join(a.config.StaticDir, DefaultAlbumCover),
-			Sources: []Image{
-				{Width: 400, Height: 300, URL: filepath.Join(a.config.StaticDir, DefaultAlbumCover)},
-			},
-			Alt: "Default album cover",
-		}
-	}
-
-	return &AlbumResponse{
-		Album:           album,
-		AlbumCoverImage: imageResp,
-	}
-}
-
-func (a *application) generateAlbumImageResponse(ctx context.Context, photo db.Photo) ImageResponse {
-	photoMeta, err := a.photoService.GetPhotoMetadataByPhotoID(ctx, photo.ID)
-	if err != nil {
-		a.ErrorLog.Printf("error getting metadata for photo %d: %s", photo.ID, err.Error())
-	}
-
-	var sources []Image
-	var originalUrl, defaultUrl string
-	for _, meta := range photoMeta {
-		path, err := utils.BuildPhotoPath(photo.Key, meta.Variant, utils.MimeType(meta.MimeType))
-		if err != nil {
-			a.ErrorLog.Printf("error building path for photo %d variant %s: %s", photo.ID, meta.Variant, err.Error())
-		}
-
-		url, err := a.store.GenerateURL(ctx, path)
-		if err != nil {
-			a.ErrorLog.Printf("error generating url for photo %d: %s", photo.ID, err.Error())
-		}
-
-		if meta.Variant != db.PhotoVariantOriginal {
-			sources = append(sources, Image{
-				Width:  meta.Width,
-				Height: meta.Height,
-				URL:    url,
-			})
-		}
-
-		switch meta.Variant {
-		case db.PhotoVariantOriginal:
-			originalUrl = url
-		case db.PhotoVariantLarge:
-			defaultUrl = url
-		default:
-		}
-	}
-
-	return ImageResponse{
-		Image:       photo,
-		Alt:         photo.Key,
-		OriginalSrc: originalUrl,
-		DefaultSrc:  defaultUrl,
-		Sources:     sources,
-	}
 }
 
 func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
@@ -198,15 +62,9 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			images := []ImageResponse{}
-			for _, photo := range photos {
-				imageResponse := a.generateAlbumImageResponse(r.Context(), photo)
-				images = append(images, imageResponse)
-			}
-
 			td := a.generateTemplateData(r)
 			td.Album = album
-			td.Images = images
+			td.Images = photos
 			td.Paginator = pagination
 			td.AddPhotoUploadAction = fmt.Sprintf("/api/photos?type=album&id=%d", album.ID)
 
@@ -231,14 +89,8 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		var albumResponse []*AlbumResponse
-		for _, album := range albums {
-			a := a.newAlbumResponse(r.Context(), album)
-			albumResponse = append(albumResponse, a)
-		}
-
 		td := a.generateTemplateData(r)
-		td.Albums = albumResponse
+		td.Albums = albums
 		td.Paginator = pagination
 
 		a.renderTemplate(w, td, "albums.html")
@@ -461,14 +313,16 @@ func (a *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		photo, err = a.photoService.CreateAlbumPhotoWithOriginalMetadata(r.Context(), f, fh, user, album)
+		dbUser := &db.GetUserByIdRow{ID: user.ID}
+		photo, err = a.photoService.CreateAlbumPhotoWithOriginalMetadata(r.Context(), f, fh, dbUser, album)
 		if err != nil {
 			a.ErrorLog.Printf("error creating photo: %s", err)
 			a.writeJsonErrorResp(w, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 			return
 		}
 	case PhotoTypeUserPhoto:
-		photo, err = a.photoService.CreateUserPhotoWithOriginalMetadata(r.Context(), f, fh, user)
+		dbUser := &db.GetUserByIdRow{ID: user.ID}
+		photo, err = a.photoService.CreateUserPhotoWithOriginalMetadata(r.Context(), f, fh, dbUser)
 		if err != nil {
 			a.ErrorLog.Printf("error creating photo: %s", err)
 			a.writeJsonErrorResp(w, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))

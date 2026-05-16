@@ -5,29 +5,123 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"time"
 
+	"github.com/npezzotti/gophoto/internal/config"
 	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/internal/utils"
+	"github.com/npezzotti/gophoto/pkg/store"
 	"golang.org/x/crypto/bcrypt"
 )
 
+const (
+	DefaultProfileThumbnailPath = "images/profile_thumb.webp"
+	DefaultProfileAvatarPath    = "images/profile_avatar.webp"
+	DefaultAlbumCover           = "images/album_cover.webp"
+)
+
 type UserService struct {
-	repo *db.Repository
+	repo   *db.Repository
+	store  store.Store
+	config *config.Config
 }
 
-func NewUserService(r *db.Repository) *UserService {
-	return &UserService{repo: r}
+func NewUserService(r *db.Repository, s store.Store, c *config.Config) *UserService {
+	return &UserService{repo: r, store: s, config: c}
 }
 
-func (s *UserService) GetUserByID(ctx context.Context, id int32) (db.GetUserByIdRow, error) {
+type User struct {
+	ID                      int32
+	FirstName               string
+	LastName                string
+	Email                   string
+	ProfilePicture          ImageResponse
+	ProfilePictureThumbURL  string
+	ProfilePictureAvatarURL string
+}
+
+func (s *UserService) newUserResponse(ctx context.Context, user *db.GetUserByIdRow) *User {
+	var sources []Image
+	var defaultSrc string
+	if user.ProfilePictureKey.Valid {
+		meta, err := s.repo.GetPhotoMetadataByPhotoID(ctx, user.ProfilePictureID.Int32)
+		if err != nil {
+			return nil
+		}
+
+		for _, m := range meta {
+			// Skip original variant as it's not meant to be directly served
+			if m.Variant == db.PhotoVariantOriginal {
+				continue
+			}
+
+			path, err := utils.BuildPhotoPath(user.ProfilePictureKey.String, m.Variant, utils.MimeType(m.MimeType))
+			if err != nil {
+				continue
+			}
+
+			url, err := s.store.GenerateURL(ctx, path)
+			if err != nil {
+				continue
+			}
+
+			sources = append(sources, Image{
+				Width:  m.Width,
+				Height: m.Height,
+				URL:    url,
+			})
+
+			// Set default source for medium variant
+			if m.Variant == db.PhotoVariantMedium {
+				defaultSrc = url
+			}
+		}
+	}
+
+	if len(sources) == 0 {
+		thumbnailPath := filepath.Join(s.config.StaticDir, DefaultProfileThumbnailPath)
+		sources = append(sources,
+			Image{
+				Width:  300,
+				Height: 300,
+				URL:    thumbnailPath,
+			},
+			Image{
+				Width:  100,
+				Height: 100,
+				URL:    filepath.Join(s.config.StaticDir, DefaultProfileAvatarPath),
+			},
+		)
+
+		defaultSrc = thumbnailPath
+	}
+
+	return &User{
+		ID:        user.ID,
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+		Email:     user.Email,
+		ProfilePicture: ImageResponse{
+			Alt:        fmt.Sprintf("%s %s's profile picture", user.FirstName, user.LastName),
+			Sources:    sources,
+			DefaultSrc: defaultSrc,
+		},
+	}
+}
+
+func (s *UserService) GetUserByID(ctx context.Context, id int32) (*User, error) {
 	user, err := s.repo.GetUserById(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return db.GetUserByIdRow{}, fmt.Errorf("user not found: %w", err)
+			return nil, fmt.Errorf("user not found: %w", err)
 		}
-		return db.GetUserByIdRow{}, fmt.Errorf("error getting user by id: %w", err)
+		return nil, fmt.Errorf("error getting user by id: %w", err)
 	}
-	return user, nil
+
+	userResp := s.newUserResponse(ctx, &user)
+
+	return userResp, nil
 }
 
 func (s *UserService) GetUserByEmail(ctx context.Context, email string) (db.User, error) {
@@ -60,7 +154,12 @@ func (s *UserService) CreateUser(ctx context.Context, firstName, lastName, email
 	return user, nil
 }
 
-func (s *UserService) UpdateUser(ctx context.Context, user *db.GetUserByIdRow, firstName, lastName, email, password string) (*db.GetUserByIdRow, error) {
+func (s *UserService) UpdateUser(ctx context.Context, user *User, firstName, lastName, email, password string) (*User, error) {
+	dbUser, err := s.repo.GetUserById(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching user for update: %w", err)
+	}
+
 	var pwdHash string
 	if password != "" {
 		hash, err := hashPassword(password)
@@ -69,22 +168,28 @@ func (s *UserService) UpdateUser(ctx context.Context, user *db.GetUserByIdRow, f
 		}
 		pwdHash = hash
 	} else {
-		pwdHash = user.PasswordHash
+		pwdHash = dbUser.PasswordHash
 	}
 
-	_, err := s.repo.UpdateUser(ctx, db.UpdateUserParams{
+	updatedUser, err := s.repo.UpdateUser(ctx, db.UpdateUserParams{
 		ID:               user.ID,
 		FirstName:        firstName,
 		LastName:         lastName,
 		Email:            email,
 		PasswordHash:     pwdHash,
-		ProfilePictureID: sql.NullInt32{Int32: user.ProfilePictureID.Int32, Valid: user.ProfilePictureID.Valid},
+		ProfilePictureID: sql.NullInt32{Int32: dbUser.ProfilePictureID.Int32, Valid: dbUser.ProfilePictureID.Valid},
 		UpdatedAt:        time.Now(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error updating user: %w", err)
 	}
-	return user, nil
+
+	updatedUserRow, err := s.repo.GetUserById(ctx, updatedUser.ID)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching updated user: %w", err)
+	}
+
+	return s.newUserResponse(ctx, &updatedUserRow), nil
 }
 
 func (s *UserService) DeleteUser(ctx context.Context, userID int32) error {

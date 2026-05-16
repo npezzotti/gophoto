@@ -4,17 +4,28 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"path/filepath"
 	"time"
 
+	"github.com/npezzotti/gophoto/internal/config"
 	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/internal/utils"
+	"github.com/npezzotti/gophoto/pkg/store"
 )
 
 type AlbumService struct {
-	repo *db.Repository
+	repo   *db.Repository
+	store  store.Store
+	config *config.Config
 }
 
-func NewAlbumService(r *db.Repository) *AlbumService {
-	return &AlbumService{repo: r}
+func NewAlbumService(r *db.Repository, s store.Store, c *config.Config) *AlbumService {
+	return &AlbumService{repo: r, store: s, config: c}
+}
+
+type AlbumResponse struct {
+	Album           db.ListAlbumsByUserRow
+	AlbumCoverImage ImageResponse
 }
 
 func (s *AlbumService) GetAlbumById(ctx context.Context, albumId int32) (db.GetAlbumByIdRow, error) {
@@ -65,7 +76,7 @@ func (s *AlbumService) CountAlbumsByUser(ctx context.Context, userID int32) (int
 	return count, nil
 }
 
-func (s *AlbumService) ListAlbumsByUser(ctx context.Context, userId int32, limit, offset int32) ([]db.ListAlbumsByUserRow, error) {
+func (s *AlbumService) ListAlbumsByUser(ctx context.Context, userId int32, limit, offset int32) ([]*AlbumResponse, error) {
 	albums, err := s.repo.ListAlbumsByUser(ctx, db.ListAlbumsByUserParams{
 		UserID: userId,
 		Limit:  limit,
@@ -74,5 +85,66 @@ func (s *AlbumService) ListAlbumsByUser(ctx context.Context, userId int32, limit
 	if err != nil {
 		return nil, fmt.Errorf("error listing albums by user: %w", err)
 	}
-	return albums, nil
+
+	var albumResponse []*AlbumResponse
+	for _, album := range albums {
+		a := s.newAlbumResponse(ctx, album)
+		albumResponse = append(albumResponse, a)
+	}
+
+	return albumResponse, nil
+}
+
+func (s *AlbumService) newAlbumResponse(ctx context.Context, album db.ListAlbumsByUserRow) *AlbumResponse {
+	var imageResp ImageResponse
+	if album.CoverPhotoID.Valid {
+		meta, err := s.repo.GetPhotoMetadataByPhotoID(ctx, album.CoverPhotoID.Int32)
+		if err != nil {
+			return nil
+		}
+
+		var sources []Image
+		var defaultSrc string
+		for _, m := range meta {
+			path, err := utils.BuildPhotoPath(album.CoverPhotoKey.String, m.Variant, utils.MimeType(m.MimeType))
+			if err != nil {
+				continue
+			}
+
+			url, err := s.store.GenerateURL(ctx, path)
+			if err != nil {
+				continue
+			}
+
+			sources = append(sources, Image{
+				Width:  m.Width,
+				Height: m.Height,
+				URL:    url,
+			})
+
+			if m.Variant == db.PhotoVariantLarge {
+				defaultSrc = url
+			}
+		}
+
+		imageResp = ImageResponse{
+			Image:      db.Photo{ID: album.CoverPhotoID.Int32, Key: album.CoverPhotoKey.String},
+			Alt:        album.CoverPhotoKey.String,
+			DefaultSrc: defaultSrc,
+			Sources:    sources,
+		}
+	} else {
+		imageResp = ImageResponse{
+			DefaultSrc: filepath.Join(s.config.StaticDir, DefaultAlbumCover),
+			Sources: []Image{
+				{Width: 400, Height: 300, URL: filepath.Join(s.config.StaticDir, DefaultAlbumCover)},
+			},
+			Alt: "Default album cover",
+		}
+	}
+
+	return &AlbumResponse{
+		Album:           album,
+		AlbumCoverImage: imageResp,
+	}
 }

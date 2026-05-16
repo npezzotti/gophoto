@@ -31,8 +31,30 @@ type PhotoService struct {
 	redisClient *redis.Client
 }
 
+func (ar *ImageResponse) SrcSet() string {
+	var srcset []string
+	for _, source := range ar.Sources {
+		srcset = append(srcset, fmt.Sprintf("%s %dw", source.URL, source.Width))
+	}
+	return strings.Join(srcset, ", ")
+}
+
 func NewPhotoService(r *db.Repository, s store.Store, redisClient *redis.Client) *PhotoService {
 	return &PhotoService{repo: r, store: s, redisClient: redisClient}
+}
+
+type ImageResponse struct {
+	Image       db.Photo
+	Alt         string
+	OriginalSrc string
+	DefaultSrc  string
+	Sources     []Image
+}
+
+type Image struct {
+	Width  int32
+	Height int32
+	URL    string
 }
 
 func (s *PhotoService) GetPhoto(ctx context.Context, id int32) (db.Photo, error) {
@@ -51,7 +73,7 @@ func (s *PhotoService) GetAlbumPhoto(ctx context.Context, id int32) (db.GetAlbum
 	return photo, nil
 }
 
-func (s *PhotoService) ListPhotosByAlbum(ctx context.Context, albumId int32, limit int32, offset int32) ([]db.Photo, error) {
+func (s *PhotoService) ListPhotosByAlbum(ctx context.Context, albumId int32, limit int32, offset int32) ([]ImageResponse, error) {
 	photos, err := s.repo.ListPhotosByAlbum(ctx, db.ListPhotosByAlbumParams{
 		AlbumID: albumId,
 		Limit:   limit,
@@ -60,7 +82,14 @@ func (s *PhotoService) ListPhotosByAlbum(ctx context.Context, albumId int32, lim
 	if err != nil {
 		return nil, fmt.Errorf("error listing photos by album: %w", err)
 	}
-	return photos, nil
+
+	images := []ImageResponse{}
+	for _, photo := range photos {
+		imageResponse := s.generateAlbumImageResponse(ctx, photo)
+		images = append(images, imageResponse)
+	}
+
+	return images, nil
 }
 
 func (s *PhotoService) GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]db.PhotoMetadatum, error) {
@@ -213,4 +242,49 @@ func (s *PhotoService) queuePhotoProcessing(ctx context.Context, photo db.Photo)
 		return fmt.Errorf("error publishing photo processing job for photo %d: %s", photo.ID, err.Error())
 	}
 	return nil
+}
+
+func (s *PhotoService) generateAlbumImageResponse(ctx context.Context, photo db.Photo) ImageResponse {
+	photoMeta, err := s.repo.GetPhotoMetadataByPhotoID(ctx, photo.ID)
+	if err != nil {
+		return ImageResponse{}
+	}
+
+	var sources []Image
+	var originalUrl, defaultUrl string
+	for _, meta := range photoMeta {
+		path, err := utils.BuildPhotoPath(photo.Key, meta.Variant, utils.MimeType(meta.MimeType))
+		if err != nil {
+			continue
+		}
+
+		url, err := s.store.GenerateURL(ctx, path)
+		if err != nil {
+			continue
+		}
+
+		if meta.Variant != db.PhotoVariantOriginal {
+			sources = append(sources, Image{
+				Width:  meta.Width,
+				Height: meta.Height,
+				URL:    url,
+			})
+		}
+
+		switch meta.Variant {
+		case db.PhotoVariantOriginal:
+			originalUrl = url
+		case db.PhotoVariantLarge:
+			defaultUrl = url
+		default:
+		}
+	}
+
+	return ImageResponse{
+		Image:       photo,
+		Alt:         photo.Key,
+		OriginalSrc: originalUrl,
+		DefaultSrc:  defaultUrl,
+		Sources:     sources,
+	}
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/justinas/nosurf"
 	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/internal/service"
 	"github.com/npezzotti/gophoto/pkg/forms"
 	"github.com/npezzotti/gophoto/pkg/pagination"
 	"github.com/npezzotti/gophoto/pkg/template"
@@ -19,10 +20,10 @@ const (
 type templateData struct {
 	Form                 forms.Form
 	Flash                *Flash
-	User                 *UserResponse
-	Albums               []*AlbumResponse
+	User                 *service.User
+	Albums               []*service.AlbumResponse
 	Album                db.GetAlbumByIdRow
-	Images               []ImageResponse
+	Images               []service.ImageResponse
 	Paginator            *pagination.Pagination
 	CSRFToken            string
 	AddPhotoUploadAction string
@@ -35,7 +36,7 @@ func (a *application) generateTemplateData(r *http.Request) *templateData {
 
 	user := a.extractUserFromRequest(r)
 	if user != nil {
-		td.User = a.newUserResponse(r.Context(), user)
+		td.User = user
 	}
 
 	flash, ok := a.sessionManager.Pop(r.Context(), SessionKeyFlash).(Flash)

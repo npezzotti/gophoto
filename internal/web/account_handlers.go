@@ -1,96 +1,12 @@
 package web
 
 import (
-	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
-	"path/filepath"
 
-	"github.com/npezzotti/gophoto/internal/db"
-	"github.com/npezzotti/gophoto/internal/utils"
 	"github.com/npezzotti/gophoto/pkg/forms"
 )
-
-type UserResponse struct {
-	FirstName               string
-	LastName                string
-	Email                   string
-	ProfilePicture          ImageResponse
-	ProfilePictureThumbURL  string
-	ProfilePictureAvatarURL string
-}
-
-func (a *application) newUserResponse(ctx context.Context, user *db.GetUserByIdRow) *UserResponse {
-	var sources []Image
-	var defaultSrc string
-	if user.ProfilePictureKey.Valid {
-		meta, err := a.photoService.GetPhotoMetadataByPhotoID(ctx, user.ProfilePictureID.Int32)
-		if err != nil {
-			a.ErrorLog.Printf("error getting photo metadata for user profile picture: %s", err)
-		}
-
-		for _, m := range meta {
-			// Skip original variant as it's not meant to be directly served
-			if m.Variant == db.PhotoVariantOriginal {
-				continue
-			}
-
-			path, err := utils.BuildPhotoPath(user.ProfilePictureKey.String, m.Variant, utils.MimeType(m.MimeType))
-			if err != nil {
-				a.ErrorLog.Printf("error building photo path for user profile picture: %s", err)
-				continue
-			}
-
-			url, err := a.store.GenerateURL(ctx, path)
-			if err != nil {
-				a.ErrorLog.Printf("error generating url for user profile picture: %s", err)
-				continue
-			}
-
-			sources = append(sources, Image{
-				Width:  m.Width,
-				Height: m.Height,
-				URL:    url,
-			})
-
-			// Set default source for medium variant
-			if m.Variant == db.PhotoVariantMedium {
-				defaultSrc = url
-			}
-		}
-	}
-
-	if len(sources) == 0 {
-		thumbnailPath := filepath.Join(a.config.StaticDir, DefaultProfileThumbnailPath)
-		sources = append(sources,
-			Image{
-				Width:  300,
-				Height: 300,
-				URL:    thumbnailPath,
-			},
-			Image{
-				Width:  100,
-				Height: 100,
-				URL:    filepath.Join(a.config.StaticDir, DefaultProfileAvatarPath),
-			},
-		)
-
-		defaultSrc = thumbnailPath
-	}
-
-	return &UserResponse{
-		FirstName: user.FirstName,
-		LastName:  user.LastName,
-		Email:     user.Email,
-		ProfilePicture: ImageResponse{
-			Alt:        fmt.Sprintf("%s %s's profile picture", user.FirstName, user.LastName),
-			Sources:    sources,
-			DefaultSrc: defaultSrc,
-		},
-	}
-}
 
 func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
