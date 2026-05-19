@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/npezzotti/gophoto/internal/domain"
 	"github.com/npezzotti/gophoto/pkg/pagination"
@@ -261,9 +262,9 @@ func (a *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	photoType := PhotoType(r.URL.Query().Get("type"))
+	photoType := PhotoType(strings.ToLower(r.URL.Query().Get("type")))
 	if photoType == "" {
-		a.writeJsonErrorResp(w, http.StatusBadRequest, "missing photo type")
+		a.writeJsonErrorResp(w, http.StatusBadRequest, "missing \"type\" query parameter")
 		return
 	}
 
