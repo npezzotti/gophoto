@@ -7,6 +7,8 @@ type flashClass string
 const (
 	flashInfo = flashClass("info")
 	flashErr  = flashClass("danger")
+
+	SessionKeyFlash = "__flash"
 )
 
 type Flash struct {
@@ -15,9 +17,9 @@ type Flash struct {
 }
 
 func (a *application) flash(ctx context.Context, msg string, level flashClass) {
-	flash := Flash{
+	f := Flash{
 		Message: msg,
 		Level:   level,
 	}
-	a.sessionManager.Put(ctx, SessionKeyFlash, flash)
+	a.sessionManager.Put(ctx, SessionKeyFlash, f)
 }

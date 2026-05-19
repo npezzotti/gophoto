@@ -30,7 +30,6 @@ const (
 const (
 	SessionKeyRedirectPath = "redirectPath"
 	SessionKeyUserID       = "userID"
-	SessionKeyFlash        = "__flash"
 )
 
 type PhotoType string
