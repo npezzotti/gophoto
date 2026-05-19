@@ -13,7 +13,7 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		if err := r.ParseForm(); err != nil {
 			a.ErrorLog.Println("error parsing form:", err)
-			a.flash(r, "Error processing form. Please try again.", flashErr)
+			a.flash(r.Context(), "Error processing form. Please try again.", flashErr)
 			http.Redirect(w, r, "/signup", http.StatusSeeOther)
 			return
 		}
@@ -37,12 +37,12 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 
 		if _, err := a.userService.CreateUser(r.Context(), sf.FirstName, sf.LastName, sf.Email, sf.Password); err != nil {
 			a.ErrorLog.Println(err)
-			a.flash(r, http.StatusText(http.StatusBadRequest), flashErr)
+			a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
 			http.Redirect(w, r, "/signup", http.StatusSeeOther)
 			return
 		}
 
-		a.flash(r, "Account successfully created.", flashInfo)
+		a.flash(r.Context(), "Account successfully created.", flashInfo)
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 	case http.MethodGet:
 		td := a.generateTemplateData(r)
@@ -59,7 +59,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
 		if err := r.ParseForm(); err != nil {
-			a.flash(r, http.StatusText(http.StatusBadRequest), flashErr)
+			a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
@@ -80,7 +80,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 		user, err := a.userService.GetUserByEmail(r.Context(), lf.Email)
 		if err != nil {
 			if errors.Is(err, domain.ErrUserNotFound) {
-				a.flash(r, "No account found with that email address.", flashErr)
+				a.flash(r.Context(), "No account found with that email address.", flashErr)
 				td := a.generateTemplateData(r)
 				td.Form = lf
 
@@ -88,14 +88,14 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 				a.renderTemplate(w, td, "login.html")
 			} else {
 				a.ErrorLog.Printf("error getting user by email: %s", err)
-				a.flash(r, "Internal server error.", flashErr)
+				a.flash(r.Context(), "Internal server error.", flashErr)
 				http.Redirect(w, r, "/login", http.StatusSeeOther)
 			}
 			return
 		}
 
 		if !passwordsMatch(user.PasswordHash, lf.Password) {
-			a.flash(r, "Incorrect password.", flashErr)
+			a.flash(r.Context(), "Incorrect password.", flashErr)
 
 			td := a.generateTemplateData(r)
 			td.Form = lf
@@ -107,7 +107,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 		if err := a.sessionManager.RenewToken(r.Context()); err != nil {
 			a.ErrorLog.Printf("error renewing token: %s", err)
-			a.flash(r, "Internal server error.", flashErr)
+			a.flash(r.Context(), "Internal server error.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
@@ -138,7 +138,7 @@ func (a *application) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		if err := a.sessionManager.Destroy(r.Context()); err != nil {
 			a.ErrorLog.Println("error deleting session:", err)
-			a.flash(r, "Error logging out. Please try again.", flashErr)
+			a.flash(r.Context(), "Error logging out. Please try again.", flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 			return
 		}
@@ -166,7 +166,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 	case http.MethodGet:
 		user := a.extractUserFromRequest(r)
 		if user == nil {
-			a.flash(r, "User not found.", flashErr)
+			a.flash(r.Context(), "User not found.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
@@ -183,7 +183,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 	case http.MethodPost:
 		if err := r.ParseForm(); err != nil {
 			a.ErrorLog.Println("error parsing form:", err)
-			a.flash(r, "Error processing form. Please try again.", flashErr)
+			a.flash(r.Context(), "Error processing form. Please try again.", flashErr)
 			http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 			return
 		}
@@ -205,7 +205,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 
 		user := a.extractUserFromRequest(r)
 		if user == nil {
-			a.flash(r, "User not found.", flashErr)
+			a.flash(r.Context(), "User not found.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
@@ -213,12 +213,12 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 		_, err := a.userService.UpdateUser(r.Context(), user.ID, epf.FirstName, epf.LastName, epf.Email, epf.Password)
 		if err != nil {
 			a.ErrorLog.Printf("error updating user %d: %s", user.ID, err.Error())
-			a.flash(r, "Error updating profile. Please try again.", flashErr)
+			a.flash(r.Context(), "Error updating profile. Please try again.", flashErr)
 			http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 			return
 		}
 
-		a.flash(r, "Successfully updated profile.", flashInfo)
+		a.flash(r.Context(), "Successfully updated profile.", flashInfo)
 		http.Redirect(w, r, "/profile", http.StatusSeeOther)
 		return
 	default:
@@ -232,7 +232,7 @@ func (a *application) deleteAccountHandler(w http.ResponseWriter, r *http.Reques
 	case http.MethodGet:
 		user := a.extractUserFromRequest(r)
 		if user == nil {
-			a.flash(r, "User not found.", flashErr)
+			a.flash(r.Context(), "User not found.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
@@ -241,7 +241,7 @@ func (a *application) deleteAccountHandler(w http.ResponseWriter, r *http.Reques
 		// but will be cleaned up by the storage cleaner worker.
 		if err := a.userService.DeleteUser(r.Context(), user.ID); err != nil {
 			a.ErrorLog.Println("error deleting user:", err)
-			a.flash(r, "Error deleting account. Please try again.", flashErr)
+			a.flash(r.Context(), "Error deleting account. Please try again.", flashErr)
 			http.Redirect(w, r, "/profile", http.StatusSeeOther)
 			return
 		}
@@ -250,7 +250,7 @@ func (a *application) deleteAccountHandler(w http.ResponseWriter, r *http.Reques
 			a.ErrorLog.Println("error deleting session:", err)
 		}
 
-		a.flash(r, "Your account has been deleted.", flashInfo)
+		a.flash(r.Context(), "Your account has been deleted.", flashInfo)
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	default:

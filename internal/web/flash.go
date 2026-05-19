@@ -1,9 +1,6 @@
 package web
 
-import (
-	"net/http"
-	"strings"
-)
+import "context"
 
 type flashClass string
 
@@ -17,10 +14,10 @@ type Flash struct {
 	Level   flashClass
 }
 
-func (a *application) flash(r *http.Request, msg string, level flashClass) {
+func (a *application) flash(ctx context.Context, msg string, level flashClass) {
 	flash := Flash{
-		Message: strings.ToLower(msg),
+		Message: msg,
 		Level:   level,
 	}
-	a.sessionManager.Put(r.Context(), SessionKeyFlash, flash)
+	a.sessionManager.Put(ctx, SessionKeyFlash, flash)
 }
