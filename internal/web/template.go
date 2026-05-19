@@ -38,7 +38,7 @@ func (a *application) generateTemplateData(r *http.Request) *templateData {
 		td.User = user
 	}
 
-	flash, ok := a.sessionManager.Pop(r.Context(), SessionKeyFlash).(Flash)
+	flash, ok := a.sessionManager.Pop(r.Context(), sessionKeyFlash).(Flash)
 	if ok {
 		td.Flash = &flash
 	}

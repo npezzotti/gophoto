@@ -8,7 +8,7 @@ const (
 	flashInfo = flashClass("info")
 	flashErr  = flashClass("danger")
 
-	SessionKeyFlash = "__flash"
+	sessionKeyFlash = "__flash"
 )
 
 type Flash struct {
@@ -21,5 +21,5 @@ func (a *application) flash(ctx context.Context, msg string, level flashClass) {
 		Message: msg,
 		Level:   level,
 	}
-	a.sessionManager.Put(ctx, SessionKeyFlash, f)
+	a.sessionManager.Put(ctx, sessionKeyFlash, f)
 }

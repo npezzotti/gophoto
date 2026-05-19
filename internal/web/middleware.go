@@ -52,7 +52,7 @@ func (a *application) authenticate(next http.Handler) http.Handler {
 func (a *application) protected(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !isAuthenticated(r) {
-			a.sessionManager.Put(r.Context(), SessionKeyFlash, Flash{
+			a.sessionManager.Put(r.Context(), sessionKeyFlash, Flash{
 				Message: "You must be logged in to access this.",
 				Level:   "danger",
 			})
