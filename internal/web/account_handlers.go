@@ -94,7 +94,15 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if !a.userService.Authenticate(user.PasswordHash, lf.Password) {
+		authenticated, err := a.userService.Authenticate(user.PasswordHash, lf.Password)
+		if err != nil {
+			a.ErrorLog.Printf("error authenticating user %d: %s", user.ID, err)
+			a.flash(r.Context(), "Internal server error.", flashErr)
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
+		if !authenticated {
 			a.flash(r.Context(), "Incorrect password.", flashErr)
 
 			td := a.generateTemplateData(r)
