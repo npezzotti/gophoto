@@ -188,6 +188,10 @@ func (s *UserService) UserExists(ctx context.Context, userID int32) (bool, error
 	return s.repo.UserExists(ctx, userID)
 }
 
+func (s *UserService) Authenticate(hash, password string) bool {
+	return passwordsMatch(hash, password)
+}
+
 func hashPassword(password string) (string, error) {
 	passwdBytes := []byte(password)
 
@@ -197,4 +201,9 @@ func hashPassword(password string) (string, error) {
 	}
 
 	return string(hashedPasswdBytes), nil
+}
+
+func passwordsMatch(hash, password string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
 }

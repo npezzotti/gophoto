@@ -94,7 +94,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if !passwordsMatch(user.PasswordHash, lf.Password) {
+		if !a.userService.Authenticate(user.PasswordHash, lf.Password) {
 			a.flash(r.Context(), "Incorrect password.", flashErr)
 
 			td := a.generateTemplateData(r)
