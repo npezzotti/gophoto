@@ -7,10 +7,7 @@ import (
 )
 
 func passwordsMatch(hash, password string) bool {
-	hashBytes := []byte(hash)
-	passwdBytes := []byte(password)
-	err := bcrypt.CompareHashAndPassword(hashBytes, passwdBytes)
-
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
 }
 
