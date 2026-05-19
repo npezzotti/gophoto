@@ -3,20 +3,159 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
+
+	"github.com/npezzotti/gophoto/internal/domain"
+)
+
+var (
+	ErrUserNotFound  = errors.New("user not found")
+	ErrAlbumNotFound = errors.New("album not found")
+	ErrPhotoNotFound = errors.New("photo not found")
 )
 
 type Repository struct {
-	db *sql.DB
-	*Queries
+	db      *sql.DB
+	querier *Queries
 }
 
 func NewRepository(db *sql.DB) *Repository {
 	return &Repository{
 		db:      db,
-		Queries: New(db),
+		querier: New(db),
 	}
+}
+
+func (r *Repository) GetPhoto(ctx context.Context, id int32) (domain.Photo, error) {
+	photo, err := r.querier.GetPhoto(ctx, id)
+	if err != nil {
+		return domain.Photo{}, err
+	}
+	return domain.Photo{
+		ID:        photo.ID,
+		UserID:    nullInt32Ptr(photo.UserID),
+		Key:       photo.Key,
+		Status:    domain.PhotoStatus(photo.Status),
+		CreatedAt: photo.CreatedAt,
+		UpdatedAt: photo.UpdatedAt,
+	}, nil
+}
+
+func (r *Repository) DeletePhoto(ctx context.Context, photoID int32) error {
+	return r.querier.DeletePhoto(ctx, photoID)
+}
+
+func (r *Repository) GetOrphanedPhotos(ctx context.Context) ([]domain.Photo, error) {
+	photos, err := r.querier.GetOrphanedPhotos(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []domain.Photo
+	for _, photo := range photos {
+		result = append(result, domain.Photo{
+			ID:        photo.ID,
+			UserID:    nullInt32Ptr(photo.UserID),
+			Key:       photo.Key,
+			Status:    domain.PhotoStatus(photo.Status),
+			CreatedAt: photo.CreatedAt,
+			UpdatedAt: photo.UpdatedAt,
+		})
+	}
+	return result, nil
+}
+
+func (r *Repository) UpdatePhotoStatus(ctx context.Context, photoID int32, status domain.PhotoStatus) error {
+	return r.querier.UpdatePhotoStatus(ctx, UpdatePhotoStatusParams{
+		ID:        photoID,
+		Status:    PhotoStatus(status),
+		UpdatedAt: time.Now(),
+	})
+}
+
+func (r *Repository) GetPhotoMetadataByPhotoIDAndVariant(ctx context.Context, photoID int32, variant domain.PhotoVariant) (domain.PhotoMetadatum, error) {
+	metadata, err := r.querier.GetPhotoMetadataByPhotoIDAndVariant(ctx, GetPhotoMetadataByPhotoIDAndVariantParams{
+		PhotoID: photoID,
+		Variant: PhotoVariant(variant),
+	})
+	if err != nil {
+		return domain.PhotoMetadatum{}, err
+	}
+
+	return domain.PhotoMetadatum{
+		ID:        metadata.ID,
+		PhotoID:   metadata.PhotoID,
+		Variant:   domain.PhotoVariant(metadata.Variant),
+		Width:     metadata.Width,
+		Height:    metadata.Height,
+		FileSize:  nullInt64Ptr(metadata.FileSize),
+		MimeType:  metadata.MimeType,
+		CreatedAt: metadata.CreatedAt,
+	}, nil
+}
+
+func (r *Repository) GetAlbumPhoto(ctx context.Context, id int32) (domain.AlbumPhoto, error) {
+	photo, err := r.querier.GetAlbumPhoto(ctx, id)
+	if err != nil {
+		return domain.AlbumPhoto{}, err
+	}
+	return domain.AlbumPhoto{
+		ID:        photo.ID,
+		UserID:    nullInt32Ptr(photo.UserID),
+		Key:       photo.Key,
+		Status:    domain.PhotoStatus(photo.Status),
+		CreatedAt: photo.CreatedAt,
+		UpdatedAt: photo.UpdatedAt,
+		AlbumID:   photo.AlbumID,
+	}, nil
+}
+
+func (r *Repository) ListPhotosByAlbum(ctx context.Context, albumId int32, limit int32, offset int32) ([]domain.Photo, error) {
+	photos, err := r.querier.ListPhotosByAlbum(ctx, ListPhotosByAlbumParams{
+		AlbumID: albumId,
+		Limit:   limit,
+		Offset:  offset,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var result []domain.Photo
+	for _, photo := range photos {
+		result = append(result, domain.Photo{
+			ID:        photo.ID,
+			UserID:    nullInt32Ptr(photo.UserID),
+			Key:       photo.Key,
+			Status:    domain.PhotoStatus(photo.Status),
+			CreatedAt: photo.CreatedAt,
+			UpdatedAt: photo.UpdatedAt,
+		})
+	}
+	return result, nil
+}
+
+func (r *Repository) GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]domain.PhotoMetadatum, error) {
+	metadata, err := r.querier.GetPhotoMetadataByPhotoID(ctx, photoId)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []domain.PhotoMetadatum
+	for _, m := range metadata {
+		result = append(result, domain.PhotoMetadatum{
+			ID:        m.ID,
+			PhotoID:   m.PhotoID,
+			Variant:   domain.PhotoVariant(m.Variant),
+			Width:     m.Width,
+			Height:    m.Height,
+			FileSize:  nullInt64Ptr(m.FileSize),
+			MimeType:  m.MimeType,
+			CreatedAt: m.CreatedAt,
+		})
+	}
+	return result, nil
 }
 
 func (q *Queries) AddPhotoToAlbumWithCover(ctx context.Context, arg AddPhotoToAlbumParams) (Album, error) {
@@ -64,6 +203,17 @@ type CreatePhotoWithOriginalMetadataParams struct {
 	MimeType string
 }
 
+func toCreatePhotoWithOriginalMetadataParams(arg domain.CreatePhotoWithOriginalMetadataCommand) CreatePhotoWithOriginalMetadataParams {
+	return CreatePhotoWithOriginalMetadataParams{
+		UserID:   ptrToNullInt32(arg.UserID),
+		Key:      arg.Key,
+		Width:    arg.Width,
+		Height:   arg.Height,
+		FileSize: ptrToNullInt64(arg.FileSize),
+		MimeType: arg.MimeType,
+	}
+}
+
 func (q *Queries) createPhotoWithOriginalMetadata(ctx context.Context, arg CreatePhotoWithOriginalMetadataParams) (Photo, error) {
 	photo, err := q.CreatePhoto(ctx, CreatePhotoParams{
 		UserID: arg.UserID,
@@ -88,20 +238,20 @@ func (q *Queries) createPhotoWithOriginalMetadata(ctx context.Context, arg Creat
 	return photo, nil
 }
 
-func (r *Repository) CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, albumId int32, arg CreatePhotoWithOriginalMetadataParams) (Photo, error) {
+func (r *Repository) CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, albumId int32, arg domain.CreatePhotoWithOriginalMetadataCommand) (domain.Photo, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return Photo{}, err
+		return domain.Photo{}, err
 	}
 
-	q := r.WithTx(tx)
+	q := r.querier.WithTx(tx)
 
-	photo, err := q.createPhotoWithOriginalMetadata(ctx, arg)
+	photo, err := q.createPhotoWithOriginalMetadata(ctx, toCreatePhotoWithOriginalMetadataParams(arg))
 	if err != nil {
 		if err := tx.Rollback(); err != nil {
-			return Photo{}, fmt.Errorf("create photo with original metadata: %v, unable to rollback: %v", err, err)
+			return domain.Photo{}, fmt.Errorf("create photo with original metadata: %v, unable to rollback: %v", err, err)
 		}
-		return Photo{}, fmt.Errorf("create photo with original metadata: %v", err)
+		return domain.Photo{}, fmt.Errorf("create photo with original metadata: %v", err)
 	}
 
 	if _, err = q.AddPhotoToAlbumWithCover(ctx, AddPhotoToAlbumParams{
@@ -109,35 +259,53 @@ func (r *Repository) CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, a
 		AlbumID: albumId,
 	}); err != nil {
 		if err := tx.Rollback(); err != nil {
-			return Photo{}, fmt.Errorf("add photo to album with cover: %v, unable to rollback: %v", err, err)
+			return domain.Photo{}, fmt.Errorf("add photo to album with cover: %v, unable to rollback: %v", err, err)
 		}
-		return Photo{}, fmt.Errorf("add photo to album with cover: %v", err)
+		return domain.Photo{}, fmt.Errorf("add photo to album with cover: %v", err)
 	}
 
 	if err = tx.Commit(); err != nil {
 		if err := tx.Rollback(); err != nil {
-			return Photo{}, fmt.Errorf("commit tx: %v, unable to rollback: %v", err, err)
+			return domain.Photo{}, fmt.Errorf("commit tx: %v, unable to rollback: %v", err, err)
 		}
-		return Photo{}, fmt.Errorf("commit tx: %v", err)
+		return domain.Photo{}, fmt.Errorf("commit tx: %v", err)
 	}
 
-	return photo, nil
+	return domain.Photo{
+		ID:        photo.ID,
+		UserID:    nullInt32Ptr(photo.UserID),
+		Key:       photo.Key,
+		Status:    domain.PhotoStatus(photo.Status),
+		CreatedAt: photo.CreatedAt,
+		UpdatedAt: photo.UpdatedAt,
+	}, nil
 }
 
-func (r *Repository) CreateUserPhotoWithOriginalMetadata(ctx context.Context, user *GetUserByIdRow, arg CreatePhotoWithOriginalMetadataParams) (Photo, error) {
+func (r *Repository) CreateUserPhotoWithOriginalMetadata(ctx context.Context, userID int32, arg domain.CreatePhotoWithOriginalMetadataCommand) (domain.Photo, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return Photo{}, err
+		return domain.Photo{}, err
 	}
 
-	q := r.WithTx(tx)
+	q := r.querier.WithTx(tx)
 
-	photo, err := q.createPhotoWithOriginalMetadata(ctx, arg)
+	user, err := q.GetUserById(ctx, userID)
+	if err != nil {
+		if rbErr := tx.Rollback(); rbErr != nil {
+			return domain.Photo{}, fmt.Errorf("get user by id: %v, unable to rollback: %v", err, rbErr)
+		}
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Photo{}, ErrUserNotFound
+		}
+		return domain.Photo{}, fmt.Errorf("get user by id: %v", err)
+	}
+
+	photo, err := q.createPhotoWithOriginalMetadata(ctx, toCreatePhotoWithOriginalMetadataParams(arg))
 	if err != nil {
 		if err := tx.Rollback(); err != nil {
-			return Photo{}, fmt.Errorf("create photo with original metadata: %v, unable to rollback: %v", err, err)
+			return domain.Photo{}, fmt.Errorf("create photo with original metadata: %v, unable to rollback: %v", err, err)
 		}
-		return Photo{}, fmt.Errorf("create photo with original metadata: %v", err)
+		return domain.Photo{}, fmt.Errorf("create photo with original metadata: %v", err)
 	}
 
 	if _, err = q.UpdateUser(ctx, UpdateUserParams{
@@ -150,19 +318,26 @@ func (r *Repository) CreateUserPhotoWithOriginalMetadata(ctx context.Context, us
 		UpdatedAt:        time.Now(),
 	}); err != nil {
 		if err := tx.Rollback(); err != nil {
-			return Photo{}, fmt.Errorf("update user profile picture: %v, unable to rollback: %v", err, err)
+			return domain.Photo{}, fmt.Errorf("update user profile picture: %v, unable to rollback: %v", err, err)
 		}
-		return Photo{}, fmt.Errorf("update user profile picture: %v", err)
+		return domain.Photo{}, fmt.Errorf("update user profile picture: %v", err)
 	}
 
 	if err = tx.Commit(); err != nil {
 		if err := tx.Rollback(); err != nil {
-			return Photo{}, fmt.Errorf("commit tx: %v, unable to rollback: %v", err, err)
+			return domain.Photo{}, fmt.Errorf("commit tx: %v, unable to rollback: %v", err, err)
 		}
-		return Photo{}, fmt.Errorf("commit tx: %v", err)
+		return domain.Photo{}, fmt.Errorf("commit tx: %v", err)
 	}
 
-	return photo, nil
+	return domain.Photo{
+		ID:        photo.ID,
+		UserID:    nullInt32Ptr(photo.UserID),
+		Key:       photo.Key,
+		Status:    domain.PhotoStatus(photo.Status),
+		CreatedAt: photo.CreatedAt,
+		UpdatedAt: photo.UpdatedAt,
+	}, nil
 }
 
 func (r *Repository) RemovePhotoFromAlbum(ctx context.Context, albumId int32, photoId int32) error {
@@ -171,7 +346,7 @@ func (r *Repository) RemovePhotoFromAlbum(ctx context.Context, albumId int32, ph
 		return err
 	}
 
-	q := r.WithTx(tx)
+	q := r.querier.WithTx(tx)
 
 	if err := q.DeleteAlbumPhoto(ctx, DeleteAlbumPhotoParams{
 		AlbumID: albumId,
@@ -198,4 +373,217 @@ func (r *Repository) RemovePhotoFromAlbum(ctx context.Context, albumId int32, ph
 	}
 
 	return nil
+}
+
+func (r *Repository) CreatePhotoMetadata(ctx context.Context, arg domain.CreatePhotoMetadataCommand) (domain.PhotoMetadatum, error) {
+	metadata, err := r.querier.CreatePhotoMetadata(ctx, CreatePhotoMetadataParams{
+		PhotoID:  arg.PhotoID,
+		Variant:  PhotoVariant(arg.Variant),
+		Width:    arg.Width,
+		Height:   arg.Height,
+		FileSize: ptrToNullInt64(arg.FileSize),
+		MimeType: arg.MimeType,
+	})
+	if err != nil {
+		return domain.PhotoMetadatum{}, fmt.Errorf("create photo metadata: %v", err)
+	}
+
+	return domain.PhotoMetadatum{
+		ID:        metadata.ID,
+		PhotoID:   metadata.PhotoID,
+		Variant:   domain.PhotoVariant(metadata.Variant),
+		Width:     metadata.Width,
+		Height:    metadata.Height,
+		FileSize:  nullInt64Ptr(metadata.FileSize),
+		MimeType:  metadata.MimeType,
+		CreatedAt: metadata.CreatedAt,
+	}, nil
+}
+
+func (r *Repository) CreateUser(ctx context.Context, firstName, lastName, email, passwordHash string) (domain.UserResponse, error) {
+	user, err := r.querier.CreateUser(ctx, CreateUserParams{
+		FirstName:    firstName,
+		LastName:     lastName,
+		Email:        email,
+		PasswordHash: passwordHash,
+	})
+	if err != nil {
+		return domain.UserResponse{}, err
+	}
+
+	return domain.UserResponse{
+		ID:        user.ID,
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+		Email:     user.Email,
+	}, nil
+}
+
+// UpdateUser updates a user's profile information.
+func (r *Repository) UpdateUser(ctx context.Context, user domain.UserUpdateParams) (domain.UserResponse, error) {
+	updatedUser, err := r.querier.UpdateUser(ctx, UpdateUserParams{
+		ID:               user.ID,
+		FirstName:        user.FirstName,
+		LastName:         user.LastName,
+		Email:            user.Email,
+		PasswordHash:     user.PasswordHash,
+		ProfilePictureID: ptrToNullInt32(user.ProfilePictureID),
+		UpdatedAt:        time.Now(),
+	})
+	if err != nil {
+		return domain.UserResponse{}, err
+	}
+
+	return domain.UserResponse{
+		ID:        updatedUser.ID,
+		FirstName: updatedUser.FirstName,
+		LastName:  updatedUser.LastName,
+		Email:     updatedUser.Email,
+	}, nil
+}
+
+func (r *Repository) GetUserById(ctx context.Context, id int32) (domain.User, error) {
+	user, err := r.querier.GetUserById(ctx, id)
+	if err != nil {
+		return domain.User{}, err
+	}
+
+	return domain.User{
+		ID:                user.ID,
+		FirstName:         user.FirstName,
+		LastName:          user.LastName,
+		Email:             user.Email,
+		PasswordHash:      user.PasswordHash,
+		ProfilePictureID:  nullInt32Ptr(user.ProfilePictureID),
+		ProfilePictureKey: nullStringPtr(user.ProfilePictureKey),
+	}, nil
+}
+
+func (r *Repository) GetUserByEmail(ctx context.Context, email string) (domain.User, error) {
+	user, err := r.querier.GetUserByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.User{}, ErrUserNotFound
+		}
+		return domain.User{}, err
+	}
+
+	return domain.User{
+		ID:               user.ID,
+		FirstName:        user.FirstName,
+		LastName:         user.LastName,
+		Email:            user.Email,
+		PasswordHash:     user.PasswordHash,
+		ProfilePictureID: nullInt32Ptr(user.ProfilePictureID),
+	}, nil
+}
+
+func (r *Repository) UserExists(ctx context.Context, userID int32) (bool, error) {
+	return r.querier.UserExists(ctx, userID)
+}
+
+func (r *Repository) DeleteUser(ctx context.Context, userID int32) error {
+	return r.querier.DeleteUser(ctx, userID)
+}
+
+func (r *Repository) GetAlbumByID(ctx context.Context, id int32) (domain.Album, error) {
+	album, err := r.querier.GetAlbumById(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Album{}, ErrAlbumNotFound
+		}
+		return domain.Album{}, err
+	}
+
+	return toDomainAlbum(album), nil
+}
+
+func (r *Repository) CountAlbumsByUser(ctx context.Context, userID int32) (int64, error) {
+	return r.querier.CountAlbumsByUser(ctx, userID)
+}
+
+func (r *Repository) ListAlbumsByUser(ctx context.Context, userID int32, limit, offset int32) ([]domain.AlbumListProjection, error) {
+	albums, err := r.querier.ListAlbumsByUser(ctx, ListAlbumsByUserParams{
+		UserID: userID,
+		Limit:  limit,
+		Offset: offset,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]domain.AlbumListProjection, 0, len(albums))
+	for _, album := range albums {
+		result = append(result, domain.AlbumListProjection{
+			Album: domain.Album{
+				ID:           album.ID,
+				UserID:       album.UserID,
+				Title:        album.Title,
+				CoverPhotoID: nullInt32Ptr(album.CoverPhotoID),
+				NumPhotos:    album.NumPhotos,
+				CreatedAt:    album.CreatedAt,
+				UpdatedAt:    album.UpdatedAt,
+			},
+			CoverPhotoKey: album.CoverPhotoKey.String,
+		})
+	}
+
+	return result, nil
+}
+
+func (r *Repository) CreateAlbum(ctx context.Context, userID int32, title string) (domain.Album, error) {
+	album, err := r.querier.CreateAlbum(ctx, CreateAlbumParams{
+		UserID: userID,
+		Title:  title,
+	})
+	if err != nil {
+		return domain.Album{}, err
+	}
+
+	return domain.Album{
+		ID:           album.ID,
+		UserID:       album.UserID,
+		Title:        album.Title,
+		CoverPhotoID: nullInt32Ptr(album.CoverPhotoID),
+		NumPhotos:    album.NumPhotos,
+		CreatedAt:    album.CreatedAt,
+		UpdatedAt:    album.UpdatedAt,
+	}, nil
+}
+
+func (r *Repository) UpdateAlbum(ctx context.Context, albumId int32, userID int32, title string, coverPhotoID *int32) (domain.Album, error) {
+	album, err := r.querier.UpdateAlbum(ctx, UpdateAlbumParams{
+		ID:           albumId,
+		UserID:       userID,
+		Title:        title,
+		CoverPhotoID: sql.NullInt32{Int32: int32(*coverPhotoID), Valid: coverPhotoID != nil},
+	})
+	if err != nil {
+		return domain.Album{}, err
+	}
+	return domain.Album{
+		ID:           album.ID,
+		UserID:       album.UserID,
+		Title:        album.Title,
+		CoverPhotoID: nullInt32Ptr(album.CoverPhotoID),
+		NumPhotos:    album.NumPhotos,
+		CreatedAt:    album.CreatedAt,
+		UpdatedAt:    album.UpdatedAt,
+	}, nil
+}
+
+func (r *Repository) DeleteAlbum(ctx context.Context, albumId int32) error {
+	return r.querier.DeleteAlbum(ctx, albumId)
+}
+
+func toDomainAlbum(album GetAlbumByIdRow) domain.Album {
+	return domain.Album{
+		ID:           album.ID,
+		UserID:       album.UserID,
+		Title:        album.Title,
+		CoverPhotoID: nullInt32Ptr(album.CoverPhotoID),
+		NumPhotos:    album.NumPhotos,
+		CreatedAt:    album.CreatedAt,
+		UpdatedAt:    album.UpdatedAt,
+	}
 }

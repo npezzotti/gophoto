@@ -4,8 +4,7 @@ import (
 	"net/http"
 
 	"github.com/justinas/nosurf"
-	"github.com/npezzotti/gophoto/internal/db"
-	"github.com/npezzotti/gophoto/internal/service"
+	"github.com/npezzotti/gophoto/internal/domain"
 	"github.com/npezzotti/gophoto/pkg/forms"
 	"github.com/npezzotti/gophoto/pkg/pagination"
 	"github.com/npezzotti/gophoto/pkg/template"
@@ -20,10 +19,10 @@ const (
 type templateData struct {
 	Form                 forms.Form
 	Flash                *Flash
-	User                 *service.User
-	Albums               []*service.AlbumResponse
-	Album                db.GetAlbumByIdRow
-	Images               []service.ImageResponse
+	User                 *domain.UserResponse
+	Albums               []*domain.AlbumListItem
+	Album                domain.Album
+	Images               []domain.ResponsiveImage
 	Paginator            *pagination.Pagination
 	CSRFToken            string
 	AddPhotoUploadAction string

@@ -3,7 +3,6 @@ package service
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/h2non/bimg"
 	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/internal/domain"
 	"github.com/npezzotti/gophoto/internal/utils"
 	"github.com/npezzotti/gophoto/internal/workers"
 	"github.com/npezzotti/gophoto/pkg/store"
@@ -25,65 +25,49 @@ const (
 	MaxUploadSize = 50 << (10 * 2) // 50 MB
 )
 
-type PhotoService struct {
-	repo        *db.Repository
-	store       store.Store
-	redisClient *redis.Client
+type PhotoRepository interface {
+	GetPhoto(ctx context.Context, id int32) (domain.Photo, error)
+	GetAlbumPhoto(ctx context.Context, id int32) (domain.AlbumPhoto, error)
+	ListPhotosByAlbum(ctx context.Context, albumId int32, limit int32, offset int32) ([]domain.Photo, error)
+	GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]domain.PhotoMetadatum, error)
+	CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, albumID int32, cmd domain.CreatePhotoWithOriginalMetadataCommand) (domain.Photo, error)
+	CreateUserPhotoWithOriginalMetadata(ctx context.Context, userID int32, cmd domain.CreatePhotoWithOriginalMetadataCommand) (domain.Photo, error)
+	RemovePhotoFromAlbum(ctx context.Context, albumId int32, photoId int32) error
 }
 
-func (ar *ImageResponse) SrcSet() string {
-	var srcset []string
-	for _, source := range ar.Sources {
-		srcset = append(srcset, fmt.Sprintf("%s %dw", source.URL, source.Width))
-	}
-	return strings.Join(srcset, ", ")
+type PhotoService struct {
+	repo        PhotoRepository
+	store       store.Store
+	redisClient *redis.Client
 }
 
 func NewPhotoService(r *db.Repository, s store.Store, redisClient *redis.Client) *PhotoService {
 	return &PhotoService{repo: r, store: s, redisClient: redisClient}
 }
 
-type ImageResponse struct {
-	Image       db.Photo
-	Alt         string
-	OriginalSrc string
-	DefaultSrc  string
-	Sources     []Image
-}
-
-type Image struct {
-	Width  int32
-	Height int32
-	URL    string
-}
-
-func (s *PhotoService) GetPhoto(ctx context.Context, id int32) (db.Photo, error) {
+func (s *PhotoService) GetPhoto(ctx context.Context, id int32) (domain.Photo, error) {
 	photo, err := s.repo.GetPhoto(ctx, id)
 	if err != nil {
-		return db.Photo{}, fmt.Errorf("error getting photo: %w", err)
+		return domain.Photo{}, fmt.Errorf("error getting photo: %w", err)
 	}
 	return photo, nil
 }
 
-func (s *PhotoService) GetAlbumPhoto(ctx context.Context, id int32) (db.GetAlbumPhotoRow, error) {
+func (s *PhotoService) GetAlbumPhoto(ctx context.Context, id int32) (domain.AlbumPhoto, error) {
 	photo, err := s.repo.GetAlbumPhoto(ctx, id)
 	if err != nil {
-		return db.GetAlbumPhotoRow{}, fmt.Errorf("error getting album photo: %w", err)
+		return domain.AlbumPhoto{}, fmt.Errorf("error getting album photo: %w", err)
 	}
 	return photo, nil
 }
 
-func (s *PhotoService) ListPhotosByAlbum(ctx context.Context, albumId int32, limit int32, offset int32) ([]ImageResponse, error) {
-	photos, err := s.repo.ListPhotosByAlbum(ctx, db.ListPhotosByAlbumParams{
-		AlbumID: albumId,
-		Limit:   limit,
-		Offset:  offset,
-	})
+func (s *PhotoService) ListPhotosByAlbum(ctx context.Context, albumId int32, limit int32, offset int32) ([]domain.ResponsiveImage, error) {
+	photos, err := s.repo.ListPhotosByAlbum(ctx, albumId, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("error listing photos by album: %w", err)
 	}
 
-	images := []ImageResponse{}
+	images := []domain.ResponsiveImage{}
 	for _, photo := range photos {
 		imageResponse := s.generateAlbumImageResponse(ctx, photo)
 		images = append(images, imageResponse)
@@ -92,7 +76,7 @@ func (s *PhotoService) ListPhotosByAlbum(ctx context.Context, albumId int32, lim
 	return images, nil
 }
 
-func (s *PhotoService) GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]db.PhotoMetadatum, error) {
+func (s *PhotoService) GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]domain.PhotoMetadatum, error) {
 	metadata, err := s.repo.GetPhotoMetadataByPhotoID(ctx, photoId)
 	if err != nil {
 		return nil, fmt.Errorf("error getting photo metadata: %w", err)
@@ -100,61 +84,62 @@ func (s *PhotoService) GetPhotoMetadataByPhotoID(ctx context.Context, photoId in
 	return metadata, nil
 }
 
-func (s *PhotoService) CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, f multipart.File, fh *multipart.FileHeader, user *db.GetUserByIdRow, album db.GetAlbumByIdRow) (db.Photo, error) {
+func (s *PhotoService) CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, f multipart.File, fh *multipart.FileHeader, userID int32, albumID int32) (domain.Photo, error) {
 	buf, fileType, meta, err := s.processUploadedFile(f, fh)
 	if err != nil {
-		return db.Photo{}, fmt.Errorf("error processing uploaded file: %w", err)
+		return domain.Photo{}, fmt.Errorf("error processing uploaded file: %w", err)
 	}
 
 	key := uuid.New().String()
-	photo, err := s.repo.CreateAlbumPhotoWithOriginalMetadata(ctx, album.ID, db.CreatePhotoWithOriginalMetadataParams{
-		UserID:   sql.NullInt32{Int32: user.ID, Valid: true},
+	photo, err := s.repo.CreateAlbumPhotoWithOriginalMetadata(ctx, albumID, domain.CreatePhotoWithOriginalMetadataCommand{
+		UserID:   &userID,
 		Key:      key,
 		Width:    int32(meta.Width),
 		Height:   int32(meta.Height),
-		FileSize: sql.NullInt64{Int64: 0, Valid: false},
+		FileSize: nil,
 		MimeType: string(fileType),
 	})
 	if err != nil {
-		return db.Photo{}, err
+		return domain.Photo{}, err
 	}
 
 	if err := s.uploadPhotoToStorage(ctx, photo, buf, fileType); err != nil {
-		return db.Photo{}, fmt.Errorf("error uploading photo to storage: %w", err)
+		return domain.Photo{}, fmt.Errorf("error uploading photo to storage: %w", err)
 	}
 
 	if err := s.queuePhotoProcessing(ctx, photo); err != nil {
-		return db.Photo{}, fmt.Errorf("error queueing photo processing: %w", err)
+		return domain.Photo{}, fmt.Errorf("error queueing photo processing: %w", err)
 	}
 
 	return photo, nil
 }
 
-func (s *PhotoService) CreateUserPhotoWithOriginalMetadata(ctx context.Context, f multipart.File, fh *multipart.FileHeader, user *db.GetUserByIdRow) (db.Photo, error) {
+func (s *PhotoService) CreateUserPhotoWithOriginalMetadata(ctx context.Context, f multipart.File, fh *multipart.FileHeader, userID int32) (domain.Photo, error) {
 	buf, fileType, meta, err := s.processUploadedFile(f, fh)
 	if err != nil {
-		return db.Photo{}, fmt.Errorf("error processing uploaded file: %w", err)
+		return domain.Photo{}, fmt.Errorf("error processing uploaded file: %w", err)
 	}
 
 	key := uuid.New().String()
-	photo, err := s.repo.CreateUserPhotoWithOriginalMetadata(ctx, user, db.CreatePhotoWithOriginalMetadataParams{
-		UserID:   sql.NullInt32{Int32: user.ID, Valid: true},
+	fileSize := int64(len(buf))
+	photo, err := s.repo.CreateUserPhotoWithOriginalMetadata(ctx, userID, domain.CreatePhotoWithOriginalMetadataCommand{
+		UserID:   &userID,
 		Key:      key,
 		Width:    int32(meta.Width),
 		Height:   int32(meta.Height),
-		FileSize: sql.NullInt64{Int64: int64(len(buf)), Valid: true},
+		FileSize: &fileSize,
 		MimeType: string(fileType),
 	})
 	if err != nil {
-		return db.Photo{}, fmt.Errorf("error creating user photo")
+		return domain.Photo{}, fmt.Errorf("error creating user photo")
 	}
 
 	if err := s.uploadPhotoToStorage(ctx, photo, buf, fileType); err != nil {
-		return db.Photo{}, fmt.Errorf("error uploading photo to storage: %w", err)
+		return domain.Photo{}, fmt.Errorf("error uploading photo to storage: %w", err)
 	}
 
 	if err := s.queuePhotoProcessing(ctx, photo); err != nil {
-		return db.Photo{}, fmt.Errorf("error queueing photo processing: %w", err)
+		return domain.Photo{}, fmt.Errorf("error queueing photo processing: %w", err)
 	}
 
 	return photo, nil
@@ -219,8 +204,8 @@ func detectContentType(f multipart.File) (string, error) {
 	return filetype, nil
 }
 
-func (s *PhotoService) uploadPhotoToStorage(ctx context.Context, photo db.Photo, buf []byte, fileType utils.MimeType) error {
-	path, err := utils.BuildPhotoPath(photo.Key, db.PhotoVariantOriginal, fileType)
+func (s *PhotoService) uploadPhotoToStorage(ctx context.Context, photo domain.Photo, buf []byte, fileType utils.MimeType) error {
+	path, err := utils.BuildPhotoPathForVariant(photo.Key, domain.PhotoVariantOriginal, fileType)
 	if err != nil {
 		return fmt.Errorf("error building photo path: %w", err)
 	}
@@ -231,7 +216,7 @@ func (s *PhotoService) uploadPhotoToStorage(ctx context.Context, photo db.Photo,
 	return nil
 }
 
-func (s *PhotoService) queuePhotoProcessing(ctx context.Context, photo db.Photo) error {
+func (s *PhotoService) queuePhotoProcessing(ctx context.Context, photo domain.Photo) error {
 	processingJob, err := json.Marshal(workers.PhotoProcessingJob{Type: workers.JobTypeAlbumPhoto, PhotoID: photo.ID})
 	if err != nil {
 		return fmt.Errorf("error marshalling photo processing job for photo %d: %s", photo.ID, err.Error())
@@ -244,16 +229,16 @@ func (s *PhotoService) queuePhotoProcessing(ctx context.Context, photo db.Photo)
 	return nil
 }
 
-func (s *PhotoService) generateAlbumImageResponse(ctx context.Context, photo db.Photo) ImageResponse {
+func (s *PhotoService) generateAlbumImageResponse(ctx context.Context, photo domain.Photo) domain.ResponsiveImage {
 	photoMeta, err := s.repo.GetPhotoMetadataByPhotoID(ctx, photo.ID)
 	if err != nil {
-		return ImageResponse{}
+		return domain.ResponsiveImage{}
 	}
 
-	var sources []Image
+	var sources []domain.ImageSource
 	var originalUrl, defaultUrl string
 	for _, meta := range photoMeta {
-		path, err := utils.BuildPhotoPath(photo.Key, meta.Variant, utils.MimeType(meta.MimeType))
+		path, err := utils.BuildPhotoPathForVariant(photo.Key, meta.Variant, utils.MimeType(meta.MimeType))
 		if err != nil {
 			continue
 		}
@@ -263,8 +248,8 @@ func (s *PhotoService) generateAlbumImageResponse(ctx context.Context, photo db.
 			continue
 		}
 
-		if meta.Variant != db.PhotoVariantOriginal {
-			sources = append(sources, Image{
+		if meta.Variant != domain.PhotoVariantOriginal {
+			sources = append(sources, domain.ImageSource{
 				Width:  meta.Width,
 				Height: meta.Height,
 				URL:    url,
@@ -272,16 +257,16 @@ func (s *PhotoService) generateAlbumImageResponse(ctx context.Context, photo db.
 		}
 
 		switch meta.Variant {
-		case db.PhotoVariantOriginal:
+		case domain.PhotoVariantOriginal:
 			originalUrl = url
-		case db.PhotoVariantLarge:
+		case domain.PhotoVariantLarge:
 			defaultUrl = url
 		default:
 		}
 	}
 
-	return ImageResponse{
-		Image:       photo,
+	return domain.ResponsiveImage{
+		ID:          photo.ID,
 		Alt:         photo.Key,
 		OriginalSrc: originalUrl,
 		DefaultSrc:  defaultUrl,

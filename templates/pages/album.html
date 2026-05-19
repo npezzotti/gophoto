@@ -67,7 +67,7 @@
         {{ range .Images }}
         <div class="col-12 col-sm-6 col-md-4 col-lg-3">
             <div class="square-container album-photo-container bg-light rounded">
-                <a data-toggle="my-lightbox" data-bs-toggle="modal" data-bs-target="#lightboxModal-{{ .Image.ID }}">
+                <a data-toggle="my-lightbox" data-bs-toggle="modal" data-bs-target="#lightboxModal-{{ .ID }}">
                     <img role="button" class="w-100 h-100 object-fit-cover border rounded"
                         src="{{ .DefaultSrc }}"
                         srcset="{{ .SrcSet }}"
@@ -76,7 +76,7 @@
                 </a>
             </div>
         </div>
-        <div class="modal fade  p-0 m-0" id="lightboxModal-{{ .Image.ID }}" tabindex="-1" aria-hidden="true">
+        <div class="modal fade  p-0 m-0" id="lightboxModal-{{ .ID }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-fullscreen">
                 <div class="modal-content border-0 bg-dark rounded-0">
                     <div class="modal-body p-0 d-flex align-items-center justify-content-center">
@@ -93,7 +93,7 @@
                                 <li><a class="dropdown-item link-primary" href="{{ .OriginalSrc }}"
                                         download>Download</a>
                                 <li><a class="dropdown-item link-danger"
-                                        href="/photo/delete?id={{ .Image.ID }}">Delete</a>
+                                        href="/photo/delete?id={{ .ID }}">Delete</a>
                                 </li>
                             </ul>
 

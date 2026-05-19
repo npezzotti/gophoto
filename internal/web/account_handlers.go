@@ -1,10 +1,10 @@
 package web
 
 import (
-	"database/sql"
 	"errors"
 	"net/http"
 
+	"github.com/npezzotti/gophoto/internal/domain"
 	"github.com/npezzotti/gophoto/pkg/forms"
 )
 
@@ -79,7 +79,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 		user, err := a.userService.GetUserByEmail(r.Context(), lf.Email)
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, domain.ErrUserNotFound) {
 				a.flash(r, "No account found with that email address.", flashErr)
 				td := a.generateTemplateData(r)
 				td.Form = lf
@@ -172,7 +172,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 		}
 
 		td := a.generateTemplateData(r)
-		td.AddPhotoUploadAction = "/api/photos?type=user"
+		td.AddPhotoUploadAction = "/photos?type=user"
 		td.Form = &forms.EditProfileForm{
 			FirstName: user.FirstName,
 			LastName:  user.LastName,
@@ -210,7 +210,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		_, err := a.userService.UpdateUser(r.Context(), user, epf.FirstName, epf.LastName, epf.Email, epf.Password)
+		_, err := a.userService.UpdateUser(r.Context(), user.ID, epf.FirstName, epf.LastName, epf.Email, epf.Password)
 		if err != nil {
 			a.ErrorLog.Printf("error updating user %d: %s", user.ID, err.Error())
 			a.flash(r, "Error updating profile. Please try again.", flashErr)

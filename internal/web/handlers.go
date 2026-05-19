@@ -1,24 +1,18 @@
 package web
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 
-	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/internal/domain"
 	"github.com/npezzotti/gophoto/pkg/pagination"
 )
 
 const (
 	FormFileName = "file"
 )
-
-type Size struct {
-	MediaQuery string
-	Size       string
-}
 
 func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
@@ -40,7 +34,7 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			album, err := a.albumService.GetAlbumById(r.Context(), int32(id))
+			album, err := a.albumService.GetAlbumByID(r.Context(), int32(id))
 			if err != nil {
 				a.ErrorLog.Println("error getting album:", err)
 				a.flash(r, http.StatusText(http.StatusNotFound), flashErr)
@@ -66,7 +60,7 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 			td.Album = album
 			td.Images = photos
 			td.Paginator = pagination
-			td.AddPhotoUploadAction = fmt.Sprintf("/api/photos?type=album&id=%d", album.ID)
+			td.AddPhotoUploadAction = fmt.Sprintf("/photos?type=album&id=%d", album.ID)
 
 			a.renderTemplate(w, td, "album.html")
 			return
@@ -155,10 +149,10 @@ func (a *application) updateAlbumHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		album, err := a.albumService.GetAlbumById(r.Context(), int32(album_id))
+		album, err := a.albumService.GetAlbumByID(r.Context(), int32(album_id))
 		if err != nil {
 			var flashMsg string
-			if errors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, domain.ErrAlbumNotFound) {
 				flashMsg = http.StatusText(http.StatusNotFound)
 			} else {
 				flashMsg = http.StatusText(http.StatusInternalServerError)
@@ -217,10 +211,10 @@ func (a *application) deleteAlbumHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	album, err := a.albumService.GetAlbumById(r.Context(), int32(id))
+	album, err := a.albumService.GetAlbumByID(r.Context(), int32(id))
 	if err != nil {
 		var flashMsg string
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, domain.ErrAlbumNotFound) {
 			flashMsg = http.StatusText(http.StatusNotFound)
 		} else {
 			flashMsg = http.StatusText(http.StatusInternalServerError)
@@ -285,7 +279,7 @@ func (a *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Request)
 	}
 	defer f.Close()
 
-	var photo db.Photo
+	var photo domain.Photo
 	switch photoType {
 	case PhotoTypeAlbumPhoto:
 		album_id_str := r.URL.Query().Get("id")
@@ -295,10 +289,10 @@ func (a *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		album, err := a.albumService.GetAlbumById(r.Context(), int32(album_id))
+		album, err := a.albumService.GetAlbumByID(r.Context(), int32(album_id))
 		if err != nil {
 			var respMsg string
-			if errors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, domain.ErrAlbumNotFound) {
 				respMsg = http.StatusText(http.StatusNotFound)
 			} else {
 				a.ErrorLog.Println("error retrieving album:", err)
@@ -313,16 +307,14 @@ func (a *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		dbUser := &db.GetUserByIdRow{ID: user.ID}
-		photo, err = a.photoService.CreateAlbumPhotoWithOriginalMetadata(r.Context(), f, fh, dbUser, album)
+		photo, err = a.photoService.CreateAlbumPhotoWithOriginalMetadata(r.Context(), f, fh, user.ID, album.ID)
 		if err != nil {
 			a.ErrorLog.Printf("error creating photo: %s", err)
 			a.writeJsonErrorResp(w, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 			return
 		}
 	case PhotoTypeUserPhoto:
-		dbUser := &db.GetUserByIdRow{ID: user.ID}
-		photo, err = a.photoService.CreateUserPhotoWithOriginalMetadata(r.Context(), f, fh, dbUser)
+		photo, err = a.photoService.CreateUserPhotoWithOriginalMetadata(r.Context(), f, fh, user.ID)
 		if err != nil {
 			a.ErrorLog.Printf("error creating photo: %s", err)
 			a.writeJsonErrorResp(w, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
@@ -333,7 +325,7 @@ func (a *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	a.writeJsonResp(w, http.StatusOK, map[string]int32{"id": photo.ID})
+	a.writeJsonResp(w, http.StatusCreated, map[string]int32{"id": photo.ID})
 }
 
 func (a *application) photoStatusHandler(w http.ResponseWriter, r *http.Request) {
@@ -363,7 +355,7 @@ func (a *application) photoStatusHandler(w http.ResponseWriter, r *http.Request)
 
 	photo, err := a.photoService.GetPhoto(r.Context(), int32(id))
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, domain.ErrPhotoNotFound) {
 			a.writeJsonErrorResp(w, http.StatusNotFound, http.StatusText(http.StatusNotFound))
 			return
 		}
@@ -372,7 +364,7 @@ func (a *application) photoStatusHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if !photo.UserID.Valid || photo.UserID.Int32 != user.ID {
+	if photo.UserID == nil || *photo.UserID != user.ID {
 		a.writeJsonErrorResp(w, http.StatusNotFound, http.StatusText(http.StatusNotFound))
 		return
 	}
@@ -416,7 +408,7 @@ func (a *application) deletePhotoHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Ensure photo belongs to user
-	if !photo.UserID.Valid || photo.UserID.Int32 != user.ID {
+	if photo.UserID == nil || *photo.UserID != user.ID {
 		a.flash(r, http.StatusText(http.StatusNotFound), flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 		return

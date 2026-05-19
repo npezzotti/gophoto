@@ -32,7 +32,7 @@ func (a *application) authenticate(next http.Handler) http.Handler {
 			return
 		}
 
-		exists, err := a.database.UserExists(r.Context(), userId)
+		exists, err := a.userService.UserExists(r.Context(), userId)
 		if err != nil {
 			next.ServeHTTP(w, r)
 			return

@@ -2,7 +2,6 @@ package workers
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log"
 	"time"
@@ -64,9 +63,7 @@ func (scw *StorageCleanerWorker) cleanStorage() {
 
 	photos, err := scw.db.GetOrphanedPhotos(ctx)
 	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			scw.log.Println("error getting files:", err)
-		}
+		scw.log.Println("error getting files:", err)
 		return
 	}
 
@@ -74,12 +71,12 @@ func (scw *StorageCleanerWorker) cleanStorage() {
 
 	for _, photo := range photos {
 		metadata, err := scw.db.GetPhotoMetadataByPhotoID(ctx, photo.ID)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		if err != nil {
 			scw.log.Printf("error getting metadata for photo %d: %s", photo.ID, err.Error())
 			continue
 		}
 		for _, m := range metadata {
-			path, err := utils.BuildPhotoPath(photo.Key, m.Variant, utils.MimeType(m.MimeType))
+			path, err := utils.BuildPhotoPathForVariant(photo.Key, m.Variant, utils.MimeType(m.MimeType))
 			if err != nil {
 				scw.log.Printf("error building path for photo %d variant %s: %s", photo.ID, m.Variant, err.Error())
 				continue

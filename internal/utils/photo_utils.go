@@ -3,7 +3,7 @@ package utils
 import (
 	"fmt"
 
-	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/internal/domain"
 )
 
 type MimeType string
@@ -29,8 +29,8 @@ func ValidateMimeType(mimeType string) bool {
 	return false
 }
 
-// BuildPhotoPath constructs a hierarchical file path for storing photos based on the provided key and variant.
-func BuildPhotoPath(key string, variant db.PhotoVariant, mimeType MimeType) (string, error) {
+// BuildPhotoPathForVariant constructs a hierarchical file path for storing photos based on the provided key and variant.
+func BuildPhotoPathForVariant(key string, variant domain.PhotoVariant, mimeType MimeType) (string, error) {
 	// Use the first four characters of the UUID to create a two-level directory structure.
 	shardLvl1 := key[0:2]
 	shardLvl2 := key[2:4]

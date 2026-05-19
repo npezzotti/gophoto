@@ -65,7 +65,7 @@ async function uploadPhoto(form) {
 
 async function fetchPhotoStatus(photoId) {
   try {
-    const response = await fetch(`/api/photos/status?id=${photoId}`);
+    const response = await fetch(`/photos/status?id=${photoId}`);
     return response;
   } catch (error) {
     throw error;

@@ -3,16 +3,15 @@ package workers
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
-	"time"
 
 	"github.com/h2non/bimg"
 	"github.com/npezzotti/gophoto/internal/config"
 	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/internal/domain"
 	"github.com/npezzotti/gophoto/internal/utils"
 	"github.com/npezzotti/gophoto/pkg/store"
 	"github.com/redis/go-redis/v9"
@@ -32,7 +31,7 @@ type PhotoProcessingJob struct {
 }
 
 type ImageOpts struct {
-	Variant db.PhotoVariant
+	Variant domain.PhotoVariant
 	Width   int
 	Height  int
 	Quality int
@@ -41,15 +40,15 @@ type ImageOpts struct {
 
 var (
 	AlbumPhotoSizes []ImageOpts = []ImageOpts{
-		{Variant: db.PhotoVariantThumb, Width: 150, Height: 150, Quality: 70, Type: bimg.WEBP},
-		{Variant: db.PhotoVariantSmall, Width: 400, Height: 300, Quality: 80, Type: bimg.WEBP},
-		{Variant: db.PhotoVariantMedium, Width: 800, Height: 600, Quality: 80, Type: bimg.WEBP},
-		{Variant: db.PhotoVariantLarge, Width: 1920, Height: 1080, Quality: 90, Type: bimg.WEBP},
+		{Variant: domain.PhotoVariantThumb, Width: 150, Height: 150, Quality: 70, Type: bimg.WEBP},
+		{Variant: domain.PhotoVariantSmall, Width: 400, Height: 300, Quality: 80, Type: bimg.WEBP},
+		{Variant: domain.PhotoVariantMedium, Width: 800, Height: 600, Quality: 80, Type: bimg.WEBP},
+		{Variant: domain.PhotoVariantLarge, Width: 1920, Height: 1080, Quality: 90, Type: bimg.WEBP},
 	}
 
 	ProfilePicSizes []ImageOpts = []ImageOpts{
-		{Variant: db.PhotoVariantAvatar, Width: 100, Height: 100, Quality: 70, Type: bimg.WEBP},
-		{Variant: db.PhotoVariantSmall, Width: 400, Height: 300, Quality: 80, Type: bimg.WEBP},
+		{Variant: domain.PhotoVariantAvatar, Width: 100, Height: 100, Quality: 70, Type: bimg.WEBP},
+		{Variant: domain.PhotoVariantSmall, Width: 400, Height: 300, Quality: 80, Type: bimg.WEBP},
 	}
 )
 
@@ -125,12 +124,8 @@ func (ppw *PhotoProcessorWorker) handleJob(msg *redis.Message) error {
 	return nil
 }
 
-func (ppw *PhotoProcessorWorker) updatePhotoStatus(photo db.Photo, status db.PhotoStatus) error {
-	return ppw.db.UpdatePhotoStatus(context.Background(), db.UpdatePhotoStatusParams{
-		ID:        photo.ID,
-		Status:    status,
-		UpdatedAt: time.Now(),
-	})
+func (ppw *PhotoProcessorWorker) updatePhotoStatus(photo domain.Photo, status domain.PhotoStatus) error {
+	return ppw.db.UpdatePhotoStatus(context.Background(), photo.ID, status)
 }
 
 func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) error {
@@ -141,10 +136,7 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 		return fmt.Errorf("error getting photo from database: %v", err)
 	}
 
-	originalMeta, err := ppw.db.GetPhotoMetadataByPhotoIDAndVariant(context.Background(), db.GetPhotoMetadataByPhotoIDAndVariantParams{
-		PhotoID: photo.ID,
-		Variant: db.PhotoVariantOriginal,
-	})
+	originalMeta, err := ppw.db.GetPhotoMetadataByPhotoIDAndVariant(context.Background(), photo.ID, domain.PhotoVariantOriginal)
 	if err != nil {
 		return fmt.Errorf("error getting original photo metadata: %v", err)
 	}
@@ -152,11 +144,11 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 	var processingErr bool
 	defer func() {
 		if processingErr {
-			ppw.updatePhotoStatus(photo, db.PhotoStatusErrored)
+			ppw.updatePhotoStatus(photo, domain.PhotoStatusErrored)
 		}
 	}()
 
-	path, err := utils.BuildPhotoPath(photo.Key, db.PhotoVariantOriginal, utils.MimeType(originalMeta.MimeType))
+	path, err := utils.BuildPhotoPathForVariant(photo.Key, domain.PhotoVariantOriginal, utils.MimeType(originalMeta.MimeType))
 	if err != nil {
 		processingErr = true
 		return fmt.Errorf("error building photo path for original variant: %v", err)
@@ -211,12 +203,13 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 			continue
 		}
 
-		photoMeta, err := ppw.db.CreatePhotoMetadata(context.Background(), db.CreatePhotoMetadataParams{
+		fileSize := int64(len(processedImg))
+		photoMeta, err := ppw.db.CreatePhotoMetadata(context.Background(), domain.CreatePhotoMetadataCommand{
 			PhotoID:  photo.ID,
 			Variant:  size.Variant,
 			Width:    int32(imgSize.Width),
 			Height:   int32(imgSize.Height),
-			FileSize: sql.NullInt64{Int64: int64(len(processedImg)), Valid: true},
+			FileSize: &fileSize,
 			MimeType: "image/webp",
 		})
 		if err != nil {
@@ -225,7 +218,7 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 			continue
 		}
 
-		variantPath, err := utils.BuildPhotoPath(photo.Key, photoMeta.Variant, utils.MimeTypeWEBP)
+		variantPath, err := utils.BuildPhotoPathForVariant(photo.Key, photoMeta.Variant, utils.MimeTypeWEBP)
 		if err != nil {
 			processingErr = true
 			ppw.log.Printf("error building photo path for %s variant: %v", size.Variant, err)
@@ -238,7 +231,7 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 		}
 	}
 
-	if err := ppw.updatePhotoStatus(photo, db.PhotoStatusProcessed); err != nil {
+	if err := ppw.updatePhotoStatus(photo, domain.PhotoStatusProcessed); err != nil {
 		processingErr = true
 		ppw.log.Printf("error updating photo %d status: %v", photoId, err)
 	}

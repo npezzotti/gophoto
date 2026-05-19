@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +13,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 	"github.com/npezzotti/gophoto/internal/config"
 	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/internal/domain"
 	"github.com/npezzotti/gophoto/internal/service"
 	"github.com/npezzotti/gophoto/pkg/store"
 	"github.com/npezzotti/gophoto/pkg/template"
@@ -96,8 +96,8 @@ func (a *application) routes() *http.ServeMux {
 	mux.Handle("/albums/delete", a.protected(http.HandlerFunc(a.deleteAlbumHandler)))
 	mux.Handle("/albums/new", a.protected(http.HandlerFunc(a.createAlbumHandler)))
 	mux.Handle("/photo/delete", a.protected(http.HandlerFunc(a.deletePhotoHandler)))
-	mux.Handle("/api/photos", http.HandlerFunc(a.uploadPhotoHandler))
-	mux.Handle("/api/photos/status", http.HandlerFunc(a.photoStatusHandler))
+	mux.Handle("/photos", http.HandlerFunc(a.uploadPhotoHandler))
+	mux.Handle("/photos/status", http.HandlerFunc(a.photoStatusHandler))
 	mux.Handle("/login", http.HandlerFunc(a.loginHandler))
 	mux.HandleFunc("/signup", a.signupHandler)
 	mux.HandleFunc("/logout", a.logoutHandler)
@@ -116,7 +116,7 @@ func (a *application) routes() *http.ServeMux {
 }
 
 // Authenticate and extract user
-func (a *application) authenticateRequest(r *http.Request) (*service.User, error) {
+func (a *application) authenticateRequest(r *http.Request) (*domain.UserResponse, error) {
 	if !isAuthenticated(r) {
 		return nil, fmt.Errorf("not authenticated")
 	}
@@ -130,11 +130,11 @@ func (a *application) authenticateRequest(r *http.Request) (*service.User, error
 }
 
 // extractUserFromRequest retrieves the authenticated user's details from the request context.
-func (a *application) extractUserFromRequest(r *http.Request) *service.User {
+func (a *application) extractUserFromRequest(r *http.Request) *domain.UserResponse {
 	if userId, ok := r.Context().Value(AuthenticatedUserId).(int32); ok {
 		userResp, err := a.userService.GetUserByID(r.Context(), userId)
 		if err != nil {
-			if !errors.Is(err, sql.ErrNoRows) {
+			if !errors.Is(err, domain.ErrUserNotFound) {
 				a.ErrorLog.Printf("error querying user: %s", err.Error())
 			}
 			return nil
