@@ -6,28 +6,19 @@ import (
 	"path/filepath"
 
 	"github.com/npezzotti/gophoto/internal/config"
+	"github.com/npezzotti/gophoto/internal/db"
 	"github.com/npezzotti/gophoto/internal/domain"
 	"github.com/npezzotti/gophoto/internal/utils"
 	"github.com/npezzotti/gophoto/pkg/store"
 )
 
-type AlbumRepository interface {
-	GetAlbumByID(ctx context.Context, id int32) (domain.Album, error)
-	CountAlbumsByUser(ctx context.Context, userID int32) (int64, error)
-	ListAlbumsByUser(ctx context.Context, userID int32, limit, offset int32) ([]domain.AlbumListProjection, error)
-	GetPhotoMetadataByPhotoID(ctx context.Context, photoID int32) ([]domain.PhotoMetadatum, error)
-	CreateAlbum(ctx context.Context, userID int32, title string) (domain.Album, error)
-	UpdateAlbum(ctx context.Context, albumId int32, userID int32, title string, coverPhotoID *int32) (domain.Album, error)
-	DeleteAlbum(ctx context.Context, albumId int32) error
-}
-
 type AlbumService struct {
-	repo   AlbumRepository
+	repo   db.AlbumRepository
 	store  store.Store
 	config *config.Config
 }
 
-func NewAlbumService(r AlbumRepository, s store.Store, c *config.Config) *AlbumService {
+func NewAlbumService(r db.AlbumRepository, s store.Store, c *config.Config) *AlbumService {
 	return &AlbumService{repo: r, store: s, config: c}
 }
 

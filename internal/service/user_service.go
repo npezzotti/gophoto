@@ -14,23 +14,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-type UserRepository interface {
-	GetUserById(ctx context.Context, id int32) (domain.User, error)
-	GetUserByEmail(ctx context.Context, email string) (domain.User, error)
-	CreateUser(ctx context.Context, firstName, lastName, email, passwordHash string) (domain.UserResponse, error)
-	UpdateUser(ctx context.Context, params domain.UserUpdateParams) (domain.UserResponse, error)
-	DeleteUser(ctx context.Context, userID int32) error
-	UserExists(ctx context.Context, userID int32) (bool, error)
-	GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]domain.PhotoMetadatum, error)
-}
-
 type UserService struct {
-	repo   UserRepository
+	repo   db.UserRepository
 	store  store.Store
 	config *config.Config
 }
 
-func NewUserService(r UserRepository, s store.Store, c *config.Config) *UserService {
+func NewUserService(r db.UserRepository, s store.Store, c *config.Config) *UserService {
 	return &UserService{repo: r, store: s, config: c}
 }
 

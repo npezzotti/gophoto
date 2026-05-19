@@ -25,23 +25,13 @@ const (
 	MaxUploadSize = 50 << (10 * 2) // 50 MB
 )
 
-type PhotoRepository interface {
-	GetPhoto(ctx context.Context, id int32) (domain.Photo, error)
-	GetAlbumPhoto(ctx context.Context, id int32) (domain.AlbumPhoto, error)
-	ListPhotosByAlbum(ctx context.Context, albumId int32, limit int32, offset int32) ([]domain.Photo, error)
-	GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]domain.PhotoMetadatum, error)
-	CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, albumID int32, cmd domain.CreatePhotoWithOriginalMetadataCommand) (domain.Photo, error)
-	CreateUserPhotoWithOriginalMetadata(ctx context.Context, userID int32, cmd domain.CreatePhotoWithOriginalMetadataCommand) (domain.Photo, error)
-	RemovePhotoFromAlbum(ctx context.Context, albumId int32, photoId int32) error
-}
-
 type PhotoService struct {
-	repo        PhotoRepository
+	repo        db.PhotoRepository
 	store       store.Store
 	redisClient *redis.Client
 }
 
-func NewPhotoService(r *db.Repository, s store.Store, redisClient *redis.Client) *PhotoService {
+func NewPhotoService(r db.PhotoRepository, s store.Store, redisClient *redis.Client) *PhotoService {
 	return &PhotoService{repo: r, store: s, redisClient: redisClient}
 }
 

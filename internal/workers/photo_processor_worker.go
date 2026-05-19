@@ -10,11 +10,11 @@ import (
 
 	"github.com/h2non/bimg"
 	"github.com/npezzotti/gophoto/internal/config"
-	"github.com/npezzotti/gophoto/internal/db"
 	"github.com/npezzotti/gophoto/internal/domain"
 	"github.com/npezzotti/gophoto/internal/utils"
 	"github.com/npezzotti/gophoto/pkg/store"
 	"github.com/redis/go-redis/v9"
+	"github.com/npezzotti/gophoto/internal/db"
 )
 
 type JobType string
@@ -54,14 +54,14 @@ var (
 
 type PhotoProcessorWorker struct {
 	redisClient *redis.Client
-	db          *db.Repository
+	db          db.PhotoRepository
 	store       store.Store
 	log         *log.Logger
 	stopChan    chan struct{}
 	doneChan    chan bool
 }
 
-func NewPhotoProcessorWorker(redisClient *redis.Client, cfg *config.Config, db *db.Repository, s store.Store, l *log.Logger) *PhotoProcessorWorker {
+func NewPhotoProcessorWorker(redisClient *redis.Client, cfg *config.Config, db db.PhotoRepository, s store.Store, l *log.Logger) *PhotoProcessorWorker {
 	return &PhotoProcessorWorker{
 		redisClient: redisClient,
 		db:          db,

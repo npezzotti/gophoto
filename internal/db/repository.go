@@ -16,6 +16,41 @@ var (
 	ErrPhotoNotFound = errors.New("photo not found")
 )
 
+type PhotoRepository interface {
+	GetPhoto(ctx context.Context, id int32) (domain.Photo, error)
+	GetAlbumPhoto(ctx context.Context, id int32) (domain.AlbumPhoto, error)
+	ListPhotosByAlbum(ctx context.Context, albumId int32, limit int32, offset int32) ([]domain.Photo, error)
+	GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]domain.PhotoMetadatum, error)
+	CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, albumID int32, cmd domain.CreatePhotoWithOriginalMetadataCommand) (domain.Photo, error)
+	CreateUserPhotoWithOriginalMetadata(ctx context.Context, userID int32, cmd domain.CreatePhotoWithOriginalMetadataCommand) (domain.Photo, error)
+	RemovePhotoFromAlbum(ctx context.Context, albumId int32, photoId int32) error
+	CreatePhotoMetadata(ctx context.Context, arg domain.CreatePhotoMetadataCommand) (domain.PhotoMetadatum, error)
+	GetPhotoMetadataByPhotoIDAndVariant(ctx context.Context, photoID int32, variant domain.PhotoVariant) (domain.PhotoMetadatum, error)
+	UpdatePhotoStatus(ctx context.Context, photoID int32, status domain.PhotoStatus) error
+	DeletePhoto(ctx context.Context, photoID int32) error
+	GetOrphanedPhotos(ctx context.Context) ([]domain.Photo, error)
+}
+
+type AlbumRepository interface {
+	GetAlbumByID(ctx context.Context, id int32) (domain.Album, error)
+	CountAlbumsByUser(ctx context.Context, userID int32) (int64, error)
+	ListAlbumsByUser(ctx context.Context, userID int32, limit, offset int32) ([]domain.AlbumListProjection, error)
+	GetPhotoMetadataByPhotoID(ctx context.Context, photoID int32) ([]domain.PhotoMetadatum, error)
+	CreateAlbum(ctx context.Context, userID int32, title string) (domain.Album, error)
+	UpdateAlbum(ctx context.Context, albumId int32, userID int32, title string, coverPhotoID *int32) (domain.Album, error)
+	DeleteAlbum(ctx context.Context, albumId int32) error
+}
+
+type UserRepository interface {
+	GetUserById(ctx context.Context, id int32) (domain.User, error)
+	GetUserByEmail(ctx context.Context, email string) (domain.User, error)
+	CreateUser(ctx context.Context, firstName, lastName, email, passwordHash string) (domain.UserResponse, error)
+	UpdateUser(ctx context.Context, params domain.UserUpdateParams) (domain.UserResponse, error)
+	DeleteUser(ctx context.Context, userID int32) error
+	UserExists(ctx context.Context, userID int32) (bool, error)
+	GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]domain.PhotoMetadatum, error)
+}
+
 type Repository struct {
 	db      *sql.DB
 	querier *Queries
@@ -552,11 +587,16 @@ func (r *Repository) CreateAlbum(ctx context.Context, userID int32, title string
 }
 
 func (r *Repository) UpdateAlbum(ctx context.Context, albumId int32, userID int32, title string, coverPhotoID *int32) (domain.Album, error) {
+	coverPhoto := sql.NullInt32{Valid: false}
+	if coverPhotoID != nil {
+		coverPhoto = sql.NullInt32{Int32: *coverPhotoID, Valid: true}
+	}
+
 	album, err := r.querier.UpdateAlbum(ctx, UpdateAlbumParams{
 		ID:           albumId,
 		UserID:       userID,
 		Title:        title,
-		CoverPhotoID: sql.NullInt32{Int32: int32(*coverPhotoID), Valid: coverPhotoID != nil},
+		CoverPhotoID: coverPhoto,
 	})
 	if err != nil {
 		return domain.Album{}, err
