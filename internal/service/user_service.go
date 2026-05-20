@@ -24,7 +24,7 @@ func NewUserService(r db.UserRepository, s store.Store, c *config.Config) *UserS
 	return &UserService{repo: r, store: s, config: c}
 }
 
-func (s *UserService) newUserResponse(ctx context.Context, user domain.User) *domain.UserResponse {
+func (s *UserService) newUserResponse(ctx context.Context, user domain.User) *domain.UserPresentation {
 	var sources []domain.ImageSource
 	var defaultSrc string
 	if user.ProfilePictureKey != nil && user.ProfilePictureID != nil {
@@ -80,7 +80,7 @@ func (s *UserService) newUserResponse(ctx context.Context, user domain.User) *do
 		defaultSrc = thumbnailPath
 	}
 
-	return &domain.UserResponse{
+	return &domain.UserPresentation{
 		ID:        user.ID,
 		FirstName: user.FirstName,
 		LastName:  user.LastName,
@@ -93,7 +93,7 @@ func (s *UserService) newUserResponse(ctx context.Context, user domain.User) *do
 	}
 }
 
-func (s *UserService) GetUserByID(ctx context.Context, id int32) (*domain.UserResponse, error) {
+func (s *UserService) GetUserByID(ctx context.Context, id int32) (*domain.UserPresentation, error) {
 	user, err := s.repo.GetUserById(ctx, id)
 	if err != nil {
 		if errors.Is(err, db.ErrUserNotFound) {
@@ -118,31 +118,31 @@ func (s *UserService) GetUserByEmail(ctx context.Context, email string) (domain.
 	return user, nil
 }
 
-func (s *UserService) CreateUser(ctx context.Context, firstName, lastName, email, password string) (domain.UserResponse, error) {
+func (s *UserService) CreateUser(ctx context.Context, firstName, lastName, email, password string) (*domain.UserPresentation, error) {
 	passwdHash, err := hashPassword(password)
 	if err != nil {
-		return domain.UserResponse{}, fmt.Errorf("error hashing password: %w", err)
+		return nil, fmt.Errorf("error hashing password: %w", err)
 	}
 
 	user, err := s.repo.CreateUser(ctx, firstName, lastName, email, passwdHash)
 	if err != nil {
-		return domain.UserResponse{}, fmt.Errorf("error creating user: %w", err)
+		return nil, fmt.Errorf("error creating user: %w", err)
 	}
 
-	return user, nil
+	return s.newUserResponse(ctx, user), nil
 }
 
-func (s *UserService) UpdateUser(ctx context.Context, userID int32, firstName, lastName, email, password string) (domain.UserResponse, error) {
+func (s *UserService) UpdateUser(ctx context.Context, userID int32, firstName, lastName, email, password string) (*domain.UserPresentation, error) {
 	dbUser, err := s.repo.GetUserById(ctx, userID)
 	if err != nil {
-		return domain.UserResponse{}, fmt.Errorf("error fetching user for update: %w", err)
+		return nil, fmt.Errorf("error fetching user for update: %w", err)
 	}
 
 	var pwdHash string
 	if password != "" {
 		hash, err := hashPassword(password)
 		if err != nil {
-			return domain.UserResponse{}, fmt.Errorf("error hashing new password: %w", err)
+			return nil, fmt.Errorf("error hashing new password: %w", err)
 		}
 		pwdHash = hash
 	} else {
@@ -158,7 +158,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userID int32, firstName, l
 		ProfilePictureID: dbUser.ProfilePictureID,
 	})
 	if err != nil {
-		return domain.UserResponse{}, fmt.Errorf("error updating user: %w", err)
+		return nil, fmt.Errorf("error updating user: %w", err)
 	}
 
 	resp := s.newUserResponse(ctx, domain.User{
@@ -167,14 +167,14 @@ func (s *UserService) UpdateUser(ctx context.Context, userID int32, firstName, l
 		LastName:          updatedUser.LastName,
 		Email:             updatedUser.Email,
 		PasswordHash:      updatedUser.PasswordHash,
-		ProfilePictureID:  dbUser.ProfilePictureID,
+		ProfilePictureID:  updatedUser.ProfilePictureID,
 		ProfilePictureKey: dbUser.ProfilePictureKey,
 	})
 	if resp == nil {
-		return domain.UserResponse{}, fmt.Errorf("error preparing updated user response")
+		return nil, fmt.Errorf("error preparing updated user response")
 	}
 
-	return *resp, nil
+	return resp, nil
 }
 
 func (s *UserService) DeleteUser(ctx context.Context, userID int32) error {

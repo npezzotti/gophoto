@@ -10,11 +10,11 @@ import (
 
 	"github.com/h2non/bimg"
 	"github.com/npezzotti/gophoto/internal/config"
+	"github.com/npezzotti/gophoto/internal/db"
 	"github.com/npezzotti/gophoto/internal/domain"
 	"github.com/npezzotti/gophoto/internal/utils"
 	"github.com/npezzotti/gophoto/pkg/store"
 	"github.com/redis/go-redis/v9"
-	"github.com/npezzotti/gophoto/internal/db"
 )
 
 type JobType string
@@ -204,7 +204,7 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 		}
 
 		fileSize := int64(len(processedImg))
-		photoMeta, err := ppw.db.CreatePhotoMetadata(context.Background(), domain.CreatePhotoMetadataCommand{
+		photoMeta, err := ppw.db.CreatePhotoMetadata(context.Background(), domain.CreatePhotoMetadataParams{
 			PhotoID:  photo.ID,
 			Variant:  size.Variant,
 			Width:    int32(imgSize.Width),

@@ -81,7 +81,7 @@ func (s *PhotoService) CreateAlbumPhotoWithOriginalMetadata(ctx context.Context,
 	}
 
 	key := uuid.New().String()
-	photo, err := s.repo.CreateAlbumPhotoWithOriginalMetadata(ctx, albumID, domain.CreatePhotoWithOriginalMetadataCommand{
+	photo, err := s.repo.CreateAlbumPhotoWithOriginalMetadata(ctx, albumID, domain.CreatePhotoWithOriginalMetadataParams{
 		UserID:   &userID,
 		Key:      key,
 		Width:    int32(meta.Width),
@@ -112,7 +112,7 @@ func (s *PhotoService) CreateUserPhotoWithOriginalMetadata(ctx context.Context, 
 
 	key := uuid.New().String()
 	fileSize := int64(len(buf))
-	photo, err := s.repo.CreateUserPhotoWithOriginalMetadata(ctx, userID, domain.CreatePhotoWithOriginalMetadataCommand{
+	photo, err := s.repo.CreateUserPhotoWithOriginalMetadata(ctx, userID, domain.CreatePhotoWithOriginalMetadataParams{
 		UserID:   &userID,
 		Key:      key,
 		Width:    int32(meta.Width),

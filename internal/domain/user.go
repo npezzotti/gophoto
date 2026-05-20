@@ -9,15 +9,13 @@ const (
 
 var ErrUserNotFound = errors.New("user not found")
 
-type UserResponse struct {
-	ID                      int32
-	FirstName               string
-	LastName                string
-	Email                   string
-	PasswordHash            string
-	ProfilePicture          ResponsiveImage
-	ProfilePictureThumbURL  string
-	ProfilePictureAvatarURL string
+type UserPresentation struct {
+	ID             int32
+	FirstName      string
+	LastName       string
+	Email          string
+	PasswordHash   string
+	ProfilePicture ResponsiveImage
 }
 
 type User struct {

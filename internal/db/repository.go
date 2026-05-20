@@ -21,10 +21,10 @@ type PhotoRepository interface {
 	GetAlbumPhoto(ctx context.Context, id int32) (domain.AlbumPhoto, error)
 	ListPhotosByAlbum(ctx context.Context, albumId int32, limit int32, offset int32) ([]domain.Photo, error)
 	GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]domain.PhotoMetadatum, error)
-	CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, albumID int32, cmd domain.CreatePhotoWithOriginalMetadataCommand) (domain.Photo, error)
-	CreateUserPhotoWithOriginalMetadata(ctx context.Context, userID int32, cmd domain.CreatePhotoWithOriginalMetadataCommand) (domain.Photo, error)
+	CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, albumID int32, cmd domain.CreatePhotoWithOriginalMetadataParams) (domain.Photo, error)
+	CreateUserPhotoWithOriginalMetadata(ctx context.Context, userID int32, cmd domain.CreatePhotoWithOriginalMetadataParams) (domain.Photo, error)
 	RemovePhotoFromAlbum(ctx context.Context, albumId int32, photoId int32) error
-	CreatePhotoMetadata(ctx context.Context, arg domain.CreatePhotoMetadataCommand) (domain.PhotoMetadatum, error)
+	CreatePhotoMetadata(ctx context.Context, arg domain.CreatePhotoMetadataParams) (domain.PhotoMetadatum, error)
 	GetPhotoMetadataByPhotoIDAndVariant(ctx context.Context, photoID int32, variant domain.PhotoVariant) (domain.PhotoMetadatum, error)
 	UpdatePhotoStatus(ctx context.Context, photoID int32, status domain.PhotoStatus) error
 	DeletePhoto(ctx context.Context, photoID int32) error
@@ -44,8 +44,8 @@ type AlbumRepository interface {
 type UserRepository interface {
 	GetUserById(ctx context.Context, id int32) (domain.User, error)
 	GetUserByEmail(ctx context.Context, email string) (domain.User, error)
-	CreateUser(ctx context.Context, firstName, lastName, email, passwordHash string) (domain.UserResponse, error)
-	UpdateUser(ctx context.Context, params domain.UserUpdateParams) (domain.UserResponse, error)
+	CreateUser(ctx context.Context, firstName, lastName, email, passwordHash string) (domain.User, error)
+	UpdateUser(ctx context.Context, params domain.UserUpdateParams) (domain.User, error)
 	DeleteUser(ctx context.Context, userID int32) error
 	UserExists(ctx context.Context, userID int32) (bool, error)
 	GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]domain.PhotoMetadatum, error)
@@ -238,7 +238,7 @@ type CreatePhotoWithOriginalMetadataParams struct {
 	MimeType string
 }
 
-func toCreatePhotoWithOriginalMetadataParams(arg domain.CreatePhotoWithOriginalMetadataCommand) CreatePhotoWithOriginalMetadataParams {
+func toCreatePhotoWithOriginalMetadataParams(arg domain.CreatePhotoWithOriginalMetadataParams) CreatePhotoWithOriginalMetadataParams {
 	return CreatePhotoWithOriginalMetadataParams{
 		UserID:   ptrToNullInt32(arg.UserID),
 		Key:      arg.Key,
@@ -249,31 +249,7 @@ func toCreatePhotoWithOriginalMetadataParams(arg domain.CreatePhotoWithOriginalM
 	}
 }
 
-func (q *Queries) createPhotoWithOriginalMetadata(ctx context.Context, arg CreatePhotoWithOriginalMetadataParams) (Photo, error) {
-	photo, err := q.CreatePhoto(ctx, CreatePhotoParams{
-		UserID: arg.UserID,
-		Key:    arg.Key,
-		Status: PhotoStatusProcessing,
-	})
-	if err != nil {
-		return Photo{}, fmt.Errorf("create photo: %v", err)
-	}
-
-	if _, err := q.CreatePhotoMetadata(ctx, CreatePhotoMetadataParams{
-		PhotoID:  photo.ID,
-		Variant:  PhotoVariantOriginal,
-		Width:    arg.Width,
-		Height:   arg.Height,
-		FileSize: sql.NullInt64{Int64: arg.FileSize.Int64, Valid: arg.FileSize.Valid},
-		MimeType: arg.MimeType,
-	}); err != nil {
-		return Photo{}, fmt.Errorf("create photo metadata: %v", err)
-	}
-
-	return photo, nil
-}
-
-func (r *Repository) CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, albumId int32, arg domain.CreatePhotoWithOriginalMetadataCommand) (domain.Photo, error) {
+func (r *Repository) CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, albumId int32, arg domain.CreatePhotoWithOriginalMetadataParams) (domain.Photo, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return domain.Photo{}, err
@@ -316,7 +292,31 @@ func (r *Repository) CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, a
 	}, nil
 }
 
-func (r *Repository) CreateUserPhotoWithOriginalMetadata(ctx context.Context, userID int32, arg domain.CreatePhotoWithOriginalMetadataCommand) (domain.Photo, error) {
+func (q *Queries) createPhotoWithOriginalMetadata(ctx context.Context, arg CreatePhotoWithOriginalMetadataParams) (Photo, error) {
+	photo, err := q.CreatePhoto(ctx, CreatePhotoParams{
+		UserID: arg.UserID,
+		Key:    arg.Key,
+		Status: PhotoStatusProcessing,
+	})
+	if err != nil {
+		return Photo{}, fmt.Errorf("create photo: %v", err)
+	}
+
+	if _, err := q.CreatePhotoMetadata(ctx, CreatePhotoMetadataParams{
+		PhotoID:  photo.ID,
+		Variant:  PhotoVariantOriginal,
+		Width:    arg.Width,
+		Height:   arg.Height,
+		FileSize: sql.NullInt64{Int64: arg.FileSize.Int64, Valid: arg.FileSize.Valid},
+		MimeType: arg.MimeType,
+	}); err != nil {
+		return Photo{}, fmt.Errorf("create photo metadata: %v", err)
+	}
+
+	return photo, nil
+}
+
+func (r *Repository) CreateUserPhotoWithOriginalMetadata(ctx context.Context, userID int32, arg domain.CreatePhotoWithOriginalMetadataParams) (domain.Photo, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return domain.Photo{}, err
@@ -410,7 +410,7 @@ func (r *Repository) RemovePhotoFromAlbum(ctx context.Context, albumId int32, ph
 	return nil
 }
 
-func (r *Repository) CreatePhotoMetadata(ctx context.Context, arg domain.CreatePhotoMetadataCommand) (domain.PhotoMetadatum, error) {
+func (r *Repository) CreatePhotoMetadata(ctx context.Context, arg domain.CreatePhotoMetadataParams) (domain.PhotoMetadatum, error) {
 	metadata, err := r.querier.CreatePhotoMetadata(ctx, CreatePhotoMetadataParams{
 		PhotoID:  arg.PhotoID,
 		Variant:  PhotoVariant(arg.Variant),
@@ -432,48 +432,6 @@ func (r *Repository) CreatePhotoMetadata(ctx context.Context, arg domain.CreateP
 		FileSize:  nullInt64Ptr(metadata.FileSize),
 		MimeType:  metadata.MimeType,
 		CreatedAt: metadata.CreatedAt,
-	}, nil
-}
-
-func (r *Repository) CreateUser(ctx context.Context, firstName, lastName, email, passwordHash string) (domain.UserResponse, error) {
-	user, err := r.querier.CreateUser(ctx, CreateUserParams{
-		FirstName:    firstName,
-		LastName:     lastName,
-		Email:        email,
-		PasswordHash: passwordHash,
-	})
-	if err != nil {
-		return domain.UserResponse{}, err
-	}
-
-	return domain.UserResponse{
-		ID:        user.ID,
-		FirstName: user.FirstName,
-		LastName:  user.LastName,
-		Email:     user.Email,
-	}, nil
-}
-
-// UpdateUser updates a user's profile information.
-func (r *Repository) UpdateUser(ctx context.Context, user domain.UserUpdateParams) (domain.UserResponse, error) {
-	updatedUser, err := r.querier.UpdateUser(ctx, UpdateUserParams{
-		ID:               user.ID,
-		FirstName:        user.FirstName,
-		LastName:         user.LastName,
-		Email:            user.Email,
-		PasswordHash:     user.PasswordHash,
-		ProfilePictureID: ptrToNullInt32(user.ProfilePictureID),
-		UpdatedAt:        time.Now(),
-	})
-	if err != nil {
-		return domain.UserResponse{}, err
-	}
-
-	return domain.UserResponse{
-		ID:        updatedUser.ID,
-		FirstName: updatedUser.FirstName,
-		LastName:  updatedUser.LastName,
-		Email:     updatedUser.Email,
 	}, nil
 }
 
@@ -517,6 +475,51 @@ func (r *Repository) UserExists(ctx context.Context, userID int32) (bool, error)
 	return r.querier.UserExists(ctx, userID)
 }
 
+func (r *Repository) CreateUser(ctx context.Context, firstName, lastName, email, passwordHash string) (domain.User, error) {
+	user, err := r.querier.CreateUser(ctx, CreateUserParams{
+		FirstName:    firstName,
+		LastName:     lastName,
+		Email:        email,
+		PasswordHash: passwordHash,
+	})
+	if err != nil {
+		return domain.User{}, err
+	}
+
+	return domain.User{
+		ID:           user.ID,
+		FirstName:    user.FirstName,
+		LastName:     user.LastName,
+		Email:        user.Email,
+		PasswordHash: user.PasswordHash,
+	}, nil
+}
+
+// UpdateUser updates a user's profile information.
+func (r *Repository) UpdateUser(ctx context.Context, user domain.UserUpdateParams) (domain.User, error) {
+	updatedUser, err := r.querier.UpdateUser(ctx, UpdateUserParams{
+		ID:               user.ID,
+		FirstName:        user.FirstName,
+		LastName:         user.LastName,
+		Email:            user.Email,
+		PasswordHash:     user.PasswordHash,
+		ProfilePictureID: ptrToNullInt32(user.ProfilePictureID),
+		UpdatedAt:        time.Now(),
+	})
+	if err != nil {
+		return domain.User{}, err
+	}
+
+	return domain.User{
+		ID:               updatedUser.ID,
+		FirstName:        updatedUser.FirstName,
+		LastName:         updatedUser.LastName,
+		Email:            updatedUser.Email,
+		PasswordHash:     updatedUser.PasswordHash,
+		ProfilePictureID: nullInt32Ptr(updatedUser.ProfilePictureID),
+	}, nil
+}
+
 func (r *Repository) DeleteUser(ctx context.Context, userID int32) error {
 	return r.querier.DeleteUser(ctx, userID)
 }
@@ -530,7 +533,15 @@ func (r *Repository) GetAlbumByID(ctx context.Context, id int32) (domain.Album, 
 		return domain.Album{}, err
 	}
 
-	return toDomainAlbum(album), nil
+	return domain.Album{
+		ID:           album.ID,
+		UserID:       album.UserID,
+		Title:        album.Title,
+		CoverPhotoID: nullInt32Ptr(album.CoverPhotoID),
+		NumPhotos:    album.NumPhotos,
+		CreatedAt:    album.CreatedAt,
+		UpdatedAt:    album.UpdatedAt,
+	}, nil
 }
 
 func (r *Repository) CountAlbumsByUser(ctx context.Context, userID int32) (int64, error) {
@@ -614,16 +625,4 @@ func (r *Repository) UpdateAlbum(ctx context.Context, albumId int32, userID int3
 
 func (r *Repository) DeleteAlbum(ctx context.Context, albumId int32) error {
 	return r.querier.DeleteAlbum(ctx, albumId)
-}
-
-func toDomainAlbum(album GetAlbumByIdRow) domain.Album {
-	return domain.Album{
-		ID:           album.ID,
-		UserID:       album.UserID,
-		Title:        album.Title,
-		CoverPhotoID: nullInt32Ptr(album.CoverPhotoID),
-		NumPhotos:    album.NumPhotos,
-		CreatedAt:    album.CreatedAt,
-		UpdatedAt:    album.UpdatedAt,
-	}
 }
