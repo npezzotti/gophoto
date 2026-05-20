@@ -1,7 +1,10 @@
 package web
 
 import (
+	"context"
 	"net/http"
+
+	"github.com/npezzotti/gophoto/internal/domain"
 )
 
 // isAuthenticated checks if the user is authenticated by looking for the IsAuthenticatedContextKey in the request context.
@@ -11,4 +14,9 @@ func isAuthenticated(r *http.Request) bool {
 	}
 
 	return false
+}
+
+func extractUserFromContext(ctx context.Context) (*domain.UserPresentation, bool) {
+	user, ok := ctx.Value(AuthenticatedUserContextKey).(*domain.UserPresentation)
+	return user, ok
 }

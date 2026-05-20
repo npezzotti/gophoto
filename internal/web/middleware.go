@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -26,22 +27,21 @@ func setupMiddleware(handler http.Handler, mw ...middleware) http.Handler {
 
 func (a *application) authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userId := a.sessionManager.GetInt32(r.Context(), SessionKeyUserID)
-		if userId == 0 {
+		userID := a.sessionManager.GetInt32(r.Context(), SessionKeyUserID)
+		if userID == 0 {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		exists, err := a.userService.UserExists(r.Context(), userId)
+		user, err := a.userService.GetUserByID(r.Context(), userID)
 		if err != nil {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		if exists {
-			ctxIsAuth := context.WithValue(r.Context(), IsAuthenticatedContextKey, true)
-			ctx := context.WithValue(ctxIsAuth, AuthenticatedUserId, userId)
-
+		if user != nil {
+			ctx := context.WithValue(r.Context(), IsAuthenticatedContextKey, true)
+			ctx = context.WithValue(ctx, AuthenticatedUserContextKey, user)
 			r = r.WithContext(ctx)
 		}
 
@@ -84,7 +84,7 @@ func noSurf(next http.Handler) http.Handler {
 // validatePresignedURL is a middleware that validates the presigned URL for accessing uploads.
 func (a *application) validatePresignedURL(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !a.validUrl(r) {
+		if !validPresignedURL(r.URL, a.config.SigningKey) {
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 			return
 		}
@@ -93,8 +93,9 @@ func (a *application) validatePresignedURL(next http.Handler) http.Handler {
 	})
 }
 
-func (a *application) validUrl(r *http.Request) bool {
-	queryParams := r.URL.Query()
+// validPresignedURL is a helper function that validates the presigned URL by checking the expiry and signature.
+func validPresignedURL(url *url.URL, signingKey []byte) bool {
+	queryParams := url.Query()
 	expiryStr := queryParams.Get("expires")
 	b64signature := queryParams.Get("signature")
 
@@ -116,7 +117,7 @@ func (a *application) validUrl(r *http.Request) bool {
 		return false
 	}
 
-	message := store.CreateMessage(r.URL.Path, expiry)
+	message := store.CreateMessage(url.Path, expiry)
 
-	return store.VerifySignature(message, receivedSig, a.config.SigningKey)
+	return store.VerifySignature(message, receivedSig, signingKey)
 }

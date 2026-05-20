@@ -3,8 +3,6 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -13,7 +11,6 @@ import (
 	"github.com/alexedwards/scs/v2"
 	"github.com/npezzotti/gophoto/internal/config"
 	"github.com/npezzotti/gophoto/internal/db"
-	"github.com/npezzotti/gophoto/internal/domain"
 	"github.com/npezzotti/gophoto/internal/service"
 	"github.com/npezzotti/gophoto/pkg/store"
 	"github.com/npezzotti/gophoto/pkg/template"
@@ -23,8 +20,8 @@ import (
 type ContextKey string
 
 const (
-	AuthenticatedUserId       = ContextKey("authenticatedUserId")
-	IsAuthenticatedContextKey = ContextKey("isAuthenticated")
+	AuthenticatedUserContextKey = ContextKey("authenticatedUser")
+	IsAuthenticatedContextKey   = ContextKey("isAuthenticated")
 )
 
 const (
@@ -112,36 +109,6 @@ func (a *application) routes() *http.ServeMux {
 	}
 
 	return mux
-}
-
-// Authenticate and extract user
-func (a *application) authenticateRequest(r *http.Request) (*domain.UserResponse, error) {
-	if !isAuthenticated(r) {
-		return nil, fmt.Errorf("not authenticated")
-	}
-
-	user := a.extractUserFromRequest(r)
-	if user == nil {
-		return nil, fmt.Errorf("user not found")
-	}
-
-	return user, nil
-}
-
-// extractUserFromRequest retrieves the authenticated user's details from the request context.
-func (a *application) extractUserFromRequest(r *http.Request) *domain.UserResponse {
-	if userId, ok := r.Context().Value(AuthenticatedUserId).(int32); ok {
-		userResp, err := a.userService.GetUserByID(r.Context(), userId)
-		if err != nil {
-			if !errors.Is(err, domain.ErrUserNotFound) {
-				a.ErrorLog.Printf("error querying user: %s", err.Error())
-			}
-			return nil
-		}
-		return userResp
-	}
-
-	return nil
 }
 
 // writeJsonResp writes the provided data as a JSON response with the specified HTTP status code.

@@ -172,8 +172,8 @@ func (a *application) profileHandler(w http.ResponseWriter, r *http.Request) {
 func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		user := a.extractUserFromRequest(r)
-		if user == nil {
+		user, ok := extractUserFromContext(r.Context())
+		if !ok {
 			a.flash(r.Context(), "User not found.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
@@ -211,8 +211,8 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		user := a.extractUserFromRequest(r)
-		if user == nil {
+		user, ok := extractUserFromContext(r.Context())
+		if !ok {
 			a.flash(r.Context(), "User not found.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
@@ -238,8 +238,8 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 func (a *application) deleteAccountHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		user := a.extractUserFromRequest(r)
-		if user == nil {
+		user, ok := extractUserFromContext(r.Context())
+		if !ok {
 			a.flash(r.Context(), "User not found.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
@@ -248,7 +248,7 @@ func (a *application) deleteAccountHandler(w http.ResponseWriter, r *http.Reques
 		// Delete user account. This cascades to delete all albums and album_photos entries. Photos are not immediately deleted,
 		// but will be cleaned up by the storage cleaner worker.
 		if err := a.userService.DeleteUser(r.Context(), user.ID); err != nil {
-			a.ErrorLog.Println("error deleting user:", err)
+			a.ErrorLog.Printf("error deleting user with ID %d: %v", user.ID, err)
 			a.flash(r.Context(), "Error deleting account. Please try again.", flashErr)
 			http.Redirect(w, r, "/profile", http.StatusSeeOther)
 			return

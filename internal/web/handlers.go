@@ -18,8 +18,8 @@ const (
 func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		user := a.extractUserFromRequest(r)
-		if user == nil {
+		user, ok := extractUserFromContext(r.Context())
+		if !ok {
 			a.flash(r.Context(), "User not found.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
@@ -106,8 +106,8 @@ func (a *application) createAlbumHandler(w http.ResponseWriter, r *http.Request)
 			}
 		}
 
-		user := a.extractUserFromRequest(r)
-		if user == nil {
+		user, ok := extractUserFromContext(r.Context())
+		if !ok {
 			a.flash(r.Context(), "User not found.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
@@ -163,8 +163,8 @@ func (a *application) updateAlbumHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		user := a.extractUserFromRequest(r)
-		if user == nil {
+		user, ok := extractUserFromContext(r.Context())
+		if !ok {
 			a.flash(r.Context(), "User not found.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
@@ -225,8 +225,8 @@ func (a *application) deleteAlbumHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	user := a.extractUserFromRequest(r)
-	if user == nil {
+	user, ok := extractUserFromContext(r.Context())
+	if !ok {
 		a.flash(r.Context(), "User not found.", flashErr)
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
@@ -255,9 +255,13 @@ func (a *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	user, err := a.authenticateRequest(r)
-	if err != nil {
-		a.ErrorLog.Printf("authentication error: %v", err)
+	if !isAuthenticated(r) {
+		a.writeJsonErrorResp(w, http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
+		return
+	}
+
+	user, ok := extractUserFromContext(r.Context())
+	if !ok {
 		a.writeJsonErrorResp(w, http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
 		return
 	}
@@ -335,8 +339,13 @@ func (a *application) photoStatusHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	user, err := a.authenticateRequest(r)
-	if err != nil {
+	if !isAuthenticated(r) {
+		a.writeJsonErrorResp(w, http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
+		return
+	}
+
+	user, ok := extractUserFromContext(r.Context())
+	if !ok {
 		a.writeJsonErrorResp(w, http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
 		return
 	}
@@ -401,8 +410,8 @@ func (a *application) deletePhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	user := a.extractUserFromRequest(r)
-	if user == nil {
+	user, ok := extractUserFromContext(r.Context())
+	if !ok {
 		a.flash(r.Context(), "User not found.", flashErr)
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return

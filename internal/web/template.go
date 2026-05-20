@@ -19,7 +19,7 @@ const (
 type templateData struct {
 	Form                 forms.Form
 	Flash                *Flash
-	User                 *domain.UserResponse
+	User                 *domain.UserPresentation
 	Albums               []*domain.AlbumListItem
 	Album                domain.Album
 	Images               []domain.ResponsiveImage
@@ -33,12 +33,12 @@ func (a *application) generateTemplateData(r *http.Request) *templateData {
 		CSRFToken: nosurf.Token(r),
 	}
 
-	user := a.extractUserFromRequest(r)
-	if user != nil {
+	ctx := r.Context()
+	if user, ok := extractUserFromContext(ctx); ok {
 		td.User = user
 	}
 
-	flash, ok := a.sessionManager.Pop(r.Context(), sessionKeyFlash).(Flash)
+	flash, ok := a.sessionManager.Pop(ctx, sessionKeyFlash).(Flash)
 	if ok {
 		td.Flash = &flash
 	}
