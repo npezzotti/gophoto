@@ -2,10 +2,21 @@ package web
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/npezzotti/gophoto/internal/domain"
 )
+
+func Test__isAuthenticated(t *testing.T) {
+	r := &http.Request{}
+	r = r.WithContext(context.Background())
+	r = r.WithContext(context.WithValue(r.Context(), IsAuthenticatedContextKey, true))
+
+	if !isAuthenticated(r) {
+		t.Fatal("expected isAuthenticated to return true for request with no context, but got false")
+	}
+}
 
 func Test__extractUserFromContext(t *testing.T) {
 	ctx := context.Background()

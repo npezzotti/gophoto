@@ -19,13 +19,12 @@ type UserPresentation struct {
 }
 
 type User struct {
-	ID                int32
-	FirstName         string
-	LastName          string
-	Email             string
-	PasswordHash      string
-	ProfilePictureID  *int32
-	ProfilePictureKey *string
+	ID               int32
+	FirstName        string
+	LastName         string
+	Email            string
+	PasswordHash     string
+	ProfilePictureID *int32
 }
 
 type UserUpdateParams struct {

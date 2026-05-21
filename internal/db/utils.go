@@ -20,15 +20,6 @@ func nullInt64Ptr(value sql.NullInt64) *int64 {
 	return &v
 }
 
-func nullStringPtr(value sql.NullString) *string {
-	if !value.Valid {
-		return nil
-	}
-
-	v := value.String
-	return &v
-}
-
 func ptrToNullInt64(value *int64) sql.NullInt64 {
 	if value == nil {
 		return sql.NullInt64{}

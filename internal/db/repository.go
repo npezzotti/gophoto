@@ -442,13 +442,12 @@ func (r *Repository) GetUserById(ctx context.Context, id int32) (domain.User, er
 	}
 
 	return domain.User{
-		ID:                user.ID,
-		FirstName:         user.FirstName,
-		LastName:          user.LastName,
-		Email:             user.Email,
-		PasswordHash:      user.PasswordHash,
-		ProfilePictureID:  nullInt32Ptr(user.ProfilePictureID),
-		ProfilePictureKey: nullStringPtr(user.ProfilePictureKey),
+		ID:               user.ID,
+		FirstName:        user.FirstName,
+		LastName:         user.LastName,
+		Email:            user.Email,
+		PasswordHash:     user.PasswordHash,
+		ProfilePictureID: nullInt32Ptr(user.ProfilePictureID),
 	}, nil
 }
 

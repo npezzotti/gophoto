@@ -16,48 +16,56 @@ import (
 
 type UserService struct {
 	repo   db.UserRepository
+	photos db.PhotoRepository
 	store  store.Store
 	config *config.Config
 }
 
-func NewUserService(r db.UserRepository, s store.Store, c *config.Config) *UserService {
-	return &UserService{repo: r, store: s, config: c}
+func NewUserService(r db.UserRepository, p db.PhotoRepository, s store.Store, c *config.Config) *UserService {
+	return &UserService{repo: r, photos: p, store: s, config: c}
 }
 
 func (s *UserService) newUserResponse(ctx context.Context, user domain.User) *domain.UserPresentation {
 	var sources []domain.ImageSource
 	var defaultSrc string
-	if user.ProfilePictureKey != nil && user.ProfilePictureID != nil {
-		meta, err := s.repo.GetPhotoMetadataByPhotoID(ctx, *user.ProfilePictureID)
-		if err != nil {
-			return nil
+
+	if user.ProfilePictureID != nil {
+		// Attempt to fetch the photo key for the user's profile picture.
+		var photoKey string
+		photo, err := s.photos.GetPhoto(ctx, *user.ProfilePictureID)
+		if err == nil {
+			photoKey = photo.Key
 		}
 
-		for _, m := range meta {
-			// Skip original variant as it's not meant to be directly served
-			if m.Variant == domain.PhotoVariantOriginal {
-				continue
-			}
-
-			path, err := utils.BuildPhotoPathForVariant(*user.ProfilePictureKey, m.Variant, utils.MimeType(m.MimeType))
+		// We have the photo key, we can attempt to build the image sources. If any of these steps fail, 
+		// we can still return a valid response with default images, so we don't return an error here either.
+		if photoKey != "" {
+			meta, err := s.repo.GetPhotoMetadataByPhotoID(ctx, *user.ProfilePictureID)
 			if err != nil {
-				continue
+				return nil
 			}
-
-			url, err := s.store.GenerateURL(ctx, path)
-			if err != nil {
-				continue
-			}
-
-			sources = append(sources, domain.ImageSource{
-				Width:  m.Width,
-				Height: m.Height,
-				URL:    url,
-			})
-
-			// Set default source for medium variant
-			if m.Variant == domain.PhotoVariantMedium {
-				defaultSrc = url
+			for _, m := range meta {
+				// Skip original variant as it's not meant to be directly served
+				if m.Variant == domain.PhotoVariantOriginal {
+					continue
+				}
+				path, err := utils.BuildPhotoPathForVariant(photoKey, m.Variant, utils.MimeType(m.MimeType))
+				if err != nil {
+					continue
+				}
+				url, err := s.store.GenerateURL(ctx, path)
+				if err != nil {
+					continue
+				}
+				sources = append(sources, domain.ImageSource{
+					Width:  m.Width,
+					Height: m.Height,
+					URL:    url,
+				})
+				// Set default source for medium variant
+				if m.Variant == domain.PhotoVariantMedium {
+					defaultSrc = url
+				}
 			}
 		}
 	}
@@ -162,13 +170,12 @@ func (s *UserService) UpdateUser(ctx context.Context, userID int32, firstName, l
 	}
 
 	resp := s.newUserResponse(ctx, domain.User{
-		ID:                updatedUser.ID,
-		FirstName:         updatedUser.FirstName,
-		LastName:          updatedUser.LastName,
-		Email:             updatedUser.Email,
-		PasswordHash:      updatedUser.PasswordHash,
-		ProfilePictureID:  updatedUser.ProfilePictureID,
-		ProfilePictureKey: dbUser.ProfilePictureKey,
+		ID:               updatedUser.ID,
+		FirstName:        updatedUser.FirstName,
+		LastName:         updatedUser.LastName,
+		Email:            updatedUser.Email,
+		PasswordHash:     updatedUser.PasswordHash,
+		ProfilePictureID: updatedUser.ProfilePictureID,
 	})
 	if resp == nil {
 		return nil, fmt.Errorf("error preparing updated user response")
