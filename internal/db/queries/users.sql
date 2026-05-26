@@ -10,13 +10,6 @@ LEFT JOIN photos p ON u.profile_picture_id = p.id
 WHERE u.id = $1
 LIMIT 1;
 
--- name: UserExists :one
-SELECT EXISTS(
-  SELECT 1
-  FROM users
-  WHERE id = $1
-);
-
 -- name: CreateUser :one
 INSERT INTO users (
   first_name, last_name, email, password_hash

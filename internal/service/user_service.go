@@ -37,7 +37,7 @@ func (s *UserService) newUserResponse(ctx context.Context, user domain.User) *do
 			photoKey = photo.Key
 		}
 
-		// We have the photo key, we can attempt to build the image sources. If any of these steps fail, 
+		// We have the photo key, we can attempt to build the image sources. If any of these steps fail,
 		// we can still return a valid response with default images, so we don't return an error here either.
 		if photoKey != "" {
 			meta, err := s.repo.GetPhotoMetadataByPhotoID(ctx, *user.ProfilePictureID)
@@ -189,10 +189,6 @@ func (s *UserService) DeleteUser(ctx context.Context, userID int32) error {
 		return fmt.Errorf("error deleting user: %w", err)
 	}
 	return nil
-}
-
-func (s *UserService) UserExists(ctx context.Context, userID int32) (bool, error) {
-	return s.repo.UserExists(ctx, userID)
 }
 
 func (s *UserService) Authenticate(hash, password string) (bool, error) {

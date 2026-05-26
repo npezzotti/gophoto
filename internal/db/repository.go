@@ -47,7 +47,6 @@ type UserRepository interface {
 	CreateUser(ctx context.Context, firstName, lastName, email, passwordHash string) (domain.User, error)
 	UpdateUser(ctx context.Context, params domain.UserUpdateParams) (domain.User, error)
 	DeleteUser(ctx context.Context, userID int32) error
-	UserExists(ctx context.Context, userID int32) (bool, error)
 	GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]domain.PhotoMetadatum, error)
 }
 
@@ -468,10 +467,6 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (domain.U
 		PasswordHash:     user.PasswordHash,
 		ProfilePictureID: nullInt32Ptr(user.ProfilePictureID),
 	}, nil
-}
-
-func (r *Repository) UserExists(ctx context.Context, userID int32) (bool, error) {
-	return r.querier.UserExists(ctx, userID)
 }
 
 func (r *Repository) CreateUser(ctx context.Context, firstName, lastName, email, passwordHash string) (domain.User, error) {
