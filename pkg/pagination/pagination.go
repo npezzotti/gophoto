@@ -10,6 +10,7 @@ var (
 	DefaultLimit = 12
 )
 
+// Pagination struct represents the pagination information for a collection of items.
 type Pagination struct {
 	Limit      int
 	Page       int
@@ -17,6 +18,7 @@ type Pagination struct {
 	TotalPages int
 }
 
+// NewPagination creates a new Pagination instance with the provided page, limit, and total values.
 func NewPagination(page, limit, total int) *Pagination {
 	if page < 1 {
 		page = DefaultPage
@@ -38,6 +40,8 @@ func NewPagination(page, limit, total int) *Pagination {
 	return paginator
 }
 
+// NewPaginationFromRequest creates a new Pagination instance based on the
+// query parameters in the provided HTTP request.
 func NewPaginationFromRequest(r *http.Request, total int) *Pagination {
 	page := parseInt(r.URL.Query().Get("page"), DefaultPage)
 	limit := parseInt(r.URL.Query().Get("limit"), DefaultLimit)
@@ -94,14 +98,17 @@ func (p *Pagination) AdjacentPages() []int {
 	return pages
 }
 
+// HasNext returns a boolean indicating whether there is a next page available.
 func (p *Pagination) HasNext() bool {
 	return p.Page < p.TotalPages
 }
 
+// HasPrev returns a boolean indicating whether there is a previous page available.
 func (p *Pagination) HasPrev() bool {
 	return p.Page > 1
 }
 
+// NextPage returns the next page number for pagination.
 func (p *Pagination) NextPage() int {
 	if p.HasNext() {
 		return p.Page + 1
@@ -110,6 +117,7 @@ func (p *Pagination) NextPage() int {
 	return p.Page
 }
 
+// PrevPage returns the previous page number for pagination.
 func (p *Pagination) PrevPage() int {
 	if p.HasPrev() {
 		return p.Page - 1
@@ -118,6 +126,9 @@ func (p *Pagination) PrevPage() int {
 	return p.Page
 }
 
+// Offset calculates the offset for database queries
+// based on the current page and limit.
+// It returns the number of items to skip for the current page.
 func (p *Pagination) Offset() int {
 	return (p.Page - 1) * p.Limit
 }
