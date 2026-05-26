@@ -5,7 +5,7 @@ import (
 	"strconv"
 )
 
-var (
+const (
 	DefaultPage  = 1
 	DefaultLimit = 12
 )
