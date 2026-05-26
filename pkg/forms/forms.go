@@ -63,7 +63,7 @@ func (sf *SignupForm) Validate() bool {
 		sf.Errors["Password"] = "Password required"
 	}
 
-	if sf.Password != sf.ConfirmPassword {
+	if sf.Password != "" && sf.Password != sf.ConfirmPassword {
 		sf.Errors["ConfirmPassword"] = "Passwords do not match"
 	}
 
@@ -98,7 +98,7 @@ func (epf *EditProfileForm) Validate() bool {
 		}
 	}
 
-	if epf.Password != epf.ConfirmPassword {
+	if epf.Password != "" && epf.Password != epf.ConfirmPassword {
 		epf.Errors["ConfirmPassword"] = "Passwords do not match"
 	}
 
