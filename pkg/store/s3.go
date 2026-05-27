@@ -56,7 +56,7 @@ func (s *S3Store) GenerateURL(ctx context.Context, path string) (string, error) 
 
 	})
 	if err != nil {
-		return "", fmt.Errorf("error creating presign request: %w", err)
+		return "", fmt.Errorf("error creating presign request for path %q: %w", path, err)
 	}
 
 	return request.URL, nil
@@ -69,7 +69,7 @@ func (s *S3Store) Write(ctx context.Context, path string, file io.Reader) error 
 		Body:   file,
 	})
 	if err != nil {
-		return fmt.Errorf("error uploading file: %w", err)
+		return fmt.Errorf("error uploading file with path %q: %w", path, err)
 	}
 
 	return nil
@@ -80,8 +80,11 @@ func (s *S3Store) Delete(ctx context.Context, path string) error {
 		Bucket: aws.String(s.BucketName),
 		Key:    aws.String(path),
 	})
+	if err != nil {
+		return fmt.Errorf("error deleting object with path %q: %w", path, err)
+	}
 
-	return err
+	return nil
 }
 
 func (s *S3Store) Read(ctx context.Context, path string) (io.ReadCloser, error) {
@@ -90,7 +93,7 @@ func (s *S3Store) Read(ctx context.Context, path string) (io.ReadCloser, error) 
 		Key:    aws.String(path),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error getting object from S3: %w", err)
+		return nil, fmt.Errorf("error getting object with path %q: %w", path, err)
 	}
 
 	return resp.Body, nil
