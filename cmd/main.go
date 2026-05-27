@@ -48,7 +48,10 @@ func main() {
 	case config.StorageTypeDisk:
 		photoStore, err = store.NewFileStore(cfg.BaseDir, cfg.SigningKey)
 	case config.StorageTypeS3:
-		photoStore = store.NewS3Store(cfg.BucketName)
+		photoStore, err = store.NewS3Store(cfg.BucketName)
+		if err != nil {
+			log.Fatalln("error creating S3 store:", err)
+		}
 	default:
 		log.Fatal("storage type not supported")
 	}
