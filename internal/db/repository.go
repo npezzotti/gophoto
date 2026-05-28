@@ -490,7 +490,11 @@ func (r *Repository) UpdateUser(ctx context.Context, user domain.UserUpdateParam
 }
 
 func (r *Repository) DeleteUser(ctx context.Context, userID int32) error {
-	return r.querier.DeleteUser(ctx, userID)
+	err := r.querier.DeleteUser(ctx, userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrUserNotFound
+	}
+	return err
 }
 
 func (r *Repository) GetAlbumByID(ctx context.Context, id int32) (domain.Album, error) {

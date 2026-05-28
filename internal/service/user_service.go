@@ -141,7 +141,7 @@ func (s *UserService) CreateUser(ctx context.Context, firstName, lastName, email
 }
 
 func (s *UserService) UpdateUser(ctx context.Context, userID int32, firstName, lastName, email, password string) (*domain.UserPresentation, error) {
-	dbUser, err := s.repo.GetUserById(ctx, userID)
+	user, err := s.repo.GetUserById(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching user for update: %w", err)
 	}
@@ -154,7 +154,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userID int32, firstName, l
 		}
 		pwdHash = hash
 	} else {
-		pwdHash = dbUser.PasswordHash
+		pwdHash = user.PasswordHash
 	}
 
 	updatedUser, err := s.repo.UpdateUser(ctx, domain.UserUpdateParams{
@@ -163,7 +163,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userID int32, firstName, l
 		LastName:         lastName,
 		Email:            email,
 		PasswordHash:     pwdHash,
-		ProfilePictureID: dbUser.ProfilePictureID,
+		ProfilePictureID: user.ProfilePictureID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error updating user: %w", err)
@@ -186,6 +186,9 @@ func (s *UserService) UpdateUser(ctx context.Context, userID int32, firstName, l
 
 func (s *UserService) DeleteUser(ctx context.Context, userID int32) error {
 	if err := s.repo.DeleteUser(ctx, userID); err != nil {
+		if errors.Is(err, db.ErrUserNotFound) {
+			return domain.ErrUserNotFound
+		}
 		return fmt.Errorf("error deleting user: %w", err)
 	}
 	return nil
