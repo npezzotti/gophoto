@@ -171,34 +171,6 @@ func (a *application) deleteAlbumHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	id_str := r.URL.Query().Get("id")
-	if id_str == "" {
-		a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
-		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
-		return
-	}
-
-	id, err := strconv.Atoi(id_str)
-	if err != nil {
-		a.ErrorLog.Println("error converting string to int", err)
-		a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
-		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
-		return
-	}
-
-	album, err := a.albumService.GetAlbumByID(r.Context(), int32(id))
-	if err != nil {
-		var flashMsg string
-		if errors.Is(err, domain.ErrAlbumNotFound) {
-			flashMsg = http.StatusText(http.StatusNotFound)
-		} else {
-			flashMsg = http.StatusText(http.StatusInternalServerError)
-		}
-		a.flash(r.Context(), flashMsg, flashErr)
-		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
-		return
-	}
-
 	user, ok := extractUserFromContext(r.Context())
 	if !ok {
 		a.flash(r.Context(), "User not found.", flashErr)
@@ -206,7 +178,21 @@ func (a *application) deleteAlbumHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := a.albumService.DeleteAlbum(r.Context(), int32(album.ID), user.ID); err != nil {
+	albumIDStr := r.URL.Query().Get("id")
+	if albumIDStr == "" {
+		a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
+		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
+		return
+	}
+	albumID, err := strconv.Atoi(albumIDStr)
+	if err != nil {
+		a.ErrorLog.Println("error converting string to int", err)
+		a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
+		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
+		return
+	}
+
+	if err := a.albumService.DeleteAlbum(r.Context(), int32(albumID), user.ID); err != nil {
 		if errors.Is(err, domain.ErrAlbumNotFound) {
 			a.flash(r.Context(), http.StatusText(http.StatusNotFound), flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
@@ -218,7 +204,7 @@ func (a *application) deleteAlbumHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	a.flash(r.Context(), fmt.Sprintf("Successfully deleted album %q.", album.Title), flashInfo)
+	a.flash(r.Context(), fmt.Sprintf("Successfully deleted album with ID %d.", albumID), flashInfo)
 	http.Redirect(w, r, "/albums", http.StatusSeeOther)
 }
 
