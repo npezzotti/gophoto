@@ -323,30 +323,23 @@ func (a *application) photoStatusHandler(w http.ResponseWriter, r *http.Request)
 	a.writeJsonResp(w, http.StatusOK, map[string]string{"status": string(photo.Status)})
 }
 
-func (a *application) deletePhotoHandler(w http.ResponseWriter, r *http.Request) {
+func (a *application) deleteAlbumPhotoHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 		return
 	}
 
-	id_str := r.URL.Query().Get("id")
-	if id_str == "" {
+	photoIDStr := r.URL.Query().Get("id")
+	if photoIDStr == "" {
 		a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 		return
 	}
 
-	id, err := strconv.Atoi(id_str)
+	albumPhotoID, err := strconv.Atoi(photoIDStr)
 	if err != nil {
 		a.ErrorLog.Println("error parsing id:", err)
 		a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
-		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
-		return
-	}
-
-	photo, err := a.photoService.GetAlbumPhoto(r.Context(), int32(id))
-	if err != nil {
-		a.flash(r.Context(), http.StatusText(http.StatusNotFound), flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 		return
 	}
@@ -358,15 +351,9 @@ func (a *application) deletePhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Ensure photo belongs to user
-	if photo.UserID == nil || *photo.UserID != user.ID {
-		a.flash(r.Context(), http.StatusText(http.StatusNotFound), flashErr)
-		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
-		return
-	}
-
 	// Set album_id to null to mark photo for deletion by storage cleanup worker
-	if err := a.photoService.RemovePhotoFromAlbum(r.Context(), photo.AlbumID, photo.ID); err != nil {
+	albumPhoto, err := a.photoService.RemovePhotoFromAlbum(r.Context(), int32(albumPhotoID), user.ID)
+	if err != nil {
 		a.ErrorLog.Println("error removing photo from album:", err)
 		a.flash(r.Context(), http.StatusText(http.StatusInternalServerError), flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
@@ -374,7 +361,7 @@ func (a *application) deletePhotoHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	a.flash(r.Context(), "Photo successfully deleted.", flashInfo)
-	http.Redirect(w, r, fmt.Sprintf("/albums?id=%d", photo.AlbumID), http.StatusSeeOther)
+	http.Redirect(w, r, fmt.Sprintf("/albums?id=%d", albumPhoto.AlbumID), http.StatusSeeOther)
 }
 
 func (a *application) aboutHandler(w http.ResponseWriter, r *http.Request) {

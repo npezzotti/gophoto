@@ -91,7 +91,7 @@ func (a *application) routes() *http.ServeMux {
 	mux.Handle("/albums/edit", a.protected(http.HandlerFunc(a.updateAlbumHandler)))
 	mux.Handle("/albums/delete", a.protected(http.HandlerFunc(a.deleteAlbumHandler)))
 	mux.Handle("/albums/new", a.protected(http.HandlerFunc(a.createAlbumHandler)))
-	mux.Handle("/photo/delete", a.protected(http.HandlerFunc(a.deletePhotoHandler)))
+	mux.Handle("/photo/delete", a.protected(http.HandlerFunc(a.deleteAlbumPhotoHandler)))
 	mux.Handle("/photos", http.HandlerFunc(a.uploadPhotoHandler))
 	mux.Handle("/photos/status", http.HandlerFunc(a.photoStatusHandler))
 	mux.Handle("/login", http.HandlerFunc(a.loginHandler))

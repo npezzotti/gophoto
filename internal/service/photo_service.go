@@ -134,11 +134,21 @@ func (s *PhotoService) CreateUserPhotoWithOriginalMetadata(ctx context.Context, 
 	return photo, nil
 }
 
-func (s *PhotoService) RemovePhotoFromAlbum(ctx context.Context, albumId int32, photoId int32) error {
-	if err := s.photoRepo.RemovePhotoFromAlbum(ctx, albumId, photoId); err != nil {
-		return fmt.Errorf("error removing photo from album: %w", err)
+func (s *PhotoService) RemovePhotoFromAlbum(ctx context.Context, photoID, userID int32) (domain.AlbumPhoto, error) {
+	albumPhoto, err := s.GetAlbumPhoto(ctx, photoID)
+	if err != nil {
+		return domain.AlbumPhoto{}, fmt.Errorf("error getting album photo: %w", err)
 	}
-	return nil
+
+	if albumPhoto.UserID == nil || *albumPhoto.UserID != userID {
+		return domain.AlbumPhoto{}, domain.ErrPhotoNotFound
+	}
+
+	albumPhoto, err = s.photoRepo.RemovePhotoFromAlbum(ctx, albumPhoto.AlbumID, photoID)
+	if err != nil {
+		return domain.AlbumPhoto{}, fmt.Errorf("error removing photo from album: %w", err)
+	}
+	return albumPhoto, nil
 }
 
 func (s *PhotoService) processUploadedFile(f multipart.File, fh *multipart.FileHeader) ([]byte, utils.MimeType, bimg.ImageSize, error) {
