@@ -16,6 +16,7 @@ func isAuthenticated(r *http.Request) bool {
 	return false
 }
 
+// extractUserFromContext retrieves the authenticated user from the request context.
 func extractUserFromContext(ctx context.Context) (*domain.UserPresentation, bool) {
 	user, ok := ctx.Value(AuthenticatedUserContextKey).(*domain.UserPresentation)
 	return user, ok
