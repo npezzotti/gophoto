@@ -126,10 +126,15 @@ func (s *AlbumService) ListAlbumsByUser(ctx context.Context, userID int32, limit
 }
 
 func (s *AlbumService) CreateAlbum(ctx context.Context, userID int32, title string) (domain.Album, error) {
+	if title == "" {
+		return domain.Album{}, fmt.Errorf("album title cannot be empty")
+	}
+
 	dbAlbum, err := s.repo.CreateAlbum(ctx, userID, title)
 	if err != nil {
-		return domain.Album{}, err
+		return domain.Album{}, fmt.Errorf("error creating album: %w", err)
 	}
+
 	return domain.Album{
 		ID:           dbAlbum.ID,
 		UserID:       dbAlbum.UserID,
@@ -139,17 +144,35 @@ func (s *AlbumService) CreateAlbum(ctx context.Context, userID int32, title stri
 	}, nil
 }
 
-func (s *AlbumService) UpdateAlbum(ctx context.Context, albumId int32, userID int32, title string, coverPhotoID *int32) (domain.Album, error) {
-	album, err := s.repo.UpdateAlbum(ctx, albumId, userID, title, coverPhotoID)
+func (s *AlbumService) UpdateAlbum(ctx context.Context, albumID int32, userID int32, title string, coverPhotoID *int32) (domain.Album, error) {
+	album, err := s.repo.GetAlbumByID(ctx, albumID)
 	if err != nil {
-		return domain.Album{}, err
+		return domain.Album{}, fmt.Errorf("error getting album with ID %d: %w", albumID, err)
 	}
-	return album, nil
+
+	if album.UserID != userID {
+		return domain.Album{}, domain.ErrAlbumNotFound
+	}
+
+	updatedAlbum, err := s.repo.UpdateAlbum(ctx, albumID, userID, title, coverPhotoID)
+	if err != nil {
+		return domain.Album{}, fmt.Errorf("error updating album with ID %d: %w", album.ID, err)
+	}
+	return updatedAlbum, nil
 }
 
-func (s *AlbumService) DeleteAlbum(ctx context.Context, albumId int32) error {
-	if err := s.repo.DeleteAlbum(ctx, albumId); err != nil {
-		return err
+func (s *AlbumService) DeleteAlbum(ctx context.Context, albumID, userID int32) error {
+	album, err := s.repo.GetAlbumByID(ctx, albumID)
+	if err != nil {
+		return fmt.Errorf("error getting album with ID %d: %w", albumID, err)
+	}
+
+	if album.UserID != userID {
+		return domain.ErrAlbumNotFound
+	}
+
+	if err := s.repo.DeleteAlbum(ctx, albumID); err != nil {
+		return fmt.Errorf("error deleting album with ID %d: %w", album.ID, err)
 	}
 	return nil
 }

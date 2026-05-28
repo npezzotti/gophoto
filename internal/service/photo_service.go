@@ -26,7 +26,8 @@ const (
 )
 
 type PhotoService struct {
-	repo        db.PhotoRepository
+	photoRepo   db.PhotoRepository
+	albumRepo   db.AlbumRepository
 	store       store.Store
 	redisClient queuePublisher
 }
@@ -35,12 +36,12 @@ type queuePublisher interface {
 	Publish(ctx context.Context, channel string, message interface{}) *redis.IntCmd
 }
 
-func NewPhotoService(repo db.PhotoRepository, store store.Store, redisClient queuePublisher) *PhotoService {
-	return &PhotoService{repo: repo, store: store, redisClient: redisClient}
+func NewPhotoService(photoRepo db.PhotoRepository, albumRepo db.AlbumRepository, store store.Store, redisClient queuePublisher) *PhotoService {
+	return &PhotoService{photoRepo: photoRepo, albumRepo: albumRepo, store: store, redisClient: redisClient}
 }
 
 func (s *PhotoService) GetPhoto(ctx context.Context, id int32) (domain.Photo, error) {
-	photo, err := s.repo.GetPhoto(ctx, id)
+	photo, err := s.photoRepo.GetPhoto(ctx, id)
 	if err != nil {
 		return domain.Photo{}, fmt.Errorf("error getting photo: %w", err)
 	}
@@ -48,7 +49,7 @@ func (s *PhotoService) GetPhoto(ctx context.Context, id int32) (domain.Photo, er
 }
 
 func (s *PhotoService) GetAlbumPhoto(ctx context.Context, id int32) (domain.AlbumPhoto, error) {
-	photo, err := s.repo.GetAlbumPhoto(ctx, id)
+	photo, err := s.photoRepo.GetAlbumPhoto(ctx, id)
 	if err != nil {
 		return domain.AlbumPhoto{}, fmt.Errorf("error getting album photo: %w", err)
 	}
@@ -56,7 +57,7 @@ func (s *PhotoService) GetAlbumPhoto(ctx context.Context, id int32) (domain.Albu
 }
 
 func (s *PhotoService) GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]domain.PhotoMetadatum, error) {
-	metadata, err := s.repo.GetPhotoMetadataByPhotoID(ctx, photoId)
+	metadata, err := s.photoRepo.GetPhotoMetadataByPhotoID(ctx, photoId)
 	if err != nil {
 		return nil, fmt.Errorf("error getting photo metadata: %w", err)
 	}
@@ -64,13 +65,22 @@ func (s *PhotoService) GetPhotoMetadataByPhotoID(ctx context.Context, photoId in
 }
 
 func (s *PhotoService) CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, f multipart.File, fh *multipart.FileHeader, userID int32, albumID int32) (domain.Photo, error) {
+	album, err := s.albumRepo.GetAlbumByID(ctx, albumID)
+	if err != nil {
+		return domain.Photo{}, fmt.Errorf("error getting album: %w", err)
+	}
+
+	if album.UserID != userID {
+		return domain.Photo{}, domain.ErrAlbumNotFound
+	}
+
 	buf, fileType, meta, err := s.processUploadedFile(f, fh)
 	if err != nil {
 		return domain.Photo{}, fmt.Errorf("error processing uploaded file: %w", err)
 	}
 
 	key := uuid.New().String()
-	photo, err := s.repo.CreateAlbumPhotoWithOriginalMetadata(ctx, albumID, domain.CreatePhotoWithOriginalMetadataParams{
+	photo, err := s.photoRepo.CreateAlbumPhotoWithOriginalMetadata(ctx, albumID, domain.CreatePhotoWithOriginalMetadataParams{
 		UserID:   &userID,
 		Key:      key,
 		Width:    int32(meta.Width),
@@ -101,7 +111,7 @@ func (s *PhotoService) CreateUserPhotoWithOriginalMetadata(ctx context.Context, 
 
 	key := uuid.New().String()
 	fileSize := int64(len(buf))
-	photo, err := s.repo.CreateUserPhotoWithOriginalMetadata(ctx, userID, domain.CreatePhotoWithOriginalMetadataParams{
+	photo, err := s.photoRepo.CreateUserPhotoWithOriginalMetadata(ctx, userID, domain.CreatePhotoWithOriginalMetadataParams{
 		UserID:   &userID,
 		Key:      key,
 		Width:    int32(meta.Width),
@@ -125,7 +135,7 @@ func (s *PhotoService) CreateUserPhotoWithOriginalMetadata(ctx context.Context, 
 }
 
 func (s *PhotoService) RemovePhotoFromAlbum(ctx context.Context, albumId int32, photoId int32) error {
-	if err := s.repo.RemovePhotoFromAlbum(ctx, albumId, photoId); err != nil {
+	if err := s.photoRepo.RemovePhotoFromAlbum(ctx, albumId, photoId); err != nil {
 		return fmt.Errorf("error removing photo from album: %w", err)
 	}
 	return nil

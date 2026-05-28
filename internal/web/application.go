@@ -59,7 +59,7 @@ func NewApplication(redisClient *redis.Client, cfg *config.Config, sess *scs.Ses
 		templateCache:  tc,
 		userService:    service.NewUserService(db, db, s, cfg),
 		albumService:   service.NewAlbumService(db, s, cfg),
-		photoService:   service.NewPhotoService(db, s, redisClient),
+		photoService:   service.NewPhotoService(db, db, s, redisClient),
 	}
 
 	app.InfoLog = log.New(os.Stdout, "[INFO] ", log.Default().Flags())
