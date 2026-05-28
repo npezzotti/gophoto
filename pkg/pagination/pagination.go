@@ -14,7 +14,6 @@ const (
 type Pagination struct {
 	Limit      int
 	Page       int
-	Total      int
 	TotalPages int
 }
 
@@ -28,25 +27,23 @@ func NewPagination(page, limit, total int) *Pagination {
 		limit = DefaultLimit
 	}
 
-	totalPages := (total + limit - 1) / limit
-
 	paginator := &Pagination{
-		Limit:      limit,
-		Page:       page,
-		Total:      total,
-		TotalPages: totalPages,
+		Limit: limit,
+		Page:  page,
 	}
+
+	paginator.SetTotal(total)
 
 	return paginator
 }
 
 // NewPaginationFromRequest creates a new Pagination instance based on the
-// query parameters in the provided HTTP request.
-func NewPaginationFromRequest(r *http.Request, total int) *Pagination {
+// page and limit query parameters in the provided HTTP request, with a default total of 0.
+func NewPaginationFromRequest(r *http.Request) *Pagination {
 	page := parseInt(r.URL.Query().Get("page"), DefaultPage)
 	limit := parseInt(r.URL.Query().Get("limit"), DefaultLimit)
 
-	return NewPagination(page, limit, total)
+	return NewPagination(page, limit, 0)
 }
 
 func parseInt(str string, defaultVal int) int {
@@ -59,6 +56,11 @@ func parseInt(str string, defaultVal int) int {
 	}
 
 	return defaultVal
+}
+
+// SetTotal sets the total number of pages based on the limit.
+func (p *Pagination) SetTotal(total int) {
+	p.TotalPages = (total + p.Limit - 1) / p.Limit
 }
 
 // AdjacentPages returns a slice of integers representing

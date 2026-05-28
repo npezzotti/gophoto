@@ -35,9 +35,6 @@ func TestNewPagination(t *testing.T) {
 			if tt.page > 0 && got.Page != tt.page {
 				t.Errorf("got %d current page, want %d", got.Page, tt.page)
 			}
-			if got.Total != tt.total {
-				t.Errorf("got %d total items, want %d", got.Total, tt.total)
-			}
 			if tt.page < 1 && got.Page != DefaultPage {
 				t.Errorf("got %d current page, want default %d", got.Page, DefaultPage)
 			}
@@ -104,13 +101,39 @@ func TestNewPaginationFromRequest(t *testing.T) {
 	for _, tt := range tcases {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", tt.query, nil)
-			pagination := NewPaginationFromRequest(req, 100)
+			pagination := NewPaginationFromRequest(req)
 
 			if pagination.Page != tt.page {
 				t.Errorf("got %d current page, want %d", pagination.Page, tt.page)
 			}
 			if pagination.Limit != tt.limit {
 				t.Errorf("got %d items per page, want %d", pagination.Limit, tt.limit)
+			}
+		})
+	}
+}
+
+func Test_Pagination_SetTotal(t *testing.T) {
+	tcases := []struct {
+		name      string
+		total     int
+		limit     int
+		wantPages int
+	}{
+		{
+			name:      "set total updates total pages",
+			total:     25,
+			limit:     12,
+			wantPages: 3,
+		},
+	}
+	for _, tt := range tcases {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewPagination(1, tt.limit, 0)
+			p.SetTotal(tt.total)
+
+			if p.TotalPages != tt.wantPages {
+				t.Errorf("got %d total pages, want %d", p.TotalPages, tt.wantPages)
 			}
 		})
 	}
