@@ -11,18 +11,6 @@ import (
 	"time"
 )
 
-const countAlbumsByUser = `-- name: CountAlbumsByUser :one
-SELECT COUNT(*) FROM albums
-WHERE user_id = $1
-`
-
-func (q *Queries) CountAlbumsByUser(ctx context.Context, userID int32) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countAlbumsByUser, userID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const createAlbum = `-- name: CreateAlbum :one
 INSERT INTO albums (
   user_id, title
@@ -131,6 +119,75 @@ type IncrementAlbumPhotoCountParams struct {
 func (q *Queries) IncrementAlbumPhotoCount(ctx context.Context, arg IncrementAlbumPhotoCountParams) error {
 	_, err := q.db.ExecContext(ctx, incrementAlbumPhotoCount, arg.ID, arg.UpdatedAt)
 	return err
+}
+
+const listAlbumPhotoViewRows = `-- name: ListAlbumPhotoViewRows :many
+WITH page_photos AS (
+  SELECT p.id, p.key, p.created_at
+  FROM photos p
+  JOIN album_photos ap ON ap.photo_id = p.id
+  WHERE ap.album_id = $1
+  ORDER BY p.created_at DESC, p.id DESC
+  LIMIT $2
+  OFFSET $3
+)
+SELECT
+  pp.id AS photo_id,
+  pp.key AS photo_key,
+  pm.variant,
+  pm.width,
+  pm.height,
+  pm.mime_type
+FROM page_photos pp
+LEFT JOIN photo_metadata pm ON pm.photo_id = pp.id
+ORDER BY
+  pp.created_at DESC,
+  pp.id DESC
+`
+
+type ListAlbumPhotoViewRowsParams struct {
+	AlbumID int32
+	Limit   int32
+	Offset  int32
+}
+
+type ListAlbumPhotoViewRowsRow struct {
+	PhotoID  int32
+	PhotoKey string
+	Variant  NullPhotoVariant
+	Width    sql.NullInt32
+	Height   sql.NullInt32
+	MimeType sql.NullString
+}
+
+func (q *Queries) ListAlbumPhotoViewRows(ctx context.Context, arg ListAlbumPhotoViewRowsParams) ([]ListAlbumPhotoViewRowsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAlbumPhotoViewRows, arg.AlbumID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAlbumPhotoViewRowsRow
+	for rows.Next() {
+		var i ListAlbumPhotoViewRowsRow
+		if err := rows.Scan(
+			&i.PhotoID,
+			&i.PhotoKey,
+			&i.Variant,
+			&i.Width,
+			&i.Height,
+			&i.MimeType,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAlbumsByUser = `-- name: ListAlbumsByUser :many

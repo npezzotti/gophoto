@@ -21,13 +21,24 @@ type Album struct {
 	UpdatedAt    time.Time
 }
 
-type AlbumListProjection struct {
-	Album         Album
-	CoverPhotoKey string
+type AlbumPageView struct {
+	Album       Album
+	Photos      []ResponsiveImage
+	TotalPhotos int32
+}
+
+type AlbumPhotoViewRow struct {
+	PhotoID  int32
+	PhotoKey string
+	Variant  PhotoVariant
+	Width    int32
+	Height   int32
+	MimeType string
 }
 
 type AlbumListItem struct {
 	Album           Album
+	CoverPhotoKey   string
 	AlbumCoverImage ResponsiveImage
 }
 

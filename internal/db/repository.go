@@ -19,7 +19,6 @@ var (
 type PhotoRepository interface {
 	GetPhoto(ctx context.Context, id int32) (domain.Photo, error)
 	GetAlbumPhoto(ctx context.Context, id int32) (domain.AlbumPhoto, error)
-	ListPhotosByAlbum(ctx context.Context, albumId int32, limit int32, offset int32) ([]domain.Photo, error)
 	GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]domain.PhotoMetadatum, error)
 	CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, albumID int32, cmd domain.CreatePhotoWithOriginalMetadataParams) (domain.Photo, error)
 	CreateUserPhotoWithOriginalMetadata(ctx context.Context, userID int32, cmd domain.CreatePhotoWithOriginalMetadataParams) (domain.Photo, error)
@@ -33,8 +32,8 @@ type PhotoRepository interface {
 
 type AlbumRepository interface {
 	GetAlbumByID(ctx context.Context, id int32) (domain.Album, error)
-	CountAlbumsByUser(ctx context.Context, userID int32) (int64, error)
-	ListAlbumsByUser(ctx context.Context, userID int32, limit, offset int32) ([]domain.AlbumListProjection, error)
+	ListAlbumsByUser(ctx context.Context, userID int32, limit, offset int32) ([]domain.AlbumListItem, error)
+	ListAlbumPhotoViewRows(ctx context.Context, albumID, limit, offset int32) ([]domain.AlbumPhotoViewRow, error)
 	GetPhotoMetadataByPhotoID(ctx context.Context, photoID int32) ([]domain.PhotoMetadatum, error)
 	CreateAlbum(ctx context.Context, userID int32, title string) (domain.Album, error)
 	UpdateAlbum(ctx context.Context, albumId int32, userID int32, title string, coverPhotoID *int32) (domain.Album, error)
@@ -144,30 +143,6 @@ func (r *Repository) GetAlbumPhoto(ctx context.Context, id int32) (domain.AlbumP
 		UpdatedAt: photo.UpdatedAt,
 		AlbumID:   photo.AlbumID,
 	}, nil
-}
-
-func (r *Repository) ListPhotosByAlbum(ctx context.Context, albumId int32, limit int32, offset int32) ([]domain.Photo, error) {
-	photos, err := r.querier.ListPhotosByAlbum(ctx, ListPhotosByAlbumParams{
-		AlbumID: albumId,
-		Limit:   limit,
-		Offset:  offset,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	var result []domain.Photo
-	for _, photo := range photos {
-		result = append(result, domain.Photo{
-			ID:        photo.ID,
-			UserID:    nullInt32Ptr(photo.UserID),
-			Key:       photo.Key,
-			Status:    domain.PhotoStatus(photo.Status),
-			CreatedAt: photo.CreatedAt,
-			UpdatedAt: photo.UpdatedAt,
-		})
-	}
-	return result, nil
 }
 
 func (r *Repository) GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]domain.PhotoMetadatum, error) {
@@ -538,11 +513,30 @@ func (r *Repository) GetAlbumByID(ctx context.Context, id int32) (domain.Album, 
 	}, nil
 }
 
-func (r *Repository) CountAlbumsByUser(ctx context.Context, userID int32) (int64, error) {
-	return r.querier.CountAlbumsByUser(ctx, userID)
+func (r *Repository) ListAlbumPhotoViewRows(ctx context.Context, albumID, limit, offset int32) ([]domain.AlbumPhotoViewRow, error) {
+	rows, err := r.querier.ListAlbumPhotoViewRows(ctx, ListAlbumPhotoViewRowsParams{
+		AlbumID: albumID,
+		Limit:   limit,
+		Offset:  offset,
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domain.AlbumPhotoViewRow, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, domain.AlbumPhotoViewRow{
+			PhotoID:  row.PhotoID,
+			PhotoKey: row.PhotoKey,
+			Variant:  domain.PhotoVariant(row.Variant.PhotoVariant),
+			Width:    row.Width.Int32,
+			Height:   row.Height.Int32,
+			MimeType: row.MimeType.String,
+		})
+	}
+	return result, nil
 }
 
-func (r *Repository) ListAlbumsByUser(ctx context.Context, userID int32, limit, offset int32) ([]domain.AlbumListProjection, error) {
+func (r *Repository) ListAlbumsByUser(ctx context.Context, userID int32, limit, offset int32) ([]domain.AlbumListItem, error) {
 	albums, err := r.querier.ListAlbumsByUser(ctx, ListAlbumsByUserParams{
 		UserID: userID,
 		Limit:  limit,
@@ -552,9 +546,9 @@ func (r *Repository) ListAlbumsByUser(ctx context.Context, userID int32, limit, 
 		return nil, err
 	}
 
-	result := make([]domain.AlbumListProjection, 0, len(albums))
+	result := make([]domain.AlbumListItem, 0, len(albums))
 	for _, album := range albums {
-		result = append(result, domain.AlbumListProjection{
+		result = append(result, domain.AlbumListItem{
 			Album: domain.Album{
 				ID:           album.ID,
 				UserID:       album.UserID,

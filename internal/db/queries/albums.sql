@@ -76,6 +76,25 @@ WHERE id = $1;
 DELETE FROM albums
 WHERE id = $1;
 
--- name: CountAlbumsByUser :one
-SELECT COUNT(*) FROM albums
-WHERE user_id = $1;
+-- name: ListAlbumPhotoViewRows :many
+WITH page_photos AS (
+  SELECT p.id, p.key, p.created_at
+  FROM photos p
+  JOIN album_photos ap ON ap.photo_id = p.id
+  WHERE ap.album_id = $1
+  ORDER BY p.created_at DESC, p.id DESC
+  LIMIT $2
+  OFFSET $3
+)
+SELECT
+  pp.id AS photo_id,
+  pp.key AS photo_key,
+  pm.variant,
+  pm.width,
+  pm.height,
+  pm.mime_type
+FROM page_photos pp
+LEFT JOIN photo_metadata pm ON pm.photo_id = pp.id
+ORDER BY
+  pp.created_at DESC,
+  pp.id DESC;

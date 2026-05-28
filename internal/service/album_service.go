@@ -26,8 +26,89 @@ func (s *AlbumService) GetAlbumByID(ctx context.Context, albumID int32) (domain.
 	return s.repo.GetAlbumByID(ctx, albumID)
 }
 
-func (s *AlbumService) CountAlbumsByUser(ctx context.Context, userID int32) (int64, error) {
-	return s.repo.CountAlbumsByUser(ctx, userID)
+func (s *AlbumService) GetAlbumPageView(ctx context.Context, userID, albumID, limit, offset int32) (domain.AlbumPageView, error) {
+	album, err := s.repo.GetAlbumByID(ctx, albumID)
+	if err != nil {
+		return domain.AlbumPageView{}, fmt.Errorf("error getting album: %w", err)
+	}
+
+	if album.UserID != userID {
+		return domain.AlbumPageView{}, domain.ErrAlbumNotFound
+	}
+
+	albumViewRows, err := s.repo.ListAlbumPhotoViewRows(ctx, album.ID, limit, offset)
+	if err != nil {
+		return domain.AlbumPageView{}, fmt.Errorf("error getting album page view: %w", err)
+	}
+
+	res := domain.AlbumPageView{
+		Album:       album,
+		Photos:      make([]domain.ResponsiveImage, 0, len(albumViewRows)),
+		TotalPhotos: album.NumPhotos,
+	}
+
+	photosByID := make(map[int32]*domain.ResponsiveImage, len(albumViewRows))
+	orderedPhotoIDs := make([]int32, 0, len(albumViewRows))
+
+	for _, photo := range albumViewRows {
+		image, ok := photosByID[photo.PhotoID]
+		if !ok {
+			image = &domain.ResponsiveImage{
+				ID:      photo.PhotoID,
+				Alt:     photo.PhotoKey,
+				Sources: make([]domain.ImageSource, 0, 3),
+			}
+			photosByID[photo.PhotoID] = image
+			orderedPhotoIDs = append(orderedPhotoIDs, photo.PhotoID)
+		}
+
+		if photo.Variant == "" || photo.MimeType == "" {
+			continue
+		}
+
+		path, err := utils.BuildPhotoPathForVariant(photo.PhotoKey, photo.Variant, utils.MimeType(photo.MimeType))
+		if err != nil {
+			continue
+		}
+
+		url, err := s.store.GenerateURL(ctx, path)
+		if err != nil {
+			continue
+		}
+
+		switch photo.Variant {
+		case domain.PhotoVariantOriginal:
+			image.OriginalSrc = url
+		case domain.PhotoVariantLarge:
+			image.DefaultSrc = url
+			image.Sources = append(image.Sources, domain.ImageSource{
+				Width:  photo.Width,
+				Height: photo.Height,
+				URL:    url,
+			})
+		default:
+			image.Sources = append(image.Sources, domain.ImageSource{
+				Width:  photo.Width,
+				Height: photo.Height,
+				URL:    url,
+			})
+		}
+	}
+
+	for _, photoID := range orderedPhotoIDs {
+		image := photosByID[photoID]
+		if image.DefaultSrc == "" {
+			image.DefaultSrc = image.OriginalSrc
+		}
+
+		if image.DefaultSrc == "" {
+			continue
+		}
+
+		res.Photos = append(res.Photos, *image)
+	}
+
+	return res, nil
 }
 
 func (s *AlbumService) ListAlbumsByUser(ctx context.Context, userID int32, limit, offset int32) ([]*domain.AlbumListItem, error) {
@@ -73,7 +154,7 @@ func (s *AlbumService) DeleteAlbum(ctx context.Context, albumId int32) error {
 	return nil
 }
 
-func (s *AlbumService) newAlbumListItem(ctx context.Context, album domain.AlbumListProjection) *domain.AlbumListItem {
+func (s *AlbumService) newAlbumListItem(ctx context.Context, album domain.AlbumListItem) *domain.AlbumListItem {
 	coverImage := domain.ResponsiveImage{
 		DefaultSrc: filepath.Join(s.config.StaticDir, domain.DefaultAlbumCover),
 		Sources: []domain.ImageSource{

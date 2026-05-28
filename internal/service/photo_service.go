@@ -28,11 +28,15 @@ const (
 type PhotoService struct {
 	repo        db.PhotoRepository
 	store       store.Store
-	redisClient *redis.Client
+	redisClient queuePublisher
 }
 
-func NewPhotoService(r db.PhotoRepository, s store.Store, redisClient *redis.Client) *PhotoService {
-	return &PhotoService{repo: r, store: s, redisClient: redisClient}
+type queuePublisher interface {
+	Publish(ctx context.Context, channel string, message interface{}) *redis.IntCmd
+}
+
+func NewPhotoService(repo db.PhotoRepository, store store.Store, redisClient queuePublisher) *PhotoService {
+	return &PhotoService{repo: repo, store: store, redisClient: redisClient}
 }
 
 func (s *PhotoService) GetPhoto(ctx context.Context, id int32) (domain.Photo, error) {
@@ -49,21 +53,6 @@ func (s *PhotoService) GetAlbumPhoto(ctx context.Context, id int32) (domain.Albu
 		return domain.AlbumPhoto{}, fmt.Errorf("error getting album photo: %w", err)
 	}
 	return photo, nil
-}
-
-func (s *PhotoService) ListPhotosByAlbum(ctx context.Context, albumId int32, limit int32, offset int32) ([]domain.ResponsiveImage, error) {
-	photos, err := s.repo.ListPhotosByAlbum(ctx, albumId, limit, offset)
-	if err != nil {
-		return nil, fmt.Errorf("error listing photos by album: %w", err)
-	}
-
-	images := []domain.ResponsiveImage{}
-	for _, photo := range photos {
-		imageResponse := s.generateAlbumImageResponse(ctx, photo)
-		images = append(images, imageResponse)
-	}
-
-	return images, nil
 }
 
 func (s *PhotoService) GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]domain.PhotoMetadatum, error) {
@@ -217,49 +206,4 @@ func (s *PhotoService) queuePhotoProcessing(ctx context.Context, photo domain.Ph
 		return fmt.Errorf("error publishing photo processing job for photo %d: %s", photo.ID, err.Error())
 	}
 	return nil
-}
-
-func (s *PhotoService) generateAlbumImageResponse(ctx context.Context, photo domain.Photo) domain.ResponsiveImage {
-	photoMeta, err := s.repo.GetPhotoMetadataByPhotoID(ctx, photo.ID)
-	if err != nil {
-		return domain.ResponsiveImage{}
-	}
-
-	var sources []domain.ImageSource
-	var originalUrl, defaultUrl string
-	for _, meta := range photoMeta {
-		path, err := utils.BuildPhotoPathForVariant(photo.Key, meta.Variant, utils.MimeType(meta.MimeType))
-		if err != nil {
-			continue
-		}
-
-		url, err := s.store.GenerateURL(ctx, path)
-		if err != nil {
-			continue
-		}
-
-		if meta.Variant != domain.PhotoVariantOriginal {
-			sources = append(sources, domain.ImageSource{
-				Width:  meta.Width,
-				Height: meta.Height,
-				URL:    url,
-			})
-		}
-
-		switch meta.Variant {
-		case domain.PhotoVariantOriginal:
-			originalUrl = url
-		case domain.PhotoVariantLarge:
-			defaultUrl = url
-		default:
-		}
-	}
-
-	return domain.ResponsiveImage{
-		ID:          photo.ID,
-		Alt:         photo.Key,
-		OriginalSrc: originalUrl,
-		DefaultSrc:  defaultUrl,
-		Sources:     sources,
-	}
 }

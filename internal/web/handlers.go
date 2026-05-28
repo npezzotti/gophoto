@@ -35,47 +35,34 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			album, err := a.albumService.GetAlbumByID(r.Context(), int32(id))
+			paginator := pagination.NewPaginationFromRequest(r)
+
+			albumPageView, err := a.albumService.GetAlbumPageView(r.Context(), user.ID, int32(id), int32(paginator.Limit), int32(paginator.Offset()))
 			if err != nil {
-				a.ErrorLog.Println("error getting album:", err)
-				a.flash(r.Context(), http.StatusText(http.StatusNotFound), flashErr)
+				var errMsg string
+				if errors.Is(err, domain.ErrAlbumNotFound) {
+					errMsg = http.StatusText(http.StatusNotFound)
+				} else {
+					errMsg = http.StatusText(http.StatusInternalServerError)
+				}
+				a.ErrorLog.Println("error getting album page view:", err)
+				a.flash(r.Context(), errMsg, flashErr)
 				http.Redirect(w, r, "/albums", http.StatusSeeOther)
 				return
 			}
 
-			if user.ID != album.UserID {
-				a.flash(r.Context(), http.StatusText(http.StatusNotFound), flashErr)
-				http.Redirect(w, r, "/albums", http.StatusSeeOther)
-				return
-			}
-
-			pagination := pagination.NewPaginationFromRequest(r, int(album.NumPhotos))
-			photos, err := a.photoService.ListPhotosByAlbum(r.Context(), album.ID, int32(pagination.Limit), int32(pagination.Offset()))
-			if err != nil {
-				a.flash(r.Context(), http.StatusText(http.StatusInternalServerError), flashErr)
-				http.Redirect(w, r, "/albums", http.StatusSeeOther)
-				return
-			}
-
+			paginator.SetTotal(int(albumPageView.TotalPhotos))
 			td := a.generateTemplateData(r)
-			td.Album = album
-			td.Images = photos
-			td.Paginator = pagination
-			td.AddPhotoUploadAction = fmt.Sprintf("/photos?type=album&id=%d", album.ID)
+			td.Album = albumPageView.Album
+			td.Images = albumPageView.Photos
+			td.Paginator = paginator
+			td.AddPhotoUploadAction = fmt.Sprintf("/photos?type=album&id=%d", albumPageView.Album.ID)
 
 			a.renderTemplate(w, td, "album.html")
 			return
 		}
 
-		// Request for all albums
-		totalAlbums, err := a.albumService.CountAlbumsByUser(r.Context(), user.ID)
-		if err != nil {
-			a.ErrorLog.Println("error counting albums:", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-
-		pagination := pagination.NewPaginationFromRequest(r, int(totalAlbums))
+		pagination := pagination.NewPaginationFromRequest(r)
 
 		albums, err := a.albumService.ListAlbumsByUser(r.Context(), user.ID, int32(pagination.Limit), int32(pagination.Offset()))
 		if err != nil {
@@ -84,6 +71,7 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		pagination.SetTotal(len(albums))
 		td := a.generateTemplateData(r)
 		td.Albums = albums
 		td.Paginator = pagination
