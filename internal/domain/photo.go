@@ -61,7 +61,7 @@ type CreatePhotoWithOriginalMetadataParams struct {
 	Key      string
 	Width    int32
 	Height   int32
-	FileSize *int64
+	FileSize int64
 	MimeType string
 }
 

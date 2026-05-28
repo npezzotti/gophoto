@@ -218,7 +218,7 @@ func toCreatePhotoWithOriginalMetadataParams(arg domain.CreatePhotoWithOriginalM
 		Key:      arg.Key,
 		Width:    arg.Width,
 		Height:   arg.Height,
-		FileSize: ptrToNullInt64(arg.FileSize),
+		FileSize: sql.NullInt64{Int64: arg.FileSize, Valid: true},
 		MimeType: arg.MimeType,
 	}
 }

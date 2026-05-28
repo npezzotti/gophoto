@@ -79,17 +79,17 @@ func (s *PhotoService) CreateAlbumPhotoWithOriginalMetadata(ctx context.Context,
 		return domain.Photo{}, fmt.Errorf("error processing uploaded file: %w", err)
 	}
 
-	key := uuid.New().String()
+	key := uuid.NewString()
 	photo, err := s.photoRepo.CreateAlbumPhotoWithOriginalMetadata(ctx, albumID, domain.CreatePhotoWithOriginalMetadataParams{
 		UserID:   &userID,
 		Key:      key,
 		Width:    int32(meta.Width),
 		Height:   int32(meta.Height),
-		FileSize: nil,
+		FileSize: int64(len(buf)),
 		MimeType: string(fileType),
 	})
 	if err != nil {
-		return domain.Photo{}, err
+		return domain.Photo{}, fmt.Errorf("error creating album photo: %w", err)
 	}
 
 	if err := s.uploadPhotoToStorage(ctx, photo, buf, fileType); err != nil {
@@ -110,13 +110,12 @@ func (s *PhotoService) CreateUserPhotoWithOriginalMetadata(ctx context.Context, 
 	}
 
 	key := uuid.New().String()
-	fileSize := int64(len(buf))
 	photo, err := s.photoRepo.CreateUserPhotoWithOriginalMetadata(ctx, userID, domain.CreatePhotoWithOriginalMetadataParams{
 		UserID:   &userID,
 		Key:      key,
 		Width:    int32(meta.Width),
 		Height:   int32(meta.Height),
-		FileSize: &fileSize,
+		FileSize: int64(len(buf)),
 		MimeType: string(fileType),
 	})
 	if err != nil {
