@@ -60,6 +60,10 @@ func parseInt(str string, defaultVal int) int {
 
 // SetTotal sets the total number of pages based on the limit.
 func (p *Pagination) SetTotal(total int) {
+	if total < 0 {
+		total = 0
+	}
+
 	p.TotalPages = (total + p.Limit - 1) / p.Limit
 }
 

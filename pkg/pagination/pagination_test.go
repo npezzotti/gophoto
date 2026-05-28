@@ -126,6 +126,18 @@ func Test_Pagination_SetTotal(t *testing.T) {
 			limit:     12,
 			wantPages: 3,
 		},
+		{
+			name:      "zero total in zero total pages",
+			total:     0,
+			limit:     12,
+			wantPages: 0,
+		},
+		{
+			name:      "negative total in zero total pages",
+			total:     -5,
+			limit:     12,
+			wantPages: 0,
+		},
 	}
 	for _, tt := range tcases {
 		t.Run(tt.name, func(t *testing.T) {
