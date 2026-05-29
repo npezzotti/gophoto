@@ -14,12 +14,13 @@ import (
 
 type AlbumService struct {
 	repo   db.AlbumRepository
+	photos db.PhotoRepository
 	store  store.Store
 	config *config.Config
 }
 
-func NewAlbumService(r db.AlbumRepository, s store.Store, c *config.Config) *AlbumService {
-	return &AlbumService{repo: r, store: s, config: c}
+func NewAlbumService(r db.AlbumRepository, p db.PhotoRepository, s store.Store, c *config.Config) *AlbumService {
+	return &AlbumService{repo: r, photos: p, store: s, config: c}
 }
 
 func (s *AlbumService) GetAlbumByID(ctx context.Context, albumID int32) (domain.Album, error) {
@@ -187,7 +188,7 @@ func (s *AlbumService) newAlbumListItem(ctx context.Context, album domain.AlbumL
 	}
 
 	if album.Album.CoverPhotoID != nil {
-		meta, err := s.repo.GetPhotoMetadataByPhotoID(ctx, *album.Album.CoverPhotoID)
+		meta, err := s.photos.GetPhotoMetadataByPhotoID(ctx, *album.Album.CoverPhotoID)
 		if err == nil {
 			var sources []domain.ImageSource
 			var defaultSrc string

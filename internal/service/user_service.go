@@ -59,7 +59,7 @@ func (s *UserService) buildProfileImage(ctx context.Context, user domain.User) d
 		return image
 	}
 
-	meta, err := s.repo.GetPhotoMetadataByPhotoID(ctx, *user.ProfilePictureID)
+	meta, err := s.photos.GetPhotoMetadataByPhotoID(ctx, *user.ProfilePictureID)
 	if err != nil {
 		return image
 	}
@@ -88,7 +88,7 @@ func (s *UserService) buildProfileImage(ctx context.Context, user domain.User) d
 			URL:    url,
 		})
 
-		if defaultSrc == "" || m.Variant == domain.PhotoVariantThumb {
+		if defaultSrc == "" || m.Variant == domain.PhotoVariantLarge {
 			defaultSrc = url
 		}
 	}
@@ -98,7 +98,7 @@ func (s *UserService) buildProfileImage(ctx context.Context, user domain.User) d
 	}
 
 	if defaultSrc == "" {
-		// If no thumb variant is found, use the first available source as the default
+		// If no large variant is found, use the first available source as the default
 		defaultSrc = sources[0].URL
 	}
 

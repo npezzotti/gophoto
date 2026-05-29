@@ -58,7 +58,7 @@ func NewApplication(redisClient *redis.Client, cfg *config.Config, sess *scs.Ses
 		database:       db,
 		templateCache:  tc,
 		userService:    service.NewUserService(db, db, s, cfg),
-		albumService:   service.NewAlbumService(db, s, cfg),
+		albumService:   service.NewAlbumService(db, db, s, cfg),
 		photoService:   service.NewPhotoService(db, db, s, redisClient),
 	}
 

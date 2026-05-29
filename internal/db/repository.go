@@ -34,7 +34,6 @@ type AlbumRepository interface {
 	GetAlbumByID(ctx context.Context, id int32) (domain.Album, error)
 	ListAlbumsByUser(ctx context.Context, userID int32, limit, offset int32) ([]domain.AlbumListItem, error)
 	ListAlbumPhotoViewRows(ctx context.Context, albumID, limit, offset int32) ([]domain.AlbumPhotoViewRow, error)
-	GetPhotoMetadataByPhotoID(ctx context.Context, photoID int32) ([]domain.PhotoMetadatum, error)
 	CreateAlbum(ctx context.Context, userID int32, title string) (domain.Album, error)
 	UpdateAlbum(ctx context.Context, albumId int32, userID int32, title string, coverPhotoID *int32) (domain.Album, error)
 	DeleteAlbum(ctx context.Context, albumId int32) error
@@ -46,7 +45,6 @@ type UserRepository interface {
 	CreateUser(ctx context.Context, firstName, lastName, email, passwordHash string) (domain.User, error)
 	UpdateUser(ctx context.Context, params domain.UserUpdateParams) (domain.User, error)
 	DeleteUser(ctx context.Context, userID int32) error
-	GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]domain.PhotoMetadatum, error)
 }
 
 type Repository struct {
