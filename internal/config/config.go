@@ -27,6 +27,7 @@ type Config struct {
 	RedisAddress     string
 	RedisPassword    string
 	SigningKey       []byte
+	Debug            bool
 }
 
 func LoadConfigFromEnv() (*Config, error) {

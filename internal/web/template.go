@@ -58,7 +58,7 @@ func (a *application) renderTemplate(w http.ResponseWriter, data *templateData, 
 	w.Header().Set("Content-Type", "text/html; charset=UTF-8")
 
 	if err := tc.RenderTemplate(w, tmpl, data); err != nil {
-		a.ErrorLog.Printf("error rendering template %s: %v", tmpl, err)
+		a.Logger.Error("error rendering template %s: %v", tmpl, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}

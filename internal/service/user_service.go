@@ -10,6 +10,7 @@ import (
 	"github.com/npezzotti/gophoto/internal/db"
 	"github.com/npezzotti/gophoto/internal/domain"
 	"github.com/npezzotti/gophoto/internal/utils"
+	"github.com/npezzotti/gophoto/pkg/logging"
 	"github.com/npezzotti/gophoto/pkg/store"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -19,10 +20,11 @@ type UserService struct {
 	photos db.PhotoRepository
 	store  store.Store
 	config *config.Config
+	logger *logging.Logger
 }
 
-func NewUserService(r db.UserRepository, p db.PhotoRepository, s store.Store, c *config.Config) *UserService {
-	return &UserService{repo: r, photos: p, store: s, config: c}
+func NewUserService(r db.UserRepository, p db.PhotoRepository, s store.Store, c *config.Config, l *logging.Logger) *UserService {
+	return &UserService{repo: r, photos: p, store: s, config: c, logger: l}
 }
 
 func (s *UserService) defaultProfileImage() domain.ResponsiveImage {
@@ -54,13 +56,23 @@ func (s *UserService) buildProfileImage(ctx context.Context, user domain.User) d
 		return image
 	}
 
-	photo, err := s.photos.GetPhoto(ctx, *user.ProfilePictureID)
-	if err != nil || photo.Key == "" {
+	profilePictureID := *user.ProfilePictureID
+
+	photo, err := s.photos.GetPhoto(ctx, profilePictureID)
+	if err != nil {
+		s.logger.Warn("profile_image_fallback stage=get_photo user_id=%d profile_picture_id=%d error=%q", user.ID, profilePictureID, err.Error())
 		return image
 	}
 
-	meta, err := s.photos.GetPhotoMetadataByPhotoID(ctx, *user.ProfilePictureID)
+	if photo.Key == "" {
+		s.logger.Warn("profile_image_fallback stage=empty_photo_key user_id=%d profile_picture_id=%d", user.ID, profilePictureID)
+
+		return image
+	}
+
+	meta, err := s.photos.GetPhotoMetadataByPhotoID(ctx, profilePictureID)
 	if err != nil {
+		s.logger.Warn("profile_image_fallback stage=get_photo_metadata user_id=%d profile_picture_id=%d error=%q", user.ID, profilePictureID, err.Error())
 		return image
 	}
 
@@ -74,11 +86,13 @@ func (s *UserService) buildProfileImage(ctx context.Context, user domain.User) d
 
 		path, err := utils.BuildPhotoPathForVariant(photo.Key, m.Variant, utils.MimeType(m.MimeType))
 		if err != nil {
+			s.logger.Debug("profile_image_variant_skip stage=build_photo_path user_id=%d profile_picture_id=%d variant=%s error=%q", user.ID, profilePictureID, m.Variant, err.Error())
 			continue
 		}
 
 		url, err := s.store.GenerateURL(ctx, path)
 		if err != nil {
+			s.logger.Debug("profile_image_variant_skip stage=generate_url user_id=%d profile_picture_id=%d variant=%s error=%q", user.ID, profilePictureID, m.Variant, err.Error())
 			continue
 		}
 
@@ -94,6 +108,7 @@ func (s *UserService) buildProfileImage(ctx context.Context, user domain.User) d
 	}
 
 	if len(sources) == 0 {
+		s.logger.Warn("profile_image_fallback stage=no_usable_variants user_id=%d profile_picture_id=%d", user.ID, profilePictureID)
 		return image
 	}
 

@@ -6,13 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 
 	"github.com/h2non/bimg"
 	"github.com/npezzotti/gophoto/internal/config"
 	"github.com/npezzotti/gophoto/internal/db"
 	"github.com/npezzotti/gophoto/internal/domain"
 	"github.com/npezzotti/gophoto/internal/utils"
+	"github.com/npezzotti/gophoto/pkg/logging"
 	"github.com/npezzotti/gophoto/pkg/store"
 	"github.com/redis/go-redis/v9"
 )
@@ -56,12 +56,12 @@ type PhotoProcessorWorker struct {
 	redisClient *redis.Client
 	db          db.PhotoRepository
 	store       store.Store
-	log         *log.Logger
+	log         *logging.Logger
 	stopChan    chan struct{}
 	doneChan    chan bool
 }
 
-func NewPhotoProcessorWorker(redisClient *redis.Client, cfg *config.Config, db db.PhotoRepository, s store.Store, l *log.Logger) *PhotoProcessorWorker {
+func NewPhotoProcessorWorker(redisClient *redis.Client, cfg *config.Config, db db.PhotoRepository, s store.Store, l *logging.Logger) *PhotoProcessorWorker {
 	return &PhotoProcessorWorker{
 		redisClient: redisClient,
 		db:          db,
@@ -73,7 +73,7 @@ func NewPhotoProcessorWorker(redisClient *redis.Client, cfg *config.Config, db d
 }
 
 func (ppw *PhotoProcessorWorker) Run() {
-	ppw.log.Println("starting photo processor worker")
+	ppw.log.Info("starting photo processor worker")
 
 	// Subscribe to the Redis channel for photo processing jobs
 	jobsChan := subscribeToQueue(ppw.redisClient, PhotoProcessingQueue)
@@ -87,10 +87,10 @@ func (ppw *PhotoProcessorWorker) Run() {
 				}
 
 				if err := ppw.handleJob(msg); err != nil {
-					ppw.log.Println("error handling job:", err)
+					ppw.log.Error("error handling job: %v", err)
 				}
 			case <-ppw.stopChan:
-				ppw.log.Println("stopping photo processor worker")
+				ppw.log.Info("stopping photo processor worker")
 				select {
 				case ppw.doneChan <- true:
 				default:
@@ -129,7 +129,7 @@ func (ppw *PhotoProcessorWorker) updatePhotoStatus(photo domain.Photo, status do
 }
 
 func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) error {
-	ppw.log.Printf("processing photo ID %d", photoId)
+	ppw.log.Info("processing photo ID %d", photoId)
 
 	photo, err := ppw.db.GetPhoto(context.Background(), photoId)
 	if err != nil {
@@ -192,14 +192,14 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 		processedImg, err := bimg.NewImage(photoBytes).Process(imageOpts)
 		if err != nil {
 			processingErr = true
-			ppw.log.Printf("error processing %s image: %v", size.Variant, err)
+			ppw.log.Error("error processing %s image: %v", size.Variant, err)
 			continue
 		}
 
 		imgSize, err := bimg.NewImage(processedImg).Size()
 		if err != nil {
 			processingErr = true
-			ppw.log.Printf("error getting size of processed %s image: %v", size.Variant, err)
+			ppw.log.Error("error getting size of processed %s image: %v", size.Variant, err)
 			continue
 		}
 
@@ -214,26 +214,26 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 		})
 		if err != nil {
 			processingErr = true
-			ppw.log.Printf("error creating photo metadata for %q: %v", size.Variant, err)
+			ppw.log.Error("error creating photo metadata for %q: %v", size.Variant, err)
 			continue
 		}
 
 		variantPath, err := utils.BuildPhotoPathForVariant(photo.Key, photoMeta.Variant, utils.MimeTypeWEBP)
 		if err != nil {
 			processingErr = true
-			ppw.log.Printf("error building photo path for %s variant: %v", size.Variant, err)
+			ppw.log.Error("error building photo path for %s variant: %v", size.Variant, err)
 			continue
 		}
 		if err := ppw.store.Write(context.Background(), variantPath, bytes.NewReader(processedImg)); err != nil {
 			processingErr = true
-			ppw.log.Printf("error writing %s image to store: %v", size.Variant, err)
+			ppw.log.Error("error writing %s image to store: %v", size.Variant, err)
 			continue
 		}
 	}
 
 	if err := ppw.updatePhotoStatus(photo, domain.PhotoStatusProcessed); err != nil {
 		processingErr = true
-		ppw.log.Printf("error updating photo %d status: %v", photoId, err)
+		ppw.log.Error("error updating photo %d status: %v", photoId, err)
 	}
 
 	return nil

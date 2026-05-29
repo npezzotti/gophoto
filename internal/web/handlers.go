@@ -29,7 +29,7 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 			// Request for specific album
 			id, err := strconv.Atoi(id_str)
 			if err != nil {
-				a.ErrorLog.Println("error converting string to int", err)
+				a.Logger.Error("error converting string to int: %v", err)
 				a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
 				http.Redirect(w, r, "/albums", http.StatusSeeOther)
 				return
@@ -45,7 +45,7 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 				} else {
 					errMsg = http.StatusText(http.StatusInternalServerError)
 				}
-				a.ErrorLog.Println("error getting album page view:", err)
+				a.Logger.Error("error getting album page view: %v", err)
 				a.flash(r.Context(), errMsg, flashErr)
 				http.Redirect(w, r, "/albums", http.StatusSeeOther)
 				return
@@ -66,7 +66,7 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 
 		albums, err := a.albumService.ListAlbumsByUser(r.Context(), user.ID, int32(pagination.Limit), int32(pagination.Offset()))
 		if err != nil {
-			a.ErrorLog.Printf("error listing albums: %s", err.Error())
+			a.Logger.Error("error listing albums: %v", err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -86,12 +86,10 @@ func (a *application) createAlbumHandler(w http.ResponseWriter, r *http.Request)
 	switch r.Method {
 	case http.MethodPost:
 		if err := r.ParseForm(); err != nil {
-			if err := r.ParseForm(); err != nil {
-				a.ErrorLog.Println("error parsing form:", err)
-				a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
-				http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
-				return
-			}
+			a.Logger.Error("error parsing form: %v", err)
+			a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
+			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
+			return
 		}
 
 		user, ok := extractUserFromContext(r.Context())
@@ -103,7 +101,7 @@ func (a *application) createAlbumHandler(w http.ResponseWriter, r *http.Request)
 
 		album, err := a.albumService.CreateAlbum(r.Context(), user.ID, r.Form.Get("title"))
 		if err != nil {
-			a.ErrorLog.Println("error creating album:", err)
+			a.Logger.Error("error creating album: %v", err)
 			a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 			return
@@ -121,18 +119,16 @@ func (a *application) updateAlbumHandler(w http.ResponseWriter, r *http.Request)
 	switch r.Method {
 	case http.MethodPost:
 		if err := r.ParseForm(); err != nil {
-			if err := r.ParseForm(); err != nil {
-				a.ErrorLog.Println("error parsing form:", err)
-				a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
-				http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
-				return
-			}
+			a.Logger.Error("error parsing form: %v", err)
+			a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
+			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
+			return
 		}
 
 		albumIDStr := r.URL.Query().Get("id")
 		albumID, err := strconv.Atoi(albumIDStr)
 		if err != nil {
-			a.ErrorLog.Println("error converting string to int:", err)
+			a.Logger.Error("error converting string to int: %v", err)
 			a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 			return
@@ -151,7 +147,7 @@ func (a *application) updateAlbumHandler(w http.ResponseWriter, r *http.Request)
 				http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 				return
 			}
-			a.ErrorLog.Println("error updating album:", err)
+			a.Logger.Error("error updating album: %v", err)
 			a.flash(r.Context(), http.StatusText(http.StatusInternalServerError), flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 			return
@@ -186,7 +182,7 @@ func (a *application) deleteAlbumHandler(w http.ResponseWriter, r *http.Request)
 	}
 	albumID, err := strconv.Atoi(albumIDStr)
 	if err != nil {
-		a.ErrorLog.Println("error converting string to int", err)
+		a.Logger.Error("error converting string to int: %v", err)
 		a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 		return
@@ -198,7 +194,7 @@ func (a *application) deleteAlbumHandler(w http.ResponseWriter, r *http.Request)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 			return
 		}
-		a.ErrorLog.Printf("error deleting album: %v", err)
+		a.Logger.Error("error deleting album: %v", err)
 		a.flash(r.Context(), http.StatusText(http.StatusInternalServerError), flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 		return
@@ -255,14 +251,14 @@ func (a *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Request)
 
 		photo, err = a.photoService.CreateAlbumPhotoWithOriginalMetadata(r.Context(), f, fh, user.ID, int32(albumID))
 		if err != nil {
-			a.ErrorLog.Printf("error creating photo: %s", err)
+			a.Logger.Error("error creating photo: %v", err)
 			a.writeJsonErrorResp(w, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 			return
 		}
 	case PhotoTypeUserPhoto:
 		photo, err = a.photoService.CreateUserPhotoWithOriginalMetadata(r.Context(), f, fh, user.ID)
 		if err != nil {
-			a.ErrorLog.Printf("error creating photo: %s", err)
+			a.Logger.Error("error creating photo: %v", err)
 			a.writeJsonErrorResp(w, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 			return
 		}
@@ -299,7 +295,7 @@ func (a *application) photoStatusHandler(w http.ResponseWriter, r *http.Request)
 
 	id, err := strconv.Atoi(id_str)
 	if err != nil {
-		a.ErrorLog.Println("error converting string to int", err)
+		a.Logger.Error("error converting string to int: %v", err)
 		a.writeJsonErrorResp(w, http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
 		return
 	}
@@ -310,7 +306,7 @@ func (a *application) photoStatusHandler(w http.ResponseWriter, r *http.Request)
 			a.writeJsonErrorResp(w, http.StatusNotFound, http.StatusText(http.StatusNotFound))
 			return
 		}
-		a.ErrorLog.Println("error getting photo:", err)
+		a.Logger.Error("error getting photo: %v", err)
 		a.writeJsonErrorResp(w, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 		return
 	}
@@ -338,7 +334,7 @@ func (a *application) deleteAlbumPhotoHandler(w http.ResponseWriter, r *http.Req
 
 	albumPhotoID, err := strconv.Atoi(albumPhotoIDStr)
 	if err != nil {
-		a.ErrorLog.Println("error parsing id:", err)
+		a.Logger.Error("error parsing id: %v", err)
 		a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 		return
@@ -357,7 +353,7 @@ func (a *application) deleteAlbumPhotoHandler(w http.ResponseWriter, r *http.Req
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 			return
 		}
-		a.ErrorLog.Println("error removing photo from album:", err)
+		a.Logger.Error("error removing photo from album: %v", err)
 		a.flash(r.Context(), http.StatusText(http.StatusInternalServerError), flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 		return

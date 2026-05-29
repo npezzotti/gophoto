@@ -79,15 +79,15 @@ func main() {
 
 	app := web.NewApplication(redisClient, cfg, sessionManager, repo, photoStore, tc)
 
-	storageCleanerWorker := workers.NewStorageCleanerWorker(repo, photoStore, app.InfoLog, workers.DefaultFrequency)
+	storageCleanerWorker := workers.NewStorageCleanerWorker(repo, photoStore, app.Logger, workers.DefaultFrequency)
 	storageCleanerWorker.Run()
 
-	photoProcessorWorker := workers.NewPhotoProcessorWorker(redisClient, cfg, repo, photoStore, app.InfoLog)
+	photoProcessorWorker := workers.NewPhotoProcessorWorker(redisClient, cfg, repo, photoStore, app.Logger)
 	photoProcessorWorker.Run()
 
 	errChan := make(chan error)
 	go func() {
-		app.InfoLog.Printf("starting server on %s", cfg.HttpServerAddr)
+		app.Logger.Info("starting server on %s", cfg.HttpServerAddr)
 		errChan <- app.Start()
 	}()
 
@@ -109,21 +109,21 @@ func main() {
 
 	wg.Add(1)
 	go func() {
-		app.InfoLog.Println("stopping worker")
+		app.Logger.Info("stopping worker")
 		storageCleanerWorker.Stop()
 		wg.Done()
 	}()
 
 	wg.Add(1)
 	go func() {
-		app.InfoLog.Println("stopping worker")
+		app.Logger.Info("stopping worker")
 		photoProcessorWorker.Stop()
 		wg.Done()
 	}()
 
 	wg.Add(1)
 	go func() {
-		app.InfoLog.Println("stopping server")
+		app.Logger.Info("stopping server")
 		if err := app.Shutdown(ctx); err != nil {
 			log.Fatalf("error shutting down server: %v", err)
 		}
