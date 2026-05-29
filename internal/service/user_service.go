@@ -25,79 +25,100 @@ func NewUserService(r db.UserRepository, p db.PhotoRepository, s store.Store, c 
 	return &UserService{repo: r, photos: p, store: s, config: c}
 }
 
-func (s *UserService) newUserResponse(ctx context.Context, user domain.User) *domain.UserPresentation {
-	var sources []domain.ImageSource
-	var defaultSrc string
+func (s *UserService) defaultProfileImage() domain.ResponsiveImage {
+	thumbnailPath := filepath.Join(s.config.StaticDir, domain.DefaultProfileThumbnailPath)
+	avatarPath := filepath.Join(s.config.StaticDir, domain.DefaultProfileAvatarPath)
 
-	if user.ProfilePictureID != nil {
-		// Attempt to fetch the photo key for the user's profile picture.
-		var photoKey string
-		photo, err := s.photos.GetPhoto(ctx, *user.ProfilePictureID)
-		if err == nil {
-			photoKey = photo.Key
-		}
-
-		// We have the photo key, we can attempt to build the image sources. If any of these steps fail,
-		// we can still return a valid response with default images, so we don't return an error here either.
-		if photoKey != "" {
-			meta, err := s.repo.GetPhotoMetadataByPhotoID(ctx, *user.ProfilePictureID)
-			if err != nil {
-				return nil
-			}
-			for _, m := range meta {
-				// Skip original variant as it's not meant to be directly served
-				if m.Variant == domain.PhotoVariantOriginal {
-					continue
-				}
-				path, err := utils.BuildPhotoPathForVariant(photoKey, m.Variant, utils.MimeType(m.MimeType))
-				if err != nil {
-					continue
-				}
-				url, err := s.store.GenerateURL(ctx, path)
-				if err != nil {
-					continue
-				}
-				sources = append(sources, domain.ImageSource{
-					Width:  m.Width,
-					Height: m.Height,
-					URL:    url,
-				})
-				// Set default source for medium variant
-				if m.Variant == domain.PhotoVariantMedium {
-					defaultSrc = url
-				}
-			}
-		}
-	}
-
-	if len(sources) == 0 {
-		thumbnailPath := filepath.Join(s.config.StaticDir, domain.DefaultProfileThumbnailPath)
-		sources = append(sources,
-			domain.ImageSource{
+	return domain.ResponsiveImage{
+		DefaultSrc: thumbnailPath,
+		Sources: []domain.ImageSource{
+			{
 				Width:  300,
 				Height: 300,
 				URL:    thumbnailPath,
 			},
-			domain.ImageSource{
+			{
 				Width:  100,
 				Height: 100,
-				URL:    filepath.Join(s.config.StaticDir, domain.DefaultProfileAvatarPath),
+				URL:    avatarPath,
 			},
-		)
+		},
+	}
+}
 
-		defaultSrc = thumbnailPath
+func (s *UserService) buildProfileImage(ctx context.Context, user domain.User) domain.ResponsiveImage {
+	image := s.defaultProfileImage()
+
+	if user.ProfilePictureID == nil {
+		// No profile picture set, return default image
+		return image
 	}
 
+	photo, err := s.photos.GetPhoto(ctx, *user.ProfilePictureID)
+	if err != nil || photo.Key == "" {
+		return image
+	}
+
+	meta, err := s.repo.GetPhotoMetadataByPhotoID(ctx, *user.ProfilePictureID)
+	if err != nil {
+		return image
+	}
+
+	var sources []domain.ImageSource
+	var defaultSrc string
+
+	for _, m := range meta {
+		if m.Variant == domain.PhotoVariantOriginal {
+			continue
+		}
+
+		path, err := utils.BuildPhotoPathForVariant(photo.Key, m.Variant, utils.MimeType(m.MimeType))
+		if err != nil {
+			continue
+		}
+
+		url, err := s.store.GenerateURL(ctx, path)
+		if err != nil {
+			continue
+		}
+
+		sources = append(sources, domain.ImageSource{
+			Width:  m.Width,
+			Height: m.Height,
+			URL:    url,
+		})
+
+		if defaultSrc == "" || m.Variant == domain.PhotoVariantThumb {
+			defaultSrc = url
+		}
+	}
+
+	if len(sources) == 0 {
+		return image
+	}
+
+	if defaultSrc == "" {
+		// If no thumb variant is found, use the first available source as the default
+		defaultSrc = sources[0].URL
+	}
+
+	image.Sources = sources
+	image.DefaultSrc = defaultSrc
+
+	return image
+}
+
+func (s *UserService) newUserPresentation(ctx context.Context, user domain.User) *domain.UserPresentation {
 	return &domain.UserPresentation{
 		ID:        user.ID,
 		FirstName: user.FirstName,
 		LastName:  user.LastName,
 		Email:     user.Email,
-		ProfilePicture: domain.ResponsiveImage{
-			Alt:        fmt.Sprintf("%s %s's profile picture", user.FirstName, user.LastName),
-			Sources:    sources,
-			DefaultSrc: defaultSrc,
-		},
+		ProfilePicture: func() domain.ResponsiveImage {
+			image := s.buildProfileImage(ctx, user)
+			image.Alt = fmt.Sprintf("%s %s's profile picture", user.FirstName, user.LastName)
+			return image
+		}(),
 	}
 }
 
@@ -110,9 +131,7 @@ func (s *UserService) GetUserByID(ctx context.Context, id int32) (*domain.UserPr
 		return nil, fmt.Errorf("error getting user by id: %w", err)
 	}
 
-	userResp := s.newUserResponse(ctx, user)
-
-	return userResp, nil
+	return s.newUserPresentation(ctx, user), nil
 }
 
 func (s *UserService) GetUserByEmail(ctx context.Context, email string) (domain.User, error) {
@@ -137,7 +156,7 @@ func (s *UserService) CreateUser(ctx context.Context, firstName, lastName, email
 		return nil, fmt.Errorf("error creating user: %w", err)
 	}
 
-	return s.newUserResponse(ctx, user), nil
+	return s.newUserPresentation(ctx, user), nil
 }
 
 func (s *UserService) UpdateUser(ctx context.Context, userID int32, firstName, lastName, email, password string) (*domain.UserPresentation, error) {
@@ -169,19 +188,14 @@ func (s *UserService) UpdateUser(ctx context.Context, userID int32, firstName, l
 		return nil, fmt.Errorf("error updating user: %w", err)
 	}
 
-	resp := s.newUserResponse(ctx, domain.User{
+	return s.newUserPresentation(ctx, domain.User{
 		ID:               updatedUser.ID,
 		FirstName:        updatedUser.FirstName,
 		LastName:         updatedUser.LastName,
 		Email:            updatedUser.Email,
 		PasswordHash:     updatedUser.PasswordHash,
 		ProfilePictureID: updatedUser.ProfilePictureID,
-	})
-	if resp == nil {
-		return nil, fmt.Errorf("error preparing updated user response")
-	}
-
-	return resp, nil
+	}), nil
 }
 
 func (s *UserService) DeleteUser(ctx context.Context, userID int32) error {
