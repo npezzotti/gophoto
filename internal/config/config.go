@@ -41,6 +41,7 @@ func LoadConfigFromEnv() (*Config, error) {
 		BucketName:       os.Getenv("GOPHOTO_BUCKET_NAME"),
 		SigningKey:       []byte(os.Getenv("GOPHOTO_SIGNING_KEY")),
 		StaticDir:        os.Getenv("GOPHOTO_STATIC_DIR"),
+		Debug:            os.Getenv("GOPHOTO_DEBUG") == "true",
 	}
 
 	if cfg.StaticDir == "" {
