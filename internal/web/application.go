@@ -12,6 +12,7 @@ import (
 	"github.com/npezzotti/gophoto/internal/config"
 	"github.com/npezzotti/gophoto/internal/db"
 	"github.com/npezzotti/gophoto/internal/service"
+	"github.com/npezzotti/gophoto/pkg/logging"
 	"github.com/npezzotti/gophoto/pkg/store"
 	"github.com/npezzotti/gophoto/pkg/template"
 	"github.com/redis/go-redis/v9"
@@ -43,34 +44,33 @@ type application struct {
 	database       *db.Repository
 	templateCache  template.TemplateCache
 	sessionManager *scs.SessionManager
-	InfoLog        *log.Logger
-	ErrorLog       *log.Logger
+	Logger         *logging.Logger
 	userService    *service.UserService
 	albumService   *service.AlbumService
 	photoService   *service.PhotoService
 }
 
 func NewApplication(redisClient *redis.Client, cfg *config.Config, sess *scs.SessionManager, db *db.Repository, s store.Store, tc template.TemplateCache) *application {
+	logger := logging.NewLogger(os.Stderr, cfg.Debug)
+
 	app := &application{
 		redisClient:    redisClient,
 		config:         cfg,
 		sessionManager: sess,
 		database:       db,
 		templateCache:  tc,
-		userService:    service.NewUserService(db, db, s, cfg),
+		Logger:         logger,
+		userService:    service.NewUserService(db, db, s, cfg, logger),
 		albumService:   service.NewAlbumService(db, db, s, cfg),
 		photoService:   service.NewPhotoService(db, db, s, redisClient),
 	}
-
-	app.InfoLog = log.New(os.Stdout, "[INFO] ", log.Default().Flags())
-	app.ErrorLog = log.New(os.Stderr, "[ERROR] ", log.Default().Flags()|log.Lshortfile)
 
 	mux := app.routes()
 
 	app.srv = &http.Server{
 		Addr:     cfg.HttpServerAddr,
 		Handler:  setupMiddleware(mux, app.sessionManager.LoadAndSave, noSurf, app.authenticate),
-		ErrorLog: app.ErrorLog,
+		ErrorLog: log.New(os.Stderr, "", log.LstdFlags|log.Lshortfile),
 	}
 
 	return app
@@ -116,7 +116,7 @@ func (a *application) writeJsonResp(w http.ResponseWriter, status int, data any)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
-		a.ErrorLog.Println("error writing json response:", err)
+		a.Logger.Error("error writing json response: %v", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }

@@ -12,7 +12,7 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
 		if err := r.ParseForm(); err != nil {
-			a.ErrorLog.Println("error parsing form:", err)
+			a.Logger.Error("error parsing form: %v", err)
 			a.flash(r.Context(), "Error processing form. Please try again.", flashErr)
 			http.Redirect(w, r, "/signup", http.StatusSeeOther)
 			return
@@ -35,7 +35,7 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if _, err := a.userService.CreateUser(r.Context(), sf.FirstName, sf.LastName, sf.Email, sf.Password); err != nil {
-			a.ErrorLog.Println(err)
+			a.Logger.Error("error creating user: %v", err)
 			a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
 			http.Redirect(w, r, "/signup", http.StatusSeeOther)
 			return
@@ -86,7 +86,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusForbidden)
 				a.renderTemplate(w, td, "login.html")
 			} else {
-				a.ErrorLog.Printf("error getting user by email: %s", err)
+				a.Logger.Error("error getting user by email: %v", err)
 				a.flash(r.Context(), "Internal server error.", flashErr)
 				http.Redirect(w, r, "/login", http.StatusSeeOther)
 			}
@@ -95,7 +95,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 		authenticated, err := a.userService.Authenticate(user.PasswordHash, lf.Password)
 		if err != nil {
-			a.ErrorLog.Printf("error authenticating user %d: %s", user.ID, err)
+			a.Logger.Error("error authenticating user %d: %v", user.ID, err)
 			a.flash(r.Context(), "Internal server error.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
@@ -113,7 +113,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := a.sessionManager.RenewToken(r.Context()); err != nil {
-			a.ErrorLog.Printf("error renewing token: %s", err)
+			a.Logger.Error("error renewing token: %v", err)
 			a.flash(r.Context(), "Internal server error.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
@@ -144,7 +144,7 @@ func (a *application) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		if err := a.sessionManager.Destroy(r.Context()); err != nil {
-			a.ErrorLog.Println("error deleting session:", err)
+			a.Logger.Error("error deleting session: %v", err)
 			a.flash(r.Context(), "Error logging out. Please try again.", flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 			return
@@ -189,7 +189,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 		a.renderTemplate(w, td, "edit-profile.html")
 	case http.MethodPost:
 		if err := r.ParseForm(); err != nil {
-			a.ErrorLog.Println("error parsing form:", err)
+			a.Logger.Error("error parsing form: %v", err)
 			a.flash(r.Context(), "Error processing form. Please try again.", flashErr)
 			http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 			return
@@ -219,7 +219,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 
 		_, err := a.userService.UpdateUser(r.Context(), user.ID, epf.FirstName, epf.LastName, epf.Email, epf.Password)
 		if err != nil {
-			a.ErrorLog.Printf("error updating user %d: %s", user.ID, err.Error())
+			a.Logger.Error("error updating user %d: %v", user.ID, err)
 			a.flash(r.Context(), "Error updating profile. Please try again.", flashErr)
 			http.Redirect(w, r, "/profile/edit", http.StatusSeeOther)
 			return
@@ -252,14 +252,14 @@ func (a *application) deleteAccountHandler(w http.ResponseWriter, r *http.Reques
 				http.Redirect(w, r, "/login", http.StatusSeeOther)
 				return
 			}
-			a.ErrorLog.Printf("error deleting user with ID %d: %v", user.ID, err)
+			a.Logger.Error("error deleting user with ID %d: %v", user.ID, err)
 			a.flash(r.Context(), "Error deleting account. Please try again.", flashErr)
 			http.Redirect(w, r, "/profile", http.StatusSeeOther)
 			return
 		}
 
 		if err := a.sessionManager.Destroy(r.Context()); err != nil {
-			a.ErrorLog.Println("error deleting session:", err)
+			a.Logger.Error("error deleting session: %v", err)
 		}
 
 		a.flash(r.Context(), "Your account has been deleted.", flashInfo)

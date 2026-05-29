@@ -3,11 +3,11 @@ package workers
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 
 	"github.com/npezzotti/gophoto/internal/db"
 	"github.com/npezzotti/gophoto/internal/utils"
+	"github.com/npezzotti/gophoto/pkg/logging"
 	"github.com/npezzotti/gophoto/pkg/store"
 )
 
@@ -16,7 +16,7 @@ import (
 type StorageCleanerWorker struct {
 	db       db.PhotoRepository
 	store    store.Store
-	log      *log.Logger
+	log      *logging.Logger
 	ticker   *time.Ticker
 	stopChan chan struct{}
 	doneChan chan bool
@@ -27,7 +27,7 @@ const (
 	DefaultTimeLimit = 10 * time.Minute
 )
 
-func NewStorageCleanerWorker(db db.PhotoRepository, store store.Store, logger *log.Logger, frequency time.Duration) StorageCleanerWorker {
+func NewStorageCleanerWorker(db db.PhotoRepository, store store.Store, logger *logging.Logger, frequency time.Duration) StorageCleanerWorker {
 	return StorageCleanerWorker{
 		db:       db,
 		store:    store,
@@ -39,12 +39,12 @@ func NewStorageCleanerWorker(db db.PhotoRepository, store store.Store, logger *l
 }
 
 func (scw *StorageCleanerWorker) Run() {
-	scw.log.Println("starting storage cleaner worker")
+	scw.log.Info("starting storage cleaner worker")
 	go func() {
 		for {
 			select {
 			case <-scw.stopChan:
-				scw.log.Println("received shutdown signal")
+				scw.log.Info("received shutdown signal")
 				scw.doneChan <- true
 				return
 			case <-scw.ticker.C:
@@ -55,48 +55,48 @@ func (scw *StorageCleanerWorker) Run() {
 }
 
 func (scw *StorageCleanerWorker) cleanStorage() {
-	scw.log.Println("starting storage cleanup job")
-	defer scw.log.Println("finished storage cleanup job")
+	scw.log.Info("starting storage cleanup job")
+	defer scw.log.Info("finished storage cleanup job")
 
 	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeLimit)
 	defer cancel()
 
 	photos, err := scw.db.GetOrphanedPhotos(ctx)
 	if err != nil {
-		scw.log.Println("error getting files:", err)
+		scw.log.Error("error getting files: %v", err)
 		return
 	}
 
-	scw.log.Printf("found %d orphaned photos to delete", len(photos))
+	scw.log.Info("found %d orphaned photos to delete", len(photos))
 
 	for _, photo := range photos {
 		metadata, err := scw.db.GetPhotoMetadataByPhotoID(ctx, photo.ID)
 		if err != nil {
-			scw.log.Printf("error getting metadata for photo %d: %s", photo.ID, err.Error())
+			scw.log.Error("error getting metadata for photo %d: %v", photo.ID, err)
 			continue
 		}
 		for _, m := range metadata {
 			path, err := utils.BuildPhotoPathForVariant(photo.Key, m.Variant, utils.MimeType(m.MimeType))
 			if err != nil {
-				scw.log.Printf("error building path for photo %d variant %s: %s", photo.ID, m.Variant, err.Error())
+				scw.log.Error("error building path for photo %d variant %s: %v", photo.ID, m.Variant, err)
 				continue
 			}
 			if err := scw.store.Delete(ctx, path); err != nil {
 				if !errors.Is(err, store.ErrNotExist) {
-					scw.log.Printf("error deleting file with key %s: %s", path, err.Error())
+					scw.log.Error("error deleting file with key %s: %v", path, err)
 					return
 				}
 			}
 		}
 
 		if err := scw.db.DeletePhoto(ctx, photo.ID); err != nil {
-			scw.log.Printf("error deleting photo %d from database: %s", photo.ID, err.Error())
+			scw.log.Error("error deleting photo %d from database: %v", photo.ID, err)
 			return
 		}
 
 		// Check if the context has been cancelled or timed out after each iteration
 		if err := ctx.Err(); err != nil {
-			scw.log.Println("context error:", err)
+			scw.log.Error("context error: %v", err)
 			return
 		}
 	}
