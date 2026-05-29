@@ -42,13 +42,6 @@ INSERT INTO albums (
 )
 RETURNING *;
 
--- name: SetAlbumCoverPhoto :exec
-UPDATE albums
-SET 
-  cover_photo_id = $2,
-  updated_at = $3
-WHERE id = $1;
-
 -- name: UpdateAlbum :one
 UPDATE albums
   SET user_id = $2,

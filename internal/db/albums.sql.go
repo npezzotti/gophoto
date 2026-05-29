@@ -269,25 +269,6 @@ func (q *Queries) ListAlbumsByUser(ctx context.Context, arg ListAlbumsByUserPara
 	return items, nil
 }
 
-const setAlbumCoverPhoto = `-- name: SetAlbumCoverPhoto :exec
-UPDATE albums
-SET 
-  cover_photo_id = $2,
-  updated_at = $3
-WHERE id = $1
-`
-
-type SetAlbumCoverPhotoParams struct {
-	ID           int32
-	CoverPhotoID sql.NullInt32
-	UpdatedAt    time.Time
-}
-
-func (q *Queries) SetAlbumCoverPhoto(ctx context.Context, arg SetAlbumCoverPhotoParams) error {
-	_, err := q.db.ExecContext(ctx, setAlbumCoverPhoto, arg.ID, arg.CoverPhotoID, arg.UpdatedAt)
-	return err
-}
-
 const updateAlbum = `-- name: UpdateAlbum :one
 UPDATE albums
   SET user_id = $2,
