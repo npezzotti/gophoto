@@ -13,22 +13,22 @@ import (
 )
 
 type AlbumService struct {
-	repo   db.AlbumRepository
-	photos db.PhotoRepository
+	albumRepo   db.AlbumRepository
+	photoRepo db.PhotoRepository
 	store  store.Store
 	config *config.Config
 }
 
 func NewAlbumService(r db.AlbumRepository, p db.PhotoRepository, s store.Store, c *config.Config) *AlbumService {
-	return &AlbumService{repo: r, photos: p, store: s, config: c}
+	return &AlbumService{albumRepo: r, photoRepo: p, store: s, config: c}
 }
 
 func (s *AlbumService) GetAlbumByID(ctx context.Context, albumID int32) (domain.Album, error) {
-	return s.repo.GetAlbumByID(ctx, albumID)
+	return s.albumRepo.GetAlbumByID(ctx, albumID)
 }
 
 func (s *AlbumService) GetAlbumPageView(ctx context.Context, userID, albumID, limit, offset int32) (domain.AlbumPageView, error) {
-	album, err := s.repo.GetAlbumByID(ctx, albumID)
+	album, err := s.albumRepo.GetAlbumByID(ctx, albumID)
 	if err != nil {
 		return domain.AlbumPageView{}, fmt.Errorf("error getting album: %w", err)
 	}
@@ -37,7 +37,7 @@ func (s *AlbumService) GetAlbumPageView(ctx context.Context, userID, albumID, li
 		return domain.AlbumPageView{}, domain.ErrAlbumNotFound
 	}
 
-	albumViewRows, err := s.repo.ListAlbumPhotoViewRows(ctx, album.ID, limit, offset)
+	albumViewRows, err := s.albumRepo.ListAlbumPhotoViewRows(ctx, album.ID, limit, offset)
 	if err != nil {
 		return domain.AlbumPageView{}, fmt.Errorf("error getting album page view: %w", err)
 	}
@@ -113,7 +113,7 @@ func (s *AlbumService) GetAlbumPageView(ctx context.Context, userID, albumID, li
 }
 
 func (s *AlbumService) ListAlbumsByUser(ctx context.Context, userID int32, limit, offset int32) ([]*domain.AlbumListItem, error) {
-	albums, err := s.repo.ListAlbumsByUser(ctx, userID, limit, offset)
+	albums, err := s.albumRepo.ListAlbumsByUser(ctx, userID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("error listing albums by user: %w", err)
 	}
@@ -131,7 +131,7 @@ func (s *AlbumService) CreateAlbum(ctx context.Context, userID int32, title stri
 		return domain.Album{}, fmt.Errorf("album title cannot be empty")
 	}
 
-	dbAlbum, err := s.repo.CreateAlbum(ctx, userID, title)
+	dbAlbum, err := s.albumRepo.CreateAlbum(ctx, userID, title)
 	if err != nil {
 		return domain.Album{}, fmt.Errorf("error creating album: %w", err)
 	}
@@ -146,7 +146,7 @@ func (s *AlbumService) CreateAlbum(ctx context.Context, userID int32, title stri
 }
 
 func (s *AlbumService) UpdateAlbum(ctx context.Context, albumID int32, userID int32, title string, coverPhotoID *int32) (domain.Album, error) {
-	album, err := s.repo.GetAlbumByID(ctx, albumID)
+	album, err := s.albumRepo.GetAlbumByID(ctx, albumID)
 	if err != nil {
 		return domain.Album{}, fmt.Errorf("error getting album with ID %d: %w", albumID, err)
 	}
@@ -155,7 +155,7 @@ func (s *AlbumService) UpdateAlbum(ctx context.Context, albumID int32, userID in
 		return domain.Album{}, domain.ErrAlbumNotFound
 	}
 
-	updatedAlbum, err := s.repo.UpdateAlbum(ctx, albumID, userID, title, coverPhotoID)
+	updatedAlbum, err := s.albumRepo.UpdateAlbum(ctx, albumID, userID, title, coverPhotoID)
 	if err != nil {
 		return domain.Album{}, fmt.Errorf("error updating album with ID %d: %w", album.ID, err)
 	}
@@ -163,7 +163,7 @@ func (s *AlbumService) UpdateAlbum(ctx context.Context, albumID int32, userID in
 }
 
 func (s *AlbumService) DeleteAlbum(ctx context.Context, albumID, userID int32) error {
-	album, err := s.repo.GetAlbumByID(ctx, albumID)
+	album, err := s.albumRepo.GetAlbumByID(ctx, albumID)
 	if err != nil {
 		return fmt.Errorf("error getting album with ID %d: %w", albumID, err)
 	}
@@ -172,7 +172,7 @@ func (s *AlbumService) DeleteAlbum(ctx context.Context, albumID, userID int32) e
 		return domain.ErrAlbumNotFound
 	}
 
-	if err := s.repo.DeleteAlbum(ctx, albumID); err != nil {
+	if err := s.albumRepo.DeleteAlbum(ctx, albumID); err != nil {
 		return fmt.Errorf("error deleting album with ID %d: %w", album.ID, err)
 	}
 	return nil
@@ -188,7 +188,7 @@ func (s *AlbumService) newAlbumListItem(ctx context.Context, album domain.AlbumL
 	}
 
 	if album.Album.CoverPhotoID != nil {
-		meta, err := s.photos.GetPhotoMetadataByPhotoID(ctx, *album.Album.CoverPhotoID)
+		meta, err := s.photoRepo.GetPhotoMetadataByPhotoID(ctx, *album.Album.CoverPhotoID)
 		if err == nil {
 			var sources []domain.ImageSource
 			var defaultSrc string

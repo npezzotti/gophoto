@@ -16,15 +16,15 @@ import (
 )
 
 type UserService struct {
-	repo   db.UserRepository
-	photos db.PhotoRepository
+	userRepo   db.UserRepository
+	photoRepo db.PhotoRepository
 	store  store.Store
 	config *config.Config
 	logger *logging.Logger
 }
 
 func NewUserService(r db.UserRepository, p db.PhotoRepository, s store.Store, c *config.Config, l *logging.Logger) *UserService {
-	return &UserService{repo: r, photos: p, store: s, config: c, logger: l}
+	return &UserService{userRepo: r, photoRepo: p, store: s, config: c, logger: l}
 }
 
 func (s *UserService) defaultProfileImage() domain.ResponsiveImage {
@@ -58,7 +58,7 @@ func (s *UserService) buildProfileImage(ctx context.Context, user domain.User) d
 
 	profilePictureID := *user.ProfilePictureID
 
-	photo, err := s.photos.GetPhoto(ctx, profilePictureID)
+	photo, err := s.photoRepo.GetPhoto(ctx, profilePictureID)
 	if err != nil {
 		s.logger.Warn("profile_image_fallback stage=get_photo user_id=%d profile_picture_id=%d error=%q", user.ID, profilePictureID, err.Error())
 		return image
@@ -70,7 +70,7 @@ func (s *UserService) buildProfileImage(ctx context.Context, user domain.User) d
 		return image
 	}
 
-	meta, err := s.photos.GetPhotoMetadataByPhotoID(ctx, profilePictureID)
+	meta, err := s.photoRepo.GetPhotoMetadataByPhotoID(ctx, profilePictureID)
 	if err != nil {
 		s.logger.Warn("profile_image_fallback stage=get_photo_metadata user_id=%d profile_picture_id=%d error=%q", user.ID, profilePictureID, err.Error())
 		return image
@@ -138,7 +138,7 @@ func (s *UserService) newUserPresentation(ctx context.Context, user domain.User)
 }
 
 func (s *UserService) GetUserByID(ctx context.Context, id int32) (*domain.UserPresentation, error) {
-	user, err := s.repo.GetUserById(ctx, id)
+	user, err := s.userRepo.GetUserById(ctx, id)
 	if err != nil {
 		if errors.Is(err, db.ErrUserNotFound) {
 			return nil, domain.ErrUserNotFound
@@ -150,7 +150,7 @@ func (s *UserService) GetUserByID(ctx context.Context, id int32) (*domain.UserPr
 }
 
 func (s *UserService) GetUserByEmail(ctx context.Context, email string) (domain.User, error) {
-	user, err := s.repo.GetUserByEmail(ctx, email)
+	user, err := s.userRepo.GetUserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, db.ErrUserNotFound) {
 			return domain.User{}, domain.ErrUserNotFound
@@ -166,7 +166,7 @@ func (s *UserService) CreateUser(ctx context.Context, firstName, lastName, email
 		return nil, fmt.Errorf("error hashing password: %w", err)
 	}
 
-	user, err := s.repo.CreateUser(ctx, firstName, lastName, email, passwdHash)
+	user, err := s.userRepo.CreateUser(ctx, firstName, lastName, email, passwdHash)
 	if err != nil {
 		return nil, fmt.Errorf("error creating user: %w", err)
 	}
@@ -175,7 +175,7 @@ func (s *UserService) CreateUser(ctx context.Context, firstName, lastName, email
 }
 
 func (s *UserService) UpdateUser(ctx context.Context, userID int32, firstName, lastName, email, password string) (*domain.UserPresentation, error) {
-	user, err := s.repo.GetUserById(ctx, userID)
+	user, err := s.userRepo.GetUserById(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching user for update: %w", err)
 	}
@@ -191,7 +191,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userID int32, firstName, l
 		pwdHash = user.PasswordHash
 	}
 
-	updatedUser, err := s.repo.UpdateUser(ctx, domain.UserUpdateParams{
+	updatedUser, err := s.userRepo.UpdateUser(ctx, domain.UserUpdateParams{
 		ID:               userID,
 		FirstName:        firstName,
 		LastName:         lastName,
@@ -214,7 +214,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userID int32, firstName, l
 }
 
 func (s *UserService) DeleteUser(ctx context.Context, userID int32) error {
-	if err := s.repo.DeleteUser(ctx, userID); err != nil {
+	if err := s.userRepo.DeleteUser(ctx, userID); err != nil {
 		if errors.Is(err, db.ErrUserNotFound) {
 			return domain.ErrUserNotFound
 		}
