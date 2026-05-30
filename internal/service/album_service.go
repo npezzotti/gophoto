@@ -13,10 +13,10 @@ import (
 )
 
 type AlbumService struct {
-	albumRepo   db.AlbumRepository
+	albumRepo db.AlbumRepository
 	photoRepo db.PhotoRepository
-	store  store.Store
-	config *config.Config
+	store     store.Store
+	config    *config.Config
 }
 
 func NewAlbumService(r db.AlbumRepository, p db.PhotoRepository, s store.Store, c *config.Config) *AlbumService {

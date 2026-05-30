@@ -16,11 +16,11 @@ import (
 )
 
 type UserService struct {
-	userRepo   db.UserRepository
+	userRepo  db.UserRepository
 	photoRepo db.PhotoRepository
-	store  store.Store
-	config *config.Config
-	logger *logging.Logger
+	store     store.Store
+	config    *config.Config
+	logger    *logging.Logger
 }
 
 func NewUserService(r db.UserRepository, p db.PhotoRepository, s store.Store, c *config.Config, l *logging.Logger) *UserService {
