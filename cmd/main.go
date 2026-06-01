@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/gob"
+	"errors"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -19,114 +21,137 @@ import (
 
 	"github.com/npezzotti/gophoto/internal/config"
 	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/internal/service"
 	"github.com/npezzotti/gophoto/internal/web"
 	"github.com/npezzotti/gophoto/internal/workers"
+	"github.com/npezzotti/gophoto/pkg/logging"
 	"github.com/npezzotti/gophoto/pkg/store"
 	"github.com/npezzotti/gophoto/pkg/template"
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatalln("error running application:", err)
+	}
+}
+
+func run() error {
 	cfg, err := config.LoadConfigFromEnv()
 	if err != nil {
-		log.Fatalln("error generating config:", err)
+		return fmt.Errorf("error generating config: %w", err)
 	}
 
+	// Connect to the PostgreSQL database and run migrations
 	dbConn, err := connectPostgres(cfg.DatabaseSource)
 	if err != nil {
-		log.Fatalln("error connecting to db:", err)
+		return fmt.Errorf("error connecting to database: %w", err)
 	}
 	defer dbConn.Close()
 
 	if err = db.Migrate(dbConn); err != nil {
-		log.Fatalln("failed running migrations:", err)
+		return fmt.Errorf("error running migrations: %w", err)
 	}
 
-	repo := db.NewRepository(dbConn)
-
+	// Initialize the store based on the configuration
 	var photoStore store.Store
+	var storeErr error
 	switch cfg.StorageType {
 	case config.StorageTypeDisk:
-		photoStore, err = store.NewFileStore(cfg.BaseDir, cfg.SigningKey)
+		photoStore, storeErr = store.NewFileStore(cfg.BaseDir, cfg.SigningKey)
 	case config.StorageTypeS3:
-		photoStore, err = store.NewS3Store(cfg.BucketName)
-		if err != nil {
-			log.Fatalln("error creating S3 store:", err)
-		}
+		photoStore, storeErr = store.NewS3Store(cfg.BucketName)
 	default:
-		log.Fatal("storage type not supported")
+		storeErr = fmt.Errorf("storage type not supported")
 	}
-	if err != nil {
-		log.Fatalln("error creating store:", err)
+	if storeErr != nil {
+		return fmt.Errorf("error creating store: %w", storeErr)
 	}
 
+	// Initialize the Redis client
 	redisClient, err := createRedisClient(cfg.RedisAddress)
 	if err != nil {
-		log.Fatal("error connecting to redis:", err)
+		return fmt.Errorf("error connecting to redis: %w", err)
 	}
 	defer redisClient.Close()
 
+	// Initialize the template cache
 	var tc template.TemplateCache
 	if cfg.UseTemplateCache {
 		tc, err = template.NewTemplateCache(web.PagesGlob, web.PartialsGlob, web.BaseTemplate)
 		if err != nil {
-			log.Fatal("error creating template cache: ", err)
+			return fmt.Errorf("error creating template cache: %w", err)
 		}
 	}
 
+	// Initialize the session manager with PostgreSQL store
 	sessionManager := scs.New()
 	sessionManager.Store = postgresstore.New(dbConn)
+
+	// Register the Flash struct with gob for session serialization
 	gob.Register(web.Flash{})
 
-	app := web.NewApplication(redisClient, cfg, sessionManager, repo, photoStore, tc)
+	// Initialize repositories, services, and the application
+	repo := db.NewRepository(dbConn)
+	logger := logging.NewLogger(os.Stderr, cfg.Debug)
+	userService := service.NewUserService(repo, repo, photoStore, cfg, logger)
+	photoService := service.NewPhotoService(repo, repo, photoStore, redisClient, logger)
+	albumService := service.NewAlbumService(repo, repo, photoStore, cfg, logger)
+	app := web.NewApplication(userService, albumService, photoService, cfg, sessionManager, tc, logger)
 
-	storageCleanerWorker := workers.NewStorageCleanerWorker(repo, photoStore, app.Logger, workers.DefaultFrequency)
+	storageCleanerWorker := workers.NewStorageCleanerWorker(repo, photoStore, logger, workers.DefaultFrequency)
 	storageCleanerWorker.Run()
 
-	photoProcessorWorker := workers.NewPhotoProcessorWorker(redisClient, cfg, repo, photoStore, app.Logger)
+	photoProcessorWorker := workers.NewPhotoProcessorWorker(redisClient, cfg, repo, photoStore, logger)
 	photoProcessorWorker.Run()
 
-	errChan := make(chan error)
+	errChan := make(chan error, 1)
 	go func() {
-		app.Logger.Info("starting server on %s", cfg.HttpServerAddr)
+		logger.Info("starting server on %s", cfg.HttpServerAddr)
 		errChan <- app.Start()
 	}()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
 
+	var runErr error
 	select {
 	case <-sigChan:
-		log.Println("received signal, shutting down")
-	case <-errChan:
-		log.Println("error while running server")
+		logger.Info("received signal, shutting down")
+	case err := <-errChan:
+		if err != nil {
+			runErr = fmt.Errorf("error running server: %w", err)
+		}
 	}
 
 	doneChan := make(chan struct{})
 	var wg sync.WaitGroup
+	storageWorkerErrChan := make(chan error, 1)
+	photoWorkerErrChan := make(chan error, 1)
+	serverShutdownErrChan := make(chan error, 1)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
 	wg.Add(1)
 	go func() {
-		app.Logger.Info("stopping worker")
-		storageCleanerWorker.Stop()
+		storageWorkerErrChan <- storageCleanerWorker.Stop(shutdownCtx)
 		wg.Done()
 	}()
 
 	wg.Add(1)
 	go func() {
-		app.Logger.Info("stopping worker")
-		photoProcessorWorker.Stop()
+		photoWorkerErrChan <- photoProcessorWorker.Stop(shutdownCtx)
 		wg.Done()
 	}()
 
 	wg.Add(1)
 	go func() {
-		app.Logger.Info("stopping server")
-		if err := app.Shutdown(ctx); err != nil {
-			log.Fatalf("error shutting down server: %v", err)
+		if err := app.Shutdown(shutdownCtx); err != nil {
+			serverShutdownErrChan <- fmt.Errorf("error shutting down server: %w", err)
+			wg.Done()
+			return
 		}
+		serverShutdownErrChan <- nil
 		wg.Done()
 	}()
 
@@ -135,13 +160,31 @@ func main() {
 		close(doneChan)
 	}()
 
+	// Drain error channel to get any pending server error before proceeding with shutdown
+	select {
+	case err := <-errChan:
+		if err != nil {
+			runErr = errors.Join(runErr, fmt.Errorf("error running server: %w", err))
+		}
+	default:
+	}
+
+	if runErr != nil {
+		return runErr
+	}
+
 	select {
 	case sig := <-sigChan:
-		log.Printf("received second signal %s, aborting", sig)
+		return fmt.Errorf("shutdown aborted due to signal: %s", sig)
 	case <-doneChan:
-		log.Println("graceful shutdown complete")
-	case <-ctx.Done():
-		log.Fatal("timed out before graceful shutdown finished")
+		componentErr := errors.Join(<-storageWorkerErrChan, <-photoWorkerErrChan, <-serverShutdownErrChan)
+		if componentErr != nil {
+			return componentErr
+		}
+		logger.Info("graceful shutdown complete")
+		return nil
+	case <-shutdownCtx.Done():
+		return fmt.Errorf("timed out before graceful shutdown finished")
 	}
 }
 

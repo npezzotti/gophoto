@@ -9,6 +9,7 @@ import (
 	"github.com/npezzotti/gophoto/internal/db"
 	"github.com/npezzotti/gophoto/internal/domain"
 	"github.com/npezzotti/gophoto/internal/utils"
+	"github.com/npezzotti/gophoto/pkg/logging"
 	"github.com/npezzotti/gophoto/pkg/store"
 )
 
@@ -17,10 +18,17 @@ type AlbumService struct {
 	photoRepo db.PhotoRepository
 	store     store.Store
 	config    *config.Config
+	logging   *logging.Logger
 }
 
-func NewAlbumService(r db.AlbumRepository, p db.PhotoRepository, s store.Store, c *config.Config) *AlbumService {
-	return &AlbumService{albumRepo: r, photoRepo: p, store: s, config: c}
+func NewAlbumService(r db.AlbumRepository, p db.PhotoRepository, s store.Store, c *config.Config, logger *logging.Logger) *AlbumService {
+	return &AlbumService{
+		albumRepo: r,
+		photoRepo: p,
+		store:     s,
+		config:    c,
+		logging:   logger,
+	}
 }
 
 func (s *AlbumService) GetAlbumByID(ctx context.Context, albumID int32) (domain.Album, error) {

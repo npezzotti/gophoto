@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -10,12 +11,9 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 	"github.com/npezzotti/gophoto/internal/config"
-	"github.com/npezzotti/gophoto/internal/db"
 	"github.com/npezzotti/gophoto/internal/service"
 	"github.com/npezzotti/gophoto/pkg/logging"
-	"github.com/npezzotti/gophoto/pkg/store"
 	"github.com/npezzotti/gophoto/pkg/template"
-	"github.com/redis/go-redis/v9"
 )
 
 type ContextKey string
@@ -38,10 +36,8 @@ const (
 )
 
 type application struct {
-	redisClient    *redis.Client
 	config         *config.Config
 	srv            *http.Server
-	database       *db.Repository
 	templateCache  template.TemplateCache
 	sessionManager *scs.SessionManager
 	Logger         *logging.Logger
@@ -50,19 +46,15 @@ type application struct {
 	photoService   *service.PhotoService
 }
 
-func NewApplication(redisClient *redis.Client, cfg *config.Config, sess *scs.SessionManager, db *db.Repository, s store.Store, tc template.TemplateCache) *application {
-	logger := logging.NewLogger(os.Stderr, cfg.Debug)
-
+func NewApplication(userService *service.UserService, albumService *service.AlbumService, photoService *service.PhotoService, cfg *config.Config, sess *scs.SessionManager, tc template.TemplateCache, logger *logging.Logger) *application {
 	app := &application{
-		redisClient:    redisClient,
 		config:         cfg,
 		sessionManager: sess,
-		database:       db,
 		templateCache:  tc,
 		Logger:         logger,
-		userService:    service.NewUserService(db, db, s, cfg, logger),
-		albumService:   service.NewAlbumService(db, db, s, cfg),
-		photoService:   service.NewPhotoService(db, db, s, redisClient),
+		userService:    userService,
+		albumService:   albumService,
+		photoService:   photoService,
 	}
 
 	mux := app.routes()
@@ -77,7 +69,11 @@ func NewApplication(redisClient *redis.Client, cfg *config.Config, sess *scs.Ses
 }
 
 func (a *application) Start() error {
-	return a.srv.ListenAndServe()
+	err := a.srv.ListenAndServe()
+	if err != nil && errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+	return err
 }
 
 func (a *application) Shutdown(ctx context.Context) error {

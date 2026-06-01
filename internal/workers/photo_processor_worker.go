@@ -90,7 +90,6 @@ func (ppw *PhotoProcessorWorker) Run() {
 					ppw.log.Error("error handling job: %v", err)
 				}
 			case <-ppw.stopChan:
-				ppw.log.Info("stopping photo processor worker")
 				select {
 				case ppw.doneChan <- true:
 				default:
@@ -239,7 +238,12 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 	return nil
 }
 
-func (ppw *PhotoProcessorWorker) Stop() {
+func (ppw *PhotoProcessorWorker) Stop(ctx context.Context) error {
 	close(ppw.stopChan)
-	<-ppw.doneChan
+	select {
+	case <-ppw.doneChan:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("photo processor worker stop timed out: %w", ctx.Err())
+	}
 }
