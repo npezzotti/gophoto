@@ -36,6 +36,7 @@ func main() {
 }
 
 func run() error {
+	// Load configuration from environment variables
 	cfg, err := config.LoadConfigFromEnv()
 	if err != nil {
 		return fmt.Errorf("error generating config: %w", err)
@@ -98,6 +99,7 @@ func run() error {
 	albumService := service.NewAlbumService(repo, repo, photoStore, cfg, logger)
 	app := web.NewApplication(userService, albumService, photoService, cfg, sessionManager, tc, logger)
 
+	// Start the background workers
 	storageCleanerWorker := workers.NewStorageCleanerWorker(repo, photoStore, logger, workers.DefaultFrequency)
 	storageCleanerWorker.Run()
 
