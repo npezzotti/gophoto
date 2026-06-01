@@ -16,6 +16,7 @@ import (
 	"github.com/npezzotti/gophoto/internal/domain"
 	"github.com/npezzotti/gophoto/internal/utils"
 	"github.com/npezzotti/gophoto/internal/workers"
+	"github.com/npezzotti/gophoto/pkg/logging"
 	"github.com/npezzotti/gophoto/pkg/store"
 	"github.com/redis/go-redis/v9"
 )
@@ -30,14 +31,21 @@ type PhotoService struct {
 	albumRepo   db.AlbumRepository
 	store       store.Store
 	redisClient queuePublisher
+	logger      *logging.Logger
 }
 
 type queuePublisher interface {
 	Publish(ctx context.Context, channel string, message interface{}) *redis.IntCmd
 }
 
-func NewPhotoService(photoRepo db.PhotoRepository, albumRepo db.AlbumRepository, store store.Store, redisClient queuePublisher) *PhotoService {
-	return &PhotoService{photoRepo: photoRepo, albumRepo: albumRepo, store: store, redisClient: redisClient}
+func NewPhotoService(photoRepo db.PhotoRepository, albumRepo db.AlbumRepository, store store.Store, redisClient queuePublisher, logger *logging.Logger) *PhotoService {
+	return &PhotoService{
+		photoRepo:   photoRepo,
+		albumRepo:   albumRepo,
+		store:       store,
+		redisClient: redisClient,
+		logger:      logger,
+	}
 }
 
 func (s *PhotoService) GetPhoto(ctx context.Context, id int32) (domain.Photo, error) {

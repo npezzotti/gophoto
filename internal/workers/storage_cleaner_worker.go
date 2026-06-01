@@ -3,6 +3,7 @@ package workers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/npezzotti/gophoto/internal/db"
@@ -44,7 +45,6 @@ func (scw *StorageCleanerWorker) Run() {
 		for {
 			select {
 			case <-scw.stopChan:
-				scw.log.Info("received shutdown signal")
 				scw.doneChan <- true
 				return
 			case <-scw.ticker.C:
@@ -102,8 +102,13 @@ func (scw *StorageCleanerWorker) cleanStorage() {
 	}
 }
 
-func (scw *StorageCleanerWorker) Stop() {
+func (scw *StorageCleanerWorker) Stop(ctx context.Context) error {
 	scw.ticker.Stop()
 	close(scw.stopChan)
-	<-scw.doneChan
+	select {
+	case <-scw.doneChan:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("storage cleaner worker stop timed out: %w", ctx.Err())
+	}
 }
