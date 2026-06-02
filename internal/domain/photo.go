@@ -25,6 +25,7 @@ const (
 )
 
 var ErrPhotoNotFound = errors.New("photo not found")
+var ErrAlbumPhotoNotFound = errors.New("album photo not found")
 
 type Photo struct {
 	ID        int32

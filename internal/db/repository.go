@@ -112,6 +112,9 @@ func (r *Repository) GetPhotoMetadataByPhotoIDAndVariant(ctx context.Context, ph
 		Variant: PhotoVariant(variant),
 	})
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.PhotoMetadatum{}, domain.ErrPhotoNotFound
+		}
 		return domain.PhotoMetadatum{}, err
 	}
 
@@ -130,6 +133,9 @@ func (r *Repository) GetPhotoMetadataByPhotoIDAndVariant(ctx context.Context, ph
 func (r *Repository) GetAlbumPhoto(ctx context.Context, id int32) (domain.AlbumPhoto, error) {
 	photo, err := r.querier.GetAlbumPhoto(ctx, id)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.AlbumPhoto{}, domain.ErrAlbumPhotoNotFound
+		}
 		return domain.AlbumPhoto{}, err
 	}
 	return domain.AlbumPhoto{
