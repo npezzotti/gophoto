@@ -54,6 +54,7 @@ var (
 
 type PhotoProcessorWorker struct {
 	redisClient *redis.Client
+	pubSub      *redis.PubSub
 	db          db.PhotoRepository
 	store       store.Store
 	log         *logging.Logger
@@ -76,7 +77,8 @@ func (ppw *PhotoProcessorWorker) Run() {
 	ppw.log.Info("starting photo processor worker")
 
 	// Subscribe to the Redis channel for photo processing jobs
-	jobsChan := subscribeToQueue(ppw.redisClient, PhotoProcessingQueue)
+	ppw.pubSub = subscribeToQueue(ppw.redisClient, PhotoProcessingQueue)
+	jobsChan := ppw.pubSub.Channel()
 
 	go func() {
 		for {
@@ -240,6 +242,9 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 
 func (ppw *PhotoProcessorWorker) Stop(ctx context.Context) error {
 	close(ppw.stopChan)
+	if ppw.pubSub != nil {
+		_ = ppw.pubSub.Close()
+	}
 	select {
 	case <-ppw.doneChan:
 		return nil
