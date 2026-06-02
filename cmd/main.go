@@ -112,12 +112,14 @@ func run() error {
 		errChan <- app.Start()
 	}()
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
+	// sigChan := make(chan os.Signal, 1)
+	// signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	var runErr error
 	select {
-	case <-sigChan:
+	case <-ctx.Done():
 		logger.Info("received signal, shutting down")
 	case err := <-errChan:
 		if err != nil {
@@ -162,32 +164,23 @@ func run() error {
 		close(doneChan)
 	}()
 
-	// Drain error channel to get any pending server error before proceeding with shutdown
 	select {
-	case err := <-errChan:
-		if err != nil {
-			runErr = errors.Join(runErr, fmt.Errorf("error running server: %w", err))
-		}
-	default:
-	}
-
-	if runErr != nil {
-		return runErr
-	}
-
-	select {
-	case sig := <-sigChan:
-		return fmt.Errorf("shutdown aborted due to signal: %s", sig)
 	case <-doneChan:
-		componentErr := errors.Join(<-storageWorkerErrChan, <-photoWorkerErrChan, <-serverShutdownErrChan)
-		if componentErr != nil {
-			return componentErr
-		}
-		logger.Info("graceful shutdown complete")
-		return nil
 	case <-shutdownCtx.Done():
 		return fmt.Errorf("timed out before graceful shutdown finished")
 	}
+
+	// Drain the server error channel to capture any errors that occurred during shutdown
+	if err := <-errChan; err != nil {
+		runErr = errors.Join(runErr, fmt.Errorf("error running server: %w", err))
+	}
+
+	componentErr := errors.Join(<-storageWorkerErrChan, <-photoWorkerErrChan, <-serverShutdownErrChan)
+	combinedErr := errors.Join(runErr, componentErr)
+	if combinedErr == nil {
+		logger.Info("graceful shutdown complete")
+	}
+	return combinedErr
 }
 
 func connectPostgres(dsn string) (*sql.DB, error) {
