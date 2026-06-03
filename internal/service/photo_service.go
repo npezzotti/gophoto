@@ -190,10 +190,19 @@ func validatePhotoUpload(fileType string, fh *multipart.FileHeader) error {
 		return ErrFileTooLarge
 	}
 
-	if !strings.HasPrefix(fileType, "image/") || !utils.ValidateMimeType(fileType) {
+	if !strings.HasPrefix(fileType, "image/") || !validMIMEType(fileType) {
 		return ErrInvalidFileType
 	}
 	return nil
+}
+
+func validMIMEType(mtype string) bool {
+	for _, allowedType := range domain.AllowedImageMimeTypes {
+		if mtype == string(allowedType) {
+			return true
+		}
+	}
+	return false
 }
 
 // detectContentType reads the first 512 bytes of the provided file to determine its content type.

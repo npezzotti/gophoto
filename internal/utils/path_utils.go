@@ -7,15 +7,6 @@ import (
 	"github.com/npezzotti/gophoto/internal/domain"
 )
 
-func ValidateMimeType(mimeType string) bool {
-	for _, allowedType := range domain.AllowedImageMimeTypes {
-		if mimeType == string(allowedType) {
-			return true
-		}
-	}
-	return false
-}
-
 // BuildPhotoPathForVariant constructs a hierarchical file path for storing photos based on the provided key and variant.
 func BuildPhotoPathForVariant(key string, variant domain.PhotoVariant, mimeType domain.MimeType) (string, error) {
 	// Validate UUID format of the key.
