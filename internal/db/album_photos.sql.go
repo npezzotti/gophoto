@@ -29,9 +29,10 @@ func (q *Queries) AddPhotoToAlbum(ctx context.Context, arg AddPhotoToAlbumParams
 	return i, err
 }
 
-const deleteAlbumPhoto = `-- name: DeleteAlbumPhoto :exec
+const deleteAlbumPhoto = `-- name: DeleteAlbumPhoto :one
 DELETE FROM album_photos
 WHERE album_id = $1 AND photo_id = $2
+RETURNING id
 `
 
 type DeleteAlbumPhotoParams struct {
@@ -39,9 +40,11 @@ type DeleteAlbumPhotoParams struct {
 	PhotoID int32
 }
 
-func (q *Queries) DeleteAlbumPhoto(ctx context.Context, arg DeleteAlbumPhotoParams) error {
-	_, err := q.db.ExecContext(ctx, deleteAlbumPhoto, arg.AlbumID, arg.PhotoID)
-	return err
+func (q *Queries) DeleteAlbumPhoto(ctx context.Context, arg DeleteAlbumPhotoParams) (int32, error) {
+	row := q.db.QueryRowContext(ctx, deleteAlbumPhoto, arg.AlbumID, arg.PhotoID)
+	var id int32
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getAlbumPhoto = `-- name: GetAlbumPhoto :one

@@ -174,12 +174,12 @@ func (r *Repository) GetPhotoMetadataByPhotoID(ctx context.Context, photoId int3
 func (q *Queries) AddPhotoToAlbumWithCover(ctx context.Context, arg AddPhotoToAlbumParams) (Album, error) {
 	album, err := q.GetAlbumById(ctx, arg.AlbumID)
 	if err != nil {
-		return Album{}, fmt.Errorf("get album: %v", err)
+		return Album{}, fmt.Errorf("get album: %w", err)
 	}
 
 	albumPhoto, err := q.AddPhotoToAlbum(ctx, arg)
 	if err != nil {
-		return Album{}, fmt.Errorf("add photo to album: %v", err)
+		return Album{}, fmt.Errorf("add photo to album: %w", err)
 	}
 
 	// Increment the album's photo count
@@ -187,7 +187,7 @@ func (q *Queries) AddPhotoToAlbumWithCover(ctx context.Context, arg AddPhotoToAl
 		ID:        album.ID,
 		UpdatedAt: time.Now(),
 	}); err != nil {
-		return Album{}, fmt.Errorf("increment album photo count: %v", err)
+		return Album{}, fmt.Errorf("increment album photo count: %w", err)
 	}
 
 	var updatedAlbum Album
@@ -200,7 +200,7 @@ func (q *Queries) AddPhotoToAlbumWithCover(ctx context.Context, arg AddPhotoToAl
 			UpdatedAt:    time.Now(),
 		})
 		if err != nil {
-			return Album{}, fmt.Errorf("set album cover photo: %v", err)
+			return Album{}, fmt.Errorf("set album cover photo: %w", err)
 		}
 	}
 
@@ -230,34 +230,26 @@ func toCreatePhotoWithOriginalMetadataParams(arg domain.CreatePhotoWithOriginalM
 func (r *Repository) CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, albumId int32, arg domain.CreatePhotoWithOriginalMetadataParams) (domain.Photo, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return domain.Photo{}, err
+		return domain.Photo{}, fmt.Errorf("begin transaction: %w", err)
 	}
+	defer tx.Rollback()
 
 	q := r.querier.WithTx(tx)
 
 	photo, err := q.createPhotoWithOriginalMetadata(ctx, toCreatePhotoWithOriginalMetadataParams(arg))
 	if err != nil {
-		if err := tx.Rollback(); err != nil {
-			return domain.Photo{}, fmt.Errorf("create photo with original metadata: %v, unable to rollback: %v", err, err)
-		}
-		return domain.Photo{}, fmt.Errorf("create photo with original metadata: %v", err)
+		return domain.Photo{}, fmt.Errorf("create photo with original metadata: %w", err)
 	}
 
 	if _, err = q.AddPhotoToAlbumWithCover(ctx, AddPhotoToAlbumParams{
 		PhotoID: photo.ID,
 		AlbumID: albumId,
 	}); err != nil {
-		if err := tx.Rollback(); err != nil {
-			return domain.Photo{}, fmt.Errorf("add photo to album with cover: %v, unable to rollback: %v", err, err)
-		}
-		return domain.Photo{}, fmt.Errorf("add photo to album with cover: %v", err)
+		return domain.Photo{}, fmt.Errorf("add photo to album with cover: %w", err)
 	}
 
 	if err = tx.Commit(); err != nil {
-		if err := tx.Rollback(); err != nil {
-			return domain.Photo{}, fmt.Errorf("commit tx: %v, unable to rollback: %v", err, err)
-		}
-		return domain.Photo{}, fmt.Errorf("commit tx: %v", err)
+		return domain.Photo{}, fmt.Errorf("commit transaction: %w", err)
 	}
 
 	return domain.Photo{
@@ -277,7 +269,7 @@ func (q *Queries) createPhotoWithOriginalMetadata(ctx context.Context, arg Creat
 		Status: PhotoStatusProcessing,
 	})
 	if err != nil {
-		return Photo{}, fmt.Errorf("create photo: %v", err)
+		return Photo{}, fmt.Errorf("create photo: %w", err)
 	}
 
 	if _, err := q.CreatePhotoMetadata(ctx, CreatePhotoMetadataParams{
@@ -288,7 +280,7 @@ func (q *Queries) createPhotoWithOriginalMetadata(ctx context.Context, arg Creat
 		FileSize: sql.NullInt64{Int64: arg.FileSize.Int64, Valid: arg.FileSize.Valid},
 		MimeType: arg.MimeType,
 	}); err != nil {
-		return Photo{}, fmt.Errorf("create photo metadata: %v", err)
+		return Photo{}, fmt.Errorf("create photo metadata: %w", err)
 	}
 
 	return photo, nil
@@ -297,28 +289,20 @@ func (q *Queries) createPhotoWithOriginalMetadata(ctx context.Context, arg Creat
 func (r *Repository) CreateUserPhotoWithOriginalMetadata(ctx context.Context, userID int32, arg domain.CreatePhotoWithOriginalMetadataParams) (domain.Photo, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return domain.Photo{}, err
+		return domain.Photo{}, fmt.Errorf("begin transaction: %w", err)
 	}
+	defer tx.Rollback()
 
 	q := r.querier.WithTx(tx)
 
 	user, err := q.GetUserById(ctx, userID)
 	if err != nil {
-		if rbErr := tx.Rollback(); rbErr != nil {
-			return domain.Photo{}, fmt.Errorf("get user by id: %v, unable to rollback: %v", err, rbErr)
-		}
-		if errors.Is(err, sql.ErrNoRows) {
-			return domain.Photo{}, ErrUserNotFound
-		}
-		return domain.Photo{}, fmt.Errorf("get user by id: %v", err)
+		return domain.Photo{}, fmt.Errorf("get user by id: %w", err)
 	}
 
 	photo, err := q.createPhotoWithOriginalMetadata(ctx, toCreatePhotoWithOriginalMetadataParams(arg))
 	if err != nil {
-		if err := tx.Rollback(); err != nil {
-			return domain.Photo{}, fmt.Errorf("create photo with original metadata: %v, unable to rollback: %v", err, err)
-		}
-		return domain.Photo{}, fmt.Errorf("create photo with original metadata: %v", err)
+		return domain.Photo{}, fmt.Errorf("create photo with original metadata: %w", err)
 	}
 
 	if _, err = q.UpdateUser(ctx, UpdateUserParams{
@@ -330,17 +314,11 @@ func (r *Repository) CreateUserPhotoWithOriginalMetadata(ctx context.Context, us
 		ProfilePictureID: sql.NullInt32{Int32: photo.ID, Valid: true},
 		UpdatedAt:        time.Now(),
 	}); err != nil {
-		if err := tx.Rollback(); err != nil {
-			return domain.Photo{}, fmt.Errorf("update user profile picture: %v, unable to rollback: %v", err, err)
-		}
-		return domain.Photo{}, fmt.Errorf("update user profile picture: %v", err)
+		return domain.Photo{}, fmt.Errorf("update user profile picture: %w", err)
 	}
 
 	if err = tx.Commit(); err != nil {
-		if err := tx.Rollback(); err != nil {
-			return domain.Photo{}, fmt.Errorf("commit tx: %v, unable to rollback: %v", err, err)
-		}
-		return domain.Photo{}, fmt.Errorf("commit tx: %v", err)
+		return domain.Photo{}, fmt.Errorf("commit transaction: %w", err)
 	}
 
 	return domain.Photo{
@@ -353,36 +331,31 @@ func (r *Repository) CreateUserPhotoWithOriginalMetadata(ctx context.Context, us
 	}, nil
 }
 
-func (r *Repository) RemovePhotoFromAlbum(ctx context.Context, albumId int32, photoId int32) error {
+func (r *Repository) RemovePhotoFromAlbum(ctx context.Context, albumID int32, photoID int32) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("begin transaction: %w", err)
 	}
+	defer tx.Rollback()
 
 	q := r.querier.WithTx(tx)
 
-	if err := q.DeleteAlbumPhoto(ctx, DeleteAlbumPhotoParams{
-		AlbumID: albumId,
-		PhotoID: photoId,
+	if _, err = q.DeleteAlbumPhoto(ctx, DeleteAlbumPhotoParams{
+		AlbumID: albumID,
+		PhotoID: photoID,
 	}); err != nil {
-		if err := tx.Rollback(); err != nil {
-			return fmt.Errorf("delete photo from album: %v, unable to rollback: %v", err, err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.ErrAlbumPhotoNotFound
 		}
-		return fmt.Errorf("delete photo from album: %v", err)
+		return fmt.Errorf("delete photo from album: %w", err)
 	}
 
-	if err := q.DecrementAlbumPhotoCount(ctx, DecrementAlbumPhotoCountParams{ID: albumId, UpdatedAt: time.Now()}); err != nil {
-		if err := tx.Rollback(); err != nil {
-			return fmt.Errorf("decrement album photo count: %v, unable to rollback: %v", err, err)
-		}
-		return fmt.Errorf("decrement album photo count: %v", err)
+	if err := q.DecrementAlbumPhotoCount(ctx, DecrementAlbumPhotoCountParams{ID: albumID, UpdatedAt: time.Now()}); err != nil {
+		return fmt.Errorf("decrement album photo count: %w", err)
 	}
 
 	if err = tx.Commit(); err != nil {
-		if err := tx.Rollback(); err != nil {
-			return fmt.Errorf("commit tx: %v, unable to rollback: %v", err, err)
-		}
-		return fmt.Errorf("commit tx: %v", err)
+		return fmt.Errorf("commit transaction: %w", err)
 	}
 
 	return nil
@@ -398,7 +371,7 @@ func (r *Repository) CreatePhotoMetadata(ctx context.Context, arg domain.CreateP
 		MimeType: arg.MimeType,
 	})
 	if err != nil {
-		return domain.PhotoMetadatum{}, fmt.Errorf("create photo metadata: %v", err)
+		return domain.PhotoMetadatum{}, fmt.Errorf("create photo metadata: %w", err)
 	}
 
 	return domain.PhotoMetadatum{
@@ -498,7 +471,7 @@ func (r *Repository) DeleteUser(ctx context.Context, userID int32) error {
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrUserNotFound
 	}
-	return err
+	return fmt.Errorf("delete user: %w", err)
 }
 
 func (r *Repository) GetAlbumByID(ctx context.Context, id int32) (domain.Album, error) {
