@@ -7,7 +7,10 @@ const (
 	DefaultProfileAvatarPath    = "images/profile_avatar.webp"
 )
 
-var ErrUserNotFound = errors.New("user not found")
+var (
+	ErrUserNotFound       = errors.New("user not found")
+	ErrInvalidCredentials = errors.New("invalid credentials")
+)
 
 type UserPresentation struct {
 	ID             int32

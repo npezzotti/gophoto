@@ -223,8 +223,24 @@ func (s *UserService) DeleteUser(ctx context.Context, userID int32) error {
 	return nil
 }
 
-func (s *UserService) Authenticate(hash, password string) (bool, error) {
-	return passwordsMatch(hash, password)
+func (s *UserService) AuthenticateByEmail(ctx context.Context, email, password string) (domain.User, error) {
+	user, err := s.GetUserByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, domain.ErrUserNotFound) {
+			return domain.User{}, domain.ErrInvalidCredentials
+		}
+		return domain.User{}, fmt.Errorf("error fetching user for authentication: %w", err)
+	}
+
+	authenticated, err := passwordsMatch(user.PasswordHash, password)
+	if err != nil {
+		s.logger.Error("error comparing password hash for user ID %d: %v", user.ID, err)
+		return domain.User{}, fmt.Errorf("error authenticating user: %w", err)
+	}
+	if authenticated {
+		return user, nil
+	}
+	return domain.User{}, domain.ErrInvalidCredentials
 }
 
 func hashPassword(password string) (string, error) {

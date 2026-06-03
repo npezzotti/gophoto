@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"net/http"
 
 	"github.com/justinas/nosurf"
@@ -46,20 +47,33 @@ func (a *application) generateTemplateData(r *http.Request) *templateData {
 	return td
 }
 
-func (a *application) renderTemplate(w http.ResponseWriter, data *templateData, tmpl string) {
-	var tc template.TemplateCache
+func (a *application) renderTemplateWithStatus(w http.ResponseWriter, data *templateData, status int, tmpl string) {
+	a.writeTemplateResponse(w, data, status, tmpl)
+}
 
+func (a *application) renderTemplate(w http.ResponseWriter, data *templateData, tmpl string) {
+	a.writeTemplateResponse(w, data, http.StatusOK, tmpl)
+}
+
+func (a *application) writeTemplateResponse(w http.ResponseWriter, data *templateData, status int, tmpl string) {
+	var tc template.TemplateCache
 	if a.config.UseTemplateCache {
 		tc = a.templateCache
 	} else {
 		tc, _ = template.NewTemplateCache(PagesGlob, PartialsGlob, BaseTemplate)
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=UTF-8")
-
-	if err := tc.RenderTemplate(w, tmpl, data); err != nil {
+	var buf bytes.Buffer
+	if err := tc.RenderTemplate(&buf, tmpl, data); err != nil {
 		a.Logger.Error("error rendering template %s: %v", tmpl, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=UTF-8")
+	w.WriteHeader(status)
+
+	if _, err := buf.WriteTo(w); err != nil {
+		a.Logger.Error("error writing template %s: %v", tmpl, err)
 	}
 }

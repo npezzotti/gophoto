@@ -29,8 +29,7 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 		if !sf.Validate() {
 			td := a.generateTemplateData(r)
 			td.Form = sf
-			w.WriteHeader(http.StatusForbidden)
-			a.renderTemplate(w, td, "signup.html")
+			a.renderTemplateWithStatus(w, td, http.StatusBadRequest, "signup.html")
 			return
 		}
 
@@ -71,45 +70,24 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 		if !lf.Validate() {
 			td := a.generateTemplateData(r)
 			td.Form = lf
-			a.renderTemplate(w, td, "login.html")
-			w.WriteHeader(http.StatusForbidden)
+			a.renderTemplateWithStatus(w, td, http.StatusBadRequest, "login.html")
 			return
 		}
 
-		user, err := a.userService.GetUserByEmail(r.Context(), lf.Email)
+		user, err := a.userService.AuthenticateByEmail(r.Context(), lf.Email, lf.Password)
 		if err != nil {
-			if errors.Is(err, domain.ErrUserNotFound) {
-				a.flash(r.Context(), "No account found with that email address.", flashErr)
+			if errors.Is(err, domain.ErrInvalidCredentials) {
+				a.flash(r.Context(), "Incorrect email or password.", flashErr)
 				td := a.generateTemplateData(r)
 				td.Form = lf
-
-				w.WriteHeader(http.StatusForbidden)
-				a.renderTemplate(w, td, "login.html")
+				a.renderTemplateWithStatus(w, td, http.StatusForbidden, "login.html")
+				return
 			} else {
-				a.Logger.Error("error getting user by email: %v", err)
+				a.Logger.Error("error authenticating user: %v", err)
 				a.flash(r.Context(), "Internal server error.", flashErr)
 				http.Redirect(w, r, "/login", http.StatusSeeOther)
+				return
 			}
-			return
-		}
-
-		authenticated, err := a.userService.Authenticate(user.PasswordHash, lf.Password)
-		if err != nil {
-			a.Logger.Error("error authenticating user %d: %v", user.ID, err)
-			a.flash(r.Context(), "Internal server error.", flashErr)
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
-			return
-		}
-
-		if !authenticated {
-			a.flash(r.Context(), "Incorrect password.", flashErr)
-
-			td := a.generateTemplateData(r)
-			td.Form = lf
-
-			a.renderTemplate(w, td, "login.html")
-			w.WriteHeader(http.StatusForbidden)
-			return
 		}
 
 		if err := a.sessionManager.RenewToken(r.Context()); err != nil {
@@ -206,7 +184,7 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 		if !epf.Validate() {
 			td := a.generateTemplateData(r)
 			td.Form = epf
-			a.renderTemplate(w, td, "edit-profile.html")
+			a.renderTemplateWithStatus(w, td, http.StatusBadRequest, "edit-profile.html")
 			return
 		}
 
