@@ -177,6 +177,9 @@ func (s *UserService) CreateUser(ctx context.Context, firstName, lastName, email
 func (s *UserService) UpdateUser(ctx context.Context, userID int32, firstName, lastName, email, password string) (*domain.UserPresentation, error) {
 	user, err := s.userRepo.GetUserById(ctx, userID)
 	if err != nil {
+		if errors.Is(err, db.ErrUserNotFound) {
+			return nil, domain.ErrUserNotFound
+		}
 		return nil, fmt.Errorf("error fetching user for update: %w", err)
 	}
 
@@ -213,6 +216,8 @@ func (s *UserService) UpdateUser(ctx context.Context, userID int32, firstName, l
 	}), nil
 }
 
+// DeleteUser deletes the user with the given ID. This also cascades to delete all albums and album_photos records
+// for the user. Photos are not immediately deleted, but will be cleaned up by the storage cleaner worker.
 func (s *UserService) DeleteUser(ctx context.Context, userID int32) error {
 	if err := s.userRepo.DeleteUser(ctx, userID); err != nil {
 		if errors.Is(err, db.ErrUserNotFound) {

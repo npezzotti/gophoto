@@ -84,7 +84,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			} else {
 				a.Logger.Error("error authenticating user: %v", err)
-				a.flash(r.Context(), "Internal server error.", flashErr)
+				a.flash(r.Context(), http.StatusText(http.StatusInternalServerError), flashErr)
 				http.Redirect(w, r, "/login", http.StatusSeeOther)
 				return
 			}
@@ -92,7 +92,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 		if err := a.sessionManager.RenewToken(r.Context()); err != nil {
 			a.Logger.Error("error renewing token: %v", err)
-			a.flash(r.Context(), "Internal server error.", flashErr)
+			a.flash(r.Context(), http.StatusText(http.StatusInternalServerError), flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
@@ -222,8 +222,6 @@ func (a *application) deleteAccountHandler(w http.ResponseWriter, r *http.Reques
 			return
 		}
 
-		// Delete user account. This cascades to delete all albums and album_photos entries. Photos are not immediately deleted,
-		// but will be cleaned up by the storage cleaner worker.
 		if err := a.userService.DeleteUser(r.Context(), user.ID); err != nil {
 			if errors.Is(err, domain.ErrUserNotFound) {
 				a.flash(r.Context(), "User not found.", flashErr)
