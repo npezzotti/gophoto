@@ -23,7 +23,7 @@ func BuildPhotoPathForVariant(key string, variant domain.PhotoVariant, mimeType 
 		return "", fmt.Errorf("failed to extract file extension: %w", err)
 	}
 
-	return fmt.Sprintf("/%s/%s/%s/%s.%s", shardLvl1, shardLvl2, key, (string(variant)), ext), nil
+	return fmt.Sprintf("%s/%s/%s/%s.%s", shardLvl1, shardLvl2, key, (string(variant)), ext), nil
 }
 
 func extractFileExtension(mimeType domain.MimeType) (string, error) {
