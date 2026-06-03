@@ -21,12 +21,12 @@ func (tc *TemplateCache) RenderTemplate(w io.Writer, tmpl string, data any) erro
 
 	var buf bytes.Buffer
 	if err := t.ExecuteTemplate(&buf, "base", data); err != nil {
-		return err
+		return fmt.Errorf("error executing template: %w", err)
 	}
 
 	_, err := buf.WriteTo(w)
 	if err != nil {
-		return err
+		return fmt.Errorf("error writing template to response: %w", err)
 	}
 
 	return nil
