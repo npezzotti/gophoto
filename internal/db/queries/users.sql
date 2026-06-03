@@ -30,6 +30,14 @@ SET
 WHERE id = $1
 RETURNING *;
 
+-- name: UpdateUserProfilePicture :one
+UPDATE users
+SET 
+  profile_picture_id = $2,
+  updated_at = $3
+WHERE id = $1
+RETURNING *;
+
 -- name: DeleteUser :exec
 DELETE FROM users
 WHERE id = $1;

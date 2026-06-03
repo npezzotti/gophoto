@@ -58,7 +58,7 @@ type PhotoMetadatum struct {
 }
 
 type CreatePhotoWithOriginalMetadataParams struct {
-	UserID   *int32
+	UserID   int32
 	Key      string
 	Width    int32
 	Height   int32

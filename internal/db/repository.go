@@ -21,7 +21,7 @@ type PhotoRepository interface {
 	GetAlbumPhoto(ctx context.Context, id int32) (domain.AlbumPhoto, error)
 	GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]domain.PhotoMetadatum, error)
 	CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, albumID int32, cmd domain.CreatePhotoWithOriginalMetadataParams) (domain.Photo, error)
-	CreateUserPhotoWithOriginalMetadata(ctx context.Context, userID int32, cmd domain.CreatePhotoWithOriginalMetadataParams) (domain.Photo, error)
+	CreateUserPhotoWithOriginalMetadata(ctx context.Context, cmd domain.CreatePhotoWithOriginalMetadataParams) (domain.Photo, error)
 	RemovePhotoFromAlbum(ctx context.Context, albumId int32, photoId int32) error
 	CreatePhotoMetadata(ctx context.Context, arg domain.CreatePhotoMetadataParams) (domain.PhotoMetadatum, error)
 	GetPhotoMetadataByPhotoIDAndVariant(ctx context.Context, photoID int32, variant domain.PhotoVariant) (domain.PhotoMetadatum, error)
@@ -218,7 +218,7 @@ type CreatePhotoWithOriginalMetadataParams struct {
 
 func toCreatePhotoWithOriginalMetadataParams(arg domain.CreatePhotoWithOriginalMetadataParams) CreatePhotoWithOriginalMetadataParams {
 	return CreatePhotoWithOriginalMetadataParams{
-		UserID:   ptrToNullInt32(arg.UserID),
+		UserID:   sql.NullInt32{Int32: arg.UserID, Valid: true},
 		Key:      arg.Key,
 		Width:    arg.Width,
 		Height:   arg.Height,
@@ -286,7 +286,7 @@ func (q *Queries) createPhotoWithOriginalMetadata(ctx context.Context, arg Creat
 	return photo, nil
 }
 
-func (r *Repository) CreateUserPhotoWithOriginalMetadata(ctx context.Context, userID int32, arg domain.CreatePhotoWithOriginalMetadataParams) (domain.Photo, error) {
+func (r *Repository) CreateUserPhotoWithOriginalMetadata(ctx context.Context, arg domain.CreatePhotoWithOriginalMetadataParams) (domain.Photo, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return domain.Photo{}, fmt.Errorf("begin transaction: %w", err)
@@ -295,22 +295,13 @@ func (r *Repository) CreateUserPhotoWithOriginalMetadata(ctx context.Context, us
 
 	q := r.querier.WithTx(tx)
 
-	user, err := q.GetUserById(ctx, userID)
-	if err != nil {
-		return domain.Photo{}, fmt.Errorf("get user by id: %w", err)
-	}
-
 	photo, err := q.createPhotoWithOriginalMetadata(ctx, toCreatePhotoWithOriginalMetadataParams(arg))
 	if err != nil {
 		return domain.Photo{}, fmt.Errorf("create photo with original metadata: %w", err)
 	}
 
-	if _, err = q.UpdateUser(ctx, UpdateUserParams{
-		ID:               user.ID,
-		FirstName:        user.FirstName,
-		LastName:         user.LastName,
-		Email:            user.Email,
-		PasswordHash:     user.PasswordHash,
+	if _, err := q.UpdateUserProfilePicture(ctx, UpdateUserProfilePictureParams{
+		ID:               arg.UserID,
 		ProfilePictureID: sql.NullInt32{Int32: photo.ID, Valid: true},
 		UpdatedAt:        time.Now(),
 	}); err != nil {
