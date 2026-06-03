@@ -26,6 +26,11 @@ const (
 	MaxUploadSize = 50 << (10 * 2) // 50 MB
 )
 
+var (
+	ErrFileTooLarge    = fmt.Errorf("file size exceeds max upload size of %dMB", MaxUploadSize/1024/1024)
+	ErrInvalidFileType = fmt.Errorf("file type not allowed")
+)
+
 type PhotoService struct {
 	photoRepo   db.PhotoRepository
 	albumRepo   db.AlbumRepository
@@ -127,7 +132,7 @@ func (s *PhotoService) CreateUserPhotoWithOriginalMetadata(ctx context.Context, 
 		MimeType: string(fileType),
 	})
 	if err != nil {
-		return domain.Photo{}, fmt.Errorf("error creating user photo")
+		return domain.Photo{}, fmt.Errorf("error creating user photo: %w", err)
 	}
 
 	if err := s.uploadPhotoToStorage(ctx, photo, buf, fileType); err != nil {
@@ -164,7 +169,7 @@ func (s *PhotoService) processUploadedFile(f multipart.File, fh *multipart.FileH
 	}
 
 	if err := validatePhotoUpload(fileType, fh); err != nil {
-		return nil, "", bimg.ImageSize{}, fmt.Errorf("error validating photo upload: %w", err)
+		return nil, "", bimg.ImageSize{}, fmt.Errorf("photo validation failed: %w", err)
 	}
 
 	buf, err := io.ReadAll(f)
@@ -174,7 +179,7 @@ func (s *PhotoService) processUploadedFile(f multipart.File, fh *multipart.FileH
 
 	meta, err := bimg.NewImage(buf).Size()
 	if err != nil {
-		return nil, "", bimg.ImageSize{}, fmt.Errorf("error getting image size: %w", err)
+		return nil, "", bimg.ImageSize{}, fmt.Errorf("error calculating image size: %w", err)
 	}
 
 	return buf, utils.MimeType(fileType), meta, nil
@@ -182,11 +187,11 @@ func (s *PhotoService) processUploadedFile(f multipart.File, fh *multipart.FileH
 
 func validatePhotoUpload(fileType string, fh *multipart.FileHeader) error {
 	if fh.Size > MaxUploadSize {
-		return fmt.Errorf("file size exceeds max upload size of %dMB", MaxUploadSize/1024/1024)
+		return ErrFileTooLarge
 	}
 
 	if !strings.HasPrefix(fileType, "image/") || !utils.ValidateMimeType(fileType) {
-		return fmt.Errorf("file type not allowed")
+		return ErrInvalidFileType
 	}
 	return nil
 }
@@ -197,14 +202,14 @@ func detectContentType(f multipart.File) (string, error) {
 	buff := make([]byte, 512)
 	_, err := f.Read(buff)
 	if err != nil {
-		return "", fmt.Errorf("error reading file: %w", err)
+		return "", fmt.Errorf("unable to read file: %w", err)
 	}
 
 	filetype := http.DetectContentType(buff)
 
 	_, err = f.Seek(0, io.SeekStart)
 	if err != nil {
-		return "", fmt.Errorf("seek: %s", err)
+		return "", fmt.Errorf("failed to reset file pointer: %w", err)
 	}
 	return filetype, nil
 }
@@ -224,12 +229,12 @@ func (s *PhotoService) uploadPhotoToStorage(ctx context.Context, photo domain.Ph
 func (s *PhotoService) queuePhotoProcessing(ctx context.Context, photo domain.Photo) error {
 	processingJob, err := json.Marshal(workers.PhotoProcessingJob{Type: workers.JobTypeAlbumPhoto, PhotoID: photo.ID})
 	if err != nil {
-		return fmt.Errorf("error marshalling photo processing job for photo %d: %s", photo.ID, err.Error())
+		return fmt.Errorf("error marshalling photo processing job for photo %d: %w", photo.ID, err)
 	}
 
 	err = s.redisClient.Publish(ctx, workers.PhotoProcessingQueue, processingJob).Err()
 	if err != nil {
-		return fmt.Errorf("error publishing photo processing job for photo %d: %s", photo.ID, err.Error())
+		return fmt.Errorf("error publishing photo processing job for photo %d: %w", photo.ID, err)
 	}
 	return nil
 }
