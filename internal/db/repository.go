@@ -11,9 +11,10 @@ import (
 )
 
 var (
-	ErrUserNotFound  = errors.New("user not found")
-	ErrAlbumNotFound = errors.New("album not found")
-	ErrPhotoNotFound = errors.New("photo not found")
+	ErrUserNotFound       = errors.New("user not found")
+	ErrAlbumNotFound      = errors.New("album not found")
+	ErrPhotoNotFound      = errors.New("photo not found")
+	ErrAlbumPhotoNotFound = errors.New("album photo not found")
 )
 
 type PhotoRepository interface {
@@ -113,7 +114,7 @@ func (r *Repository) GetPhotoMetadataByPhotoIDAndVariant(ctx context.Context, ph
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return domain.PhotoMetadatum{}, domain.ErrPhotoNotFound
+			return domain.PhotoMetadatum{}, ErrPhotoNotFound
 		}
 		return domain.PhotoMetadatum{}, err
 	}
@@ -134,7 +135,7 @@ func (r *Repository) GetAlbumPhoto(ctx context.Context, id int32) (domain.AlbumP
 	photo, err := r.querier.GetAlbumPhoto(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return domain.AlbumPhoto{}, domain.ErrAlbumPhotoNotFound
+			return domain.AlbumPhoto{}, ErrAlbumPhotoNotFound
 		}
 		return domain.AlbumPhoto{}, err
 	}
@@ -336,7 +337,7 @@ func (r *Repository) RemovePhotoFromAlbum(ctx context.Context, albumID int32, ph
 		PhotoID: photoID,
 	}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return domain.ErrAlbumPhotoNotFound
+			return ErrAlbumPhotoNotFound
 		}
 		return fmt.Errorf("delete photo from album: %w", err)
 	}
