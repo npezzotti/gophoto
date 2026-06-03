@@ -84,7 +84,7 @@ func (s *UserService) buildProfileImage(ctx context.Context, user domain.User) d
 			continue
 		}
 
-		path, err := utils.BuildPhotoPathForVariant(photo.Key, m.Variant, utils.MimeType(m.MimeType))
+		path, err := utils.BuildPhotoPathForVariant(photo.Key, m.Variant, domain.MimeType(m.MimeType))
 		if err != nil {
 			s.logger.Debug("profile_image_variant_skip stage=build_photo_path user_id=%d profile_picture_id=%d variant=%s error=%q", user.ID, profilePictureID, m.Variant, err.Error())
 			continue

@@ -149,7 +149,7 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 		}
 	}()
 
-	path, err := utils.BuildPhotoPathForVariant(photo.Key, domain.PhotoVariantOriginal, utils.MimeType(originalMeta.MimeType))
+	path, err := utils.BuildPhotoPathForVariant(photo.Key, domain.PhotoVariantOriginal, domain.MimeType(originalMeta.MimeType))
 	if err != nil {
 		processingErr = true
 		return fmt.Errorf("error building photo path for original variant: %v", err)
@@ -219,7 +219,7 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 			continue
 		}
 
-		variantPath, err := utils.BuildPhotoPathForVariant(photo.Key, photoMeta.Variant, utils.MimeTypeWEBP)
+		variantPath, err := utils.BuildPhotoPathForVariant(photo.Key, photoMeta.Variant, domain.MimeTypeWEBP)
 		if err != nil {
 			processingErr = true
 			ppw.log.Error("error building photo path for %s variant: %v", size.Variant, err)

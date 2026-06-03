@@ -162,7 +162,7 @@ func (s *PhotoService) RemovePhotoFromAlbum(ctx context.Context, photoID, userID
 	return nil
 }
 
-func (s *PhotoService) processUploadedFile(f multipart.File, fh *multipart.FileHeader) ([]byte, utils.MimeType, bimg.ImageSize, error) {
+func (s *PhotoService) processUploadedFile(f multipart.File, fh *multipart.FileHeader) ([]byte, domain.MimeType, bimg.ImageSize, error) {
 	fileType, err := detectContentType(f)
 	if err != nil {
 		return nil, "", bimg.ImageSize{}, fmt.Errorf("error detecting content type: %w", err)
@@ -182,7 +182,7 @@ func (s *PhotoService) processUploadedFile(f multipart.File, fh *multipart.FileH
 		return nil, "", bimg.ImageSize{}, fmt.Errorf("error calculating image size: %w", err)
 	}
 
-	return buf, utils.MimeType(fileType), meta, nil
+	return buf, domain.MimeType(fileType), meta, nil
 }
 
 func validatePhotoUpload(fileType string, fh *multipart.FileHeader) error {
@@ -214,7 +214,7 @@ func detectContentType(f multipart.File) (string, error) {
 	return filetype, nil
 }
 
-func (s *PhotoService) uploadPhotoToStorage(ctx context.Context, photo domain.Photo, buf []byte, fileType utils.MimeType) error {
+func (s *PhotoService) uploadPhotoToStorage(ctx context.Context, photo domain.Photo, buf []byte, fileType domain.MimeType) error {
 	path, err := utils.BuildPhotoPathForVariant(photo.Key, domain.PhotoVariantOriginal, fileType)
 	if err != nil {
 		return fmt.Errorf("error building photo path: %w", err)

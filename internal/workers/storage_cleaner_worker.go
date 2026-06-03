@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/npezzotti/gophoto/internal/db"
+	"github.com/npezzotti/gophoto/internal/domain"
 	"github.com/npezzotti/gophoto/internal/utils"
 	"github.com/npezzotti/gophoto/pkg/logging"
 	"github.com/npezzotti/gophoto/pkg/store"
@@ -76,7 +77,7 @@ func (scw *StorageCleanerWorker) cleanStorage() {
 			continue
 		}
 		for _, m := range metadata {
-			path, err := utils.BuildPhotoPathForVariant(photo.Key, m.Variant, utils.MimeType(m.MimeType))
+			path, err := utils.BuildPhotoPathForVariant(photo.Key, m.Variant, domain.MimeType(m.MimeType))
 			if err != nil {
 				scw.log.Error("error building path for photo %d variant %s: %v", photo.ID, m.Variant, err)
 				continue

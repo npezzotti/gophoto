@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+var (
+	ErrPhotoNotFound       = errors.New("photo not found")
+	ErrAlbumPhotoNotFound  = errors.New("album photo not found")
+)
+
 type PhotoVariant string
 
 const (
@@ -24,8 +29,19 @@ const (
 	PhotoStatusErrored    PhotoStatus = "errored"
 )
 
-var ErrPhotoNotFound = errors.New("photo not found")
-var ErrAlbumPhotoNotFound = errors.New("album photo not found")
+type MimeType string
+
+const (
+	MimeTypeJPEG MimeType = "image/jpeg"
+	MimeTypePNG  MimeType = "image/png"
+	MimeTypeWEBP MimeType = "image/webp"
+)
+
+var AllowedImageMimeTypes = []MimeType{
+	MimeTypeJPEG,
+	MimeTypePNG,
+	MimeTypeWEBP,
+}
 
 type Photo struct {
 	ID        int32

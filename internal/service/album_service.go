@@ -75,7 +75,7 @@ func (s *AlbumService) GetAlbumPageView(ctx context.Context, userID, albumID, li
 			continue
 		}
 
-		path, err := utils.BuildPhotoPathForVariant(photo.PhotoKey, photo.Variant, utils.MimeType(photo.MimeType))
+		path, err := utils.BuildPhotoPathForVariant(photo.PhotoKey, photo.Variant, domain.MimeType(photo.MimeType))
 		if err != nil {
 			continue
 		}
@@ -201,7 +201,7 @@ func (s *AlbumService) newAlbumListItem(ctx context.Context, album domain.AlbumL
 			var sources []domain.ImageSource
 			var defaultSrc string
 			for _, m := range meta {
-				path, pathErr := utils.BuildPhotoPathForVariant(album.CoverPhotoKey, m.Variant, utils.MimeType(m.MimeType))
+				path, pathErr := utils.BuildPhotoPathForVariant(album.CoverPhotoKey, m.Variant, domain.MimeType(m.MimeType))
 				if pathErr != nil {
 					continue
 				}
