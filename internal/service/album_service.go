@@ -80,7 +80,7 @@ func (s *AlbumService) GetAlbumPageView(ctx context.Context, userID, albumID, li
 			continue
 		}
 
-		url, err := s.store.GenerateURL(ctx, path)
+		url, err := s.store.GenerateURL(ctx, path, s.config.URLExpiry)
 		if err != nil {
 			continue
 		}
@@ -206,7 +206,7 @@ func (s *AlbumService) newAlbumListItem(ctx context.Context, album domain.AlbumL
 					continue
 				}
 
-				url, urlErr := s.store.GenerateURL(ctx, path)
+				url, urlErr := s.store.GenerateURL(ctx, path, s.config.URLExpiry)
 				if urlErr != nil {
 					continue
 				}

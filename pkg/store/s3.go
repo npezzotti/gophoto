@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
@@ -26,10 +27,11 @@ type s3Uploader interface {
 }
 
 type S3Store struct {
-	BucketName string
-	client     s3Client
-	presigner  s3Presigner
-	uploader   s3Uploader
+	BucketName     string
+	client         s3Client
+	presigner      s3Presigner
+	uploader       s3Uploader
+	expiryDuration time.Duration
 }
 
 func NewS3Store(bucketName string) (*S3Store, error) {
@@ -48,12 +50,12 @@ func NewS3Store(bucketName string) (*S3Store, error) {
 	}, nil
 }
 
-func (s *S3Store) GenerateURL(ctx context.Context, path string) (string, error) {
+func (s *S3Store) GenerateURL(ctx context.Context, path string, expiry time.Duration) (string, error) {
 	request, err := s.presigner.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.BucketName),
 		Key:    aws.String(path),
 	}, func(po *s3.PresignOptions) {
-
+		po.Expires = expiry
 	})
 	if err != nil {
 		return "", fmt.Errorf("error creating presign request for path %q: %w", path, err)

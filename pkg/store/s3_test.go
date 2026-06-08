@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
@@ -59,7 +60,7 @@ func TestS3Store_GenerateURL(t *testing.T) {
 		}
 		store := &S3Store{BucketName: "example-bucket", presigner: presigner}
 
-		url, err := store.GenerateURL(context.Background(), "photos/test.jpg")
+		url, err := store.GenerateURL(context.Background(), "photos/test.jpg", 15*time.Minute)
 		if err != nil {
 			t.Fatalf("unexpected error generating URL: %v", err)
 		}
@@ -85,7 +86,7 @@ func TestS3Store_GenerateURL(t *testing.T) {
 		presigner := &mockS3Presigner{err: errors.New("an error occurred")}
 		store := &S3Store{BucketName: "example-bucket", presigner: presigner}
 
-		_, err := store.GenerateURL(context.Background(), "photos/test.jpg")
+		_, err := store.GenerateURL(context.Background(), "photos/test.jpg", 15*time.Minute)
 		if err == nil {
 			t.Fatal("expected error generating URL, got nil")
 		}

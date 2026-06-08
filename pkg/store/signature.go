@@ -3,13 +3,13 @@ package store
 import (
 	"crypto/hmac"
 	"crypto/sha256"
-	"fmt"
+	"strconv"
 )
 
-// CreateMessage creates a message string for signing by combining the file path and expiration timestamp.
+// CreateMessage creates a message string for signing by combining the URL path and expiration timestamp.
 // The format is the URL path followed by a colon and the expiration time in Unix timestamp format.
 func CreateMessage(path string, expiresUnix int64) string {
-	return fmt.Sprintf("%s:%d", path, expiresUnix)
+	return path + ":" + strconv.FormatInt(expiresUnix, 10)
 }
 
 // generateHmac generates an HMAC signature for the given message using the provided secret key.

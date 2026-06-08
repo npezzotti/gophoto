@@ -90,7 +90,7 @@ func (s *UserService) buildProfileImage(ctx context.Context, user domain.User) d
 			continue
 		}
 
-		url, err := s.store.GenerateURL(ctx, path)
+		url, err := s.store.GenerateURL(ctx, path, s.config.URLExpiry)
 		if err != nil {
 			s.logger.Debug("profile_image_variant_skip stage=generate_url user_id=%d profile_picture_id=%d variant=%s error=%q", user.ID, profilePictureID, m.Variant, err.Error())
 			continue

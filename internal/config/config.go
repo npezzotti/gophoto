@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"os"
+	"time"
 )
 
 type storageType string
@@ -27,6 +28,7 @@ type Config struct {
 	RedisAddress     string
 	RedisPassword    string
 	SigningKey       []byte
+	URLExpiry        time.Duration
 	Debug            bool
 }
 
@@ -42,6 +44,7 @@ func LoadConfigFromEnv() (*Config, error) {
 		SigningKey:       []byte(os.Getenv("GOPHOTO_SIGNING_KEY")),
 		StaticDir:        os.Getenv("GOPHOTO_STATIC_DIR"),
 		Debug:            os.Getenv("GOPHOTO_DEBUG") == "true",
+		URLExpiry:        15 * time.Minute,
 	}
 
 	if cfg.StaticDir == "" {

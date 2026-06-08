@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"time"
 )
 
 type FileStore struct {
-	BaseDir   string
+	baseDir   string
 	secretKey []byte
+	urlPrefix string
 }
 
 // NewFileStore creates a new FileStore with the given base directory and secret key.
@@ -30,56 +32,60 @@ func NewFileStore(baseDir string, secretKey []byte) (*FileStore, error) {
 	}
 
 	return &FileStore{
-		BaseDir:   baseDir,
+		baseDir:   baseDir,
 		secretKey: secretKey,
+		urlPrefix: "/uploads",
 	}, nil
 }
 
-func (fs *FileStore) GenerateURL(ctx context.Context, path string) (string, error) {
-	filePath := fs.path(path)
+func (fs *FileStore) GenerateURL(ctx context.Context, key string, expiry time.Duration) (string, error) {
+	filePath := fs.path(key)
 	if _, err := os.Stat(filePath); err != nil {
+		if os.IsNotExist(err) {
+			return "", ErrNotExist
+		}
 		return "", fmt.Errorf("error stating file: %w", err)
 	}
 
-	urlPath := filepath.Join("/", filePath)
-	expiry := time.Now().Add(15 * time.Minute)
-	message := CreateMessage(urlPath, expiry.Unix())
+	urlPath := fs.publicPath(key)
+	expiryTime := time.Now().Add(expiry)
+	message := CreateMessage(urlPath, expiryTime.Unix())
 	signature := generateHmac(message, fs.secretKey)
 	b64Sig := base64.URLEncoding.EncodeToString(signature)
 
-	return fmt.Sprintf("%s?expires=%d&signature=%s", urlPath, expiry.Unix(), b64Sig), nil
+	return fmt.Sprintf("%s?expires=%d&signature=%s", urlPath, expiryTime.Unix(), b64Sig), nil
 }
 
 func (fs *FileStore) Read(ctx context.Context, path string) (io.ReadCloser, error) {
 	filePath := fs.path(path)
-	f, err := os.Open(filePath)
+	fh, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("error opening file: %w", err)
 	}
 
-	return f, nil
+	return fh, nil
 }
 
 func (fs *FileStore) Write(ctx context.Context, path string, file io.Reader) error {
 	// Create the directory if it doesn't exist
-	fpath := fs.path(path)
-	dir := filepath.Dir(fpath)
-	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
-		return fmt.Errorf("error creating directories for photo: %w", err)
+	filePath := fs.path(path)
+	parentDir := filepath.Dir(filePath)
+	if err := os.MkdirAll(parentDir, os.ModePerm); err != nil {
+		return fmt.Errorf("error creating parent directory for photo: %w", err)
 	}
 
-	tempFile, err := os.Create(fpath)
+	photoFile, err := os.Create(filePath)
 	if err != nil {
-		return fmt.Errorf("error creating photo %w", err)
+		return fmt.Errorf("error creating photo: %w", err)
 	}
-	defer tempFile.Close()
+	defer photoFile.Close()
 
 	fileBytes, err := io.ReadAll(file)
 	if err != nil {
 		return fmt.Errorf("error reading file: %w", err)
 	}
 
-	_, err = tempFile.Write(fileBytes)
+	_, err = photoFile.Write(fileBytes)
 	if err != nil {
 		return fmt.Errorf("error writing file: %w", err)
 	}
@@ -88,32 +94,36 @@ func (fs *FileStore) Write(ctx context.Context, path string, file io.Reader) err
 }
 
 func (fs *FileStore) Delete(ctx context.Context, path string) error {
-	prefixedPath := fs.path(path)
-	_, err := os.Stat(prefixedPath)
-	if err != nil {
+	filePath := fs.path(path)
+	if _, err := os.Stat(filePath); err != nil {
 		if os.IsNotExist(err) {
 			return ErrNotExist
-		} else {
-			return err
 		}
+		return fmt.Errorf("error stating file: %w", err)
 	}
 
-	if err = os.Remove(prefixedPath); err != nil {
+	if err := os.Remove(filePath); err != nil {
 		return fmt.Errorf("error deleting file: %w", err)
 	}
 
-	// Attempt to remove the parent directory if it's empty
-	parentDir := filepath.Dir(prefixedPath)
-	entries, err := os.ReadDir(parentDir)
-	if err == nil && len(entries) == 0 {
+	// Attempt to remove the parent directory if this was the last file, but ignore
+	// any errors since this is just a best effort cleanup
+	parentDir := filepath.Dir(filePath)
+	files, err := os.ReadDir(parentDir)
+	if err == nil && len(files) == 0 {
 		_ = os.Remove(parentDir)
 	}
 
 	return nil
 }
 
+// public path used in URLs and signatures
+func (fs *FileStore) publicPath(key string) string {
+	return path.Join(fs.urlPrefix, key)
+}
+
 // path returns the full path to the file by joining the
 // base directory with the provided path
 func (fs *FileStore) path(path string) string {
-	return filepath.Join(fs.BaseDir, path)
+	return filepath.Join(fs.baseDir, path)
 }

@@ -3,9 +3,11 @@ package store
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNewFileStore(t *testing.T) {
@@ -53,8 +55,8 @@ func TestNewFileStore(t *testing.T) {
 				t.Fatal("expected store to be non-nil")
 			}
 
-			if store.BaseDir != tt.baseDir {
-				t.Fatalf("unexpected base path: got %q, expected %q", store.BaseDir, tt.baseDir)
+			if store.baseDir != tt.baseDir {
+				t.Fatalf("unexpected base path: got %q, expected %q", store.baseDir, tt.baseDir)
 			}
 
 			if store.secretKey == nil || !bytes.Equal(store.secretKey, tt.secretKey) {
@@ -81,7 +83,7 @@ func TestFileStore_GenerateURL(t *testing.T) {
 			t.Fatalf("failed to create FileStore: %v", err)
 		}
 
-		url, err := store.GenerateURL(context.Background(), "testfile.txt")
+		url, err := store.GenerateURL(context.Background(), "testfile.txt", 15*time.Minute)
 		if err != nil {
 			t.Fatalf("unexpected error generating URL: %v", err)
 		}
@@ -106,13 +108,13 @@ func TestFileStore_GenerateURL(t *testing.T) {
 			t.Fatalf("failed to create FileStore: %v", err)
 		}
 
-		_, err = store.GenerateURL(context.Background(), "nonexistentfile.txt")
+		_, err = store.GenerateURL(context.Background(), "nonexistentfile.txt", 15*time.Minute)
 		if err == nil {
 			t.Fatal("expected error generating URL for nonexistent file, got none")
 		}
 
-		if !strings.Contains(err.Error(), "error stating file") {
-			t.Fatalf("unexpected error message: got %v, expected it to contain %q", err, "error stating file")
+		if !errors.Is(err, ErrNotExist) {
+			t.Fatalf("unexpected error message: got %v, expected it to be %v", err, ErrNotExist)
 		}
 	})
 }
@@ -181,7 +183,7 @@ func TestFileStore_Write(t *testing.T) {
 		}
 
 		// Verify the file was written correctly
-		writtenContent, err := os.ReadFile(store.BaseDir + "/test/file")
+		writtenContent, err := os.ReadFile(store.baseDir + "/test/file")
 		if err != nil {
 			t.Fatalf("failed to read written file: %v", err)
 		}
@@ -201,8 +203,8 @@ func TestFileStore_Delete(t *testing.T) {
 		}
 
 		// Create a file to delete
-		filePath := store.BaseDir + "/test/file"
-		if err := os.MkdirAll(store.BaseDir+"/test", 0755); err != nil {
+		filePath := store.baseDir + "/test/file"
+		if err := os.MkdirAll(store.baseDir+"/test", 0755); err != nil {
 			t.Fatalf("failed to create directory: %v", err)
 		}
 		if err := os.WriteFile(filePath, []byte("test data"), 0644); err != nil {
@@ -222,7 +224,7 @@ func TestFileStore_Delete(t *testing.T) {
 }
 
 func Test_path(t *testing.T) {
-	store := &FileStore{BaseDir: "/base/dir"}
+	store := &FileStore{baseDir: "/base/dir"}
 	if path := store.path("path/to/file"); path != "/base/dir/path/to/file" {
 		t.Fatalf("unexpected path: got %q, expected %q", path, "/base/dir/path/to/file")
 	}
