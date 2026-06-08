@@ -55,10 +55,6 @@ func TestNewFileStore(t *testing.T) {
 				t.Fatal("expected store to be non-nil")
 			}
 
-			if store.baseDir != tt.baseDir {
-				t.Fatalf("unexpected base path: got %q, expected %q", store.baseDir, tt.baseDir)
-			}
-
 			if store.secretKey == nil || !bytes.Equal(store.secretKey, tt.secretKey) {
 				t.Fatalf("unexpected secret key: got %q, expected %q", store.secretKey, tt.secretKey)
 			}
@@ -92,8 +88,8 @@ func TestFileStore_GenerateURL(t *testing.T) {
 			t.Fatalf("unexpected URL format: got %q, expected it to start with '/'", url)
 		}
 
-		if !strings.Contains(url, tempDir+"/testfile.txt") {
-			t.Fatalf("unexpected URL: got %q, expected it to contain %q", url, tempDir+"/testfile.txt")
+		if !strings.Contains(url, "/uploads/testfile.txt") {
+			t.Fatalf("unexpected URL: got %q, expected it to contain %q", url, "/uploads/testfile.txt")
 		}
 
 		if !strings.Contains(url, "expires=") || !strings.Contains(url, "signature=") {
@@ -183,7 +179,7 @@ func TestFileStore_Write(t *testing.T) {
 		}
 
 		// Verify the file was written correctly
-		writtenContent, err := os.ReadFile(store.baseDir + "/test/file")
+		writtenContent, err := os.ReadFile(tempDir + "/test/file")
 		if err != nil {
 			t.Fatalf("failed to read written file: %v", err)
 		}
@@ -203,8 +199,8 @@ func TestFileStore_Delete(t *testing.T) {
 		}
 
 		// Create a file to delete
-		filePath := store.baseDir + "/test/file"
-		if err := os.MkdirAll(store.baseDir+"/test", 0755); err != nil {
+		filePath := tempDir + "/test/file"
+		if err := os.MkdirAll(tempDir+"/test", 0755); err != nil {
 			t.Fatalf("failed to create directory: %v", err)
 		}
 		if err := os.WriteFile(filePath, []byte("test data"), 0644); err != nil {
@@ -224,8 +220,14 @@ func TestFileStore_Delete(t *testing.T) {
 }
 
 func Test_path(t *testing.T) {
-	store := &FileStore{baseDir: "/base/dir"}
-	if path := store.path("path/to/file"); path != "/base/dir/path/to/file" {
-		t.Fatalf("unexpected path: got %q, expected %q", path, "/base/dir/path/to/file")
+	baseDir := t.TempDir()
+	store, err := NewFileStore(baseDir, []byte("test-secret"))
+	if err != nil {
+		t.Fatalf("failed to create FileStore: %v", err)
+	}
+
+	expectedPath := baseDir + "/path/to/file"
+	if path := store.path("path/to/file"); path != expectedPath {
+		t.Fatalf("unexpected path: got %q, expected %q", path, expectedPath)
 	}
 }
