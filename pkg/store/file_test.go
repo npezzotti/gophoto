@@ -92,8 +92,34 @@ func TestFileStore_GenerateURL(t *testing.T) {
 			t.Fatalf("unexpected URL: got %q, expected it to contain %q", url, "/uploads/testfile.txt")
 		}
 
-		if !strings.Contains(url, "expires=") || !strings.Contains(url, "signature=") {
-			t.Fatalf("unexpected URL format: got %q, expected it to contain 'expires' and 'signature' query parameters", url)
+		// extract the expires and signature values from the URL for further validation
+		parts := strings.Split(url, "?")
+		if len(parts) != 2 {
+			t.Fatalf("unexpected URL format: got %q, expected it to contain query parameters", url)
+		}
+
+		queryParams := parts[1]
+		queryParts := strings.Split(queryParams, "&")
+		expires := queryParts[0]
+		signature := queryParts[1]
+
+		if !strings.HasPrefix(expires, "expires=") {
+			t.Fatalf("unexpected expires parameter: got %q, expected it to start with 'expires='", expires)
+		}
+
+		if !strings.HasPrefix(signature, "signature=") {
+			t.Fatalf("unexpected signature parameter: got %q, expected it to start with 'signature='", signature)
+		}
+
+		expiresValue := strings.TrimPrefix(expires, "expires=")
+		signatureValue := strings.TrimPrefix(signature, "signature=")
+
+		if expiresValue == "" {
+			t.Fatalf("unexpected empty expires value")
+		}
+
+		if signatureValue == "" {
+			t.Fatalf("unexpected empty signature value")
 		}
 	})
 
