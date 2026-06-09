@@ -36,7 +36,7 @@ type AlbumRepository interface {
 	ListAlbumsByUser(ctx context.Context, userID int32, limit, offset int32) ([]domain.AlbumListItem, error)
 	ListAlbumPhotoViewRows(ctx context.Context, albumID, limit, offset int32) ([]domain.AlbumPhotoViewRow, error)
 	CreateAlbum(ctx context.Context, userID int32, title string) (domain.Album, error)
-	UpdateAlbum(ctx context.Context, albumId int32, userID int32, title string, coverPhotoID *int32) (domain.Album, error)
+	UpdateAlbum(ctx context.Context, albumId int32, userID int32, title string) (domain.Album, error)
 	DeleteAlbum(ctx context.Context, albumId int32) error
 }
 
@@ -193,14 +193,11 @@ func (q *Queries) AddPhotoToAlbumWithCover(ctx context.Context, arg AddPhotoToAl
 
 	var updatedAlbum Album
 	if !album.CoverPhotoID.Valid {
-		updatedAlbum, err = q.UpdateAlbum(ctx, UpdateAlbumParams{
+		if err := q.SetAlbumCoverPhoto(ctx, SetAlbumCoverPhotoParams{
 			ID:           album.ID,
-			UserID:       album.UserID,
-			Title:        album.Title,
 			CoverPhotoID: sql.NullInt32{Int32: albumPhoto.ID, Valid: true},
 			UpdatedAt:    time.Now(),
-		})
-		if err != nil {
+		}); err != nil {
 			return Album{}, fmt.Errorf("set album cover photo: %w", err)
 		}
 	}
@@ -324,6 +321,7 @@ func (r *Repository) CreateUserPhotoWithOriginalMetadata(ctx context.Context, ar
 }
 
 func (r *Repository) RemovePhotoFromAlbum(ctx context.Context, albumID int32, photoID int32) error {
+	updateTime := time.Now()
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
@@ -332,18 +330,53 @@ func (r *Repository) RemovePhotoFromAlbum(ctx context.Context, albumID int32, ph
 
 	q := r.querier.WithTx(tx)
 
-	if _, err = q.DeleteAlbumPhoto(ctx, DeleteAlbumPhotoParams{
+	album, err := q.GetAlbumById(ctx, albumID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrAlbumNotFound
+		}
+		return fmt.Errorf("get album by ID: %w", err)
+	}
+
+	deletedAlbumPhotoID, err := q.DeleteAlbumPhoto(ctx, DeleteAlbumPhotoParams{
 		AlbumID: albumID,
 		PhotoID: photoID,
-	}); err != nil {
+	})
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrAlbumPhotoNotFound
 		}
 		return fmt.Errorf("delete photo from album: %w", err)
 	}
 
-	if err := q.DecrementAlbumPhotoCount(ctx, DecrementAlbumPhotoCountParams{ID: albumID, UpdatedAt: time.Now()}); err != nil {
+	if err := q.DecrementAlbumPhotoCount(ctx, DecrementAlbumPhotoCountParams{ID: albumID, UpdatedAt: updateTime}); err != nil {
 		return fmt.Errorf("decrement album photo count: %w", err)
+	}
+
+	// If the photo being removed is the album's cover, we need to update the album's cover
+	// to a different photo or remove the cover altogether.
+	var newCoverAlbumPhotoID sql.NullInt32
+	if album.CoverPhotoID.Valid && album.CoverPhotoID.Int32 == deletedAlbumPhotoID {
+		// Get the most recent photo in the album as the new cover (if there are any photos left)
+		newCoverPhoto, err := q.GetLastPhotoFromAlbum(ctx, albumID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				// No photos left in the album, so just remove the cover photo
+				newCoverAlbumPhotoID = sql.NullInt32{Valid: false}
+			} else {
+				return fmt.Errorf("get most recent photo from album: %w", err)
+			}
+		} else {
+			newCoverAlbumPhotoID = sql.NullInt32{Int32: newCoverPhoto.ID, Valid: true}
+		}
+
+		if err := q.SetAlbumCoverPhoto(ctx, SetAlbumCoverPhotoParams{
+			ID:           albumID,
+			CoverPhotoID: newCoverAlbumPhotoID,
+			UpdatedAt:    updateTime,
+		}); err != nil {
+			return fmt.Errorf("update album cover photo: %w", err)
+		}
 	}
 
 	if err = tx.Commit(); err != nil {
@@ -558,21 +591,16 @@ func (r *Repository) CreateAlbum(ctx context.Context, userID int32, title string
 	}, nil
 }
 
-func (r *Repository) UpdateAlbum(ctx context.Context, albumId int32, userID int32, title string, coverPhotoID *int32) (domain.Album, error) {
-	coverPhoto := sql.NullInt32{Valid: false}
-	if coverPhotoID != nil {
-		coverPhoto = sql.NullInt32{Int32: *coverPhotoID, Valid: true}
-	}
-
+func (r *Repository) UpdateAlbum(ctx context.Context, albumId int32, userID int32, title string) (domain.Album, error) {
 	album, err := r.querier.UpdateAlbum(ctx, UpdateAlbumParams{
-		ID:           albumId,
-		UserID:       userID,
-		Title:        title,
-		CoverPhotoID: coverPhoto,
+		ID:     albumId,
+		UserID: userID,
+		Title:  title,
 	})
 	if err != nil {
 		return domain.Album{}, err
 	}
+
 	return domain.Album{
 		ID:           album.ID,
 		UserID:       album.UserID,

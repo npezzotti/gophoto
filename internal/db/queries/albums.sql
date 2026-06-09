@@ -46,8 +46,7 @@ RETURNING *;
 UPDATE albums
   SET user_id = $2,
   title = $3,
-  cover_photo_id = $4,
-  updated_at = $5
+  updated_at = $4
 WHERE id = $1
 RETURNING *;
 
@@ -91,3 +90,8 @@ LEFT JOIN photo_metadata pm ON pm.photo_id = pp.id
 ORDER BY
   pp.created_at DESC,
   pp.id DESC;
+
+-- name: SetAlbumCoverPhoto :exec
+UPDATE albums
+SET cover_photo_id = $2, updated_at = $3
+WHERE id = $1;

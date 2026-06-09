@@ -269,22 +269,37 @@ func (q *Queries) ListAlbumsByUser(ctx context.Context, arg ListAlbumsByUserPara
 	return items, nil
 }
 
+const setAlbumCoverPhoto = `-- name: SetAlbumCoverPhoto :exec
+UPDATE albums
+SET cover_photo_id = $2, updated_at = $3
+WHERE id = $1
+`
+
+type SetAlbumCoverPhotoParams struct {
+	ID           int32
+	CoverPhotoID sql.NullInt32
+	UpdatedAt    time.Time
+}
+
+func (q *Queries) SetAlbumCoverPhoto(ctx context.Context, arg SetAlbumCoverPhotoParams) error {
+	_, err := q.db.ExecContext(ctx, setAlbumCoverPhoto, arg.ID, arg.CoverPhotoID, arg.UpdatedAt)
+	return err
+}
+
 const updateAlbum = `-- name: UpdateAlbum :one
 UPDATE albums
   SET user_id = $2,
   title = $3,
-  cover_photo_id = $4,
-  updated_at = $5
+  updated_at = $4
 WHERE id = $1
 RETURNING id, user_id, title, cover_photo_id, num_photos, created_at, updated_at
 `
 
 type UpdateAlbumParams struct {
-	ID           int32
-	UserID       int32
-	Title        string
-	CoverPhotoID sql.NullInt32
-	UpdatedAt    time.Time
+	ID        int32
+	UserID    int32
+	Title     string
+	UpdatedAt time.Time
 }
 
 func (q *Queries) UpdateAlbum(ctx context.Context, arg UpdateAlbumParams) (Album, error) {
@@ -292,7 +307,6 @@ func (q *Queries) UpdateAlbum(ctx context.Context, arg UpdateAlbumParams) (Album
 		arg.ID,
 		arg.UserID,
 		arg.Title,
-		arg.CoverPhotoID,
 		arg.UpdatedAt,
 	)
 	var i Album

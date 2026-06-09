@@ -48,6 +48,7 @@ CREATE TABLE album_photos (
     id SERIAL PRIMARY KEY,
     album_id INT NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
     photo_id INT NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(album_id, photo_id)
 );
 

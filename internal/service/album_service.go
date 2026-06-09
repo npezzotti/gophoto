@@ -153,7 +153,7 @@ func (s *AlbumService) CreateAlbum(ctx context.Context, userID int32, title stri
 	}, nil
 }
 
-func (s *AlbumService) UpdateAlbum(ctx context.Context, albumID int32, userID int32, title string, coverPhotoID *int32) (domain.Album, error) {
+func (s *AlbumService) UpdateAlbum(ctx context.Context, albumID int32, userID int32, title string) (domain.Album, error) {
 	album, err := s.albumRepo.GetAlbumByID(ctx, albumID)
 	if err != nil {
 		return domain.Album{}, fmt.Errorf("error getting album with ID %d: %w", albumID, err)
@@ -163,7 +163,7 @@ func (s *AlbumService) UpdateAlbum(ctx context.Context, albumID int32, userID in
 		return domain.Album{}, domain.ErrAlbumNotFound
 	}
 
-	updatedAlbum, err := s.albumRepo.UpdateAlbum(ctx, albumID, userID, title, coverPhotoID)
+	updatedAlbum, err := s.albumRepo.UpdateAlbum(ctx, albumID, userID, title)
 	if err != nil {
 		return domain.Album{}, fmt.Errorf("error updating album with ID %d: %w", album.ID, err)
 	}

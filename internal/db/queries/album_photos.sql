@@ -13,3 +13,9 @@ RETURNING *;
 DELETE FROM album_photos
 WHERE album_id = $1 AND photo_id = $2
 RETURNING id;
+
+-- name: GetLastPhotoFromAlbum :one
+SELECT * FROM album_photos
+WHERE album_id = $1
+ORDER BY created_at ASC
+LIMIT 1;

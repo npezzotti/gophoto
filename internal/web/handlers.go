@@ -141,7 +141,7 @@ func (a *application) updateAlbumHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		if _, err := a.albumService.UpdateAlbum(r.Context(), int32(albumID), user.ID, r.Form.Get("title"), nil); err != nil {
+		if _, err := a.albumService.UpdateAlbum(r.Context(), int32(albumID), user.ID, r.Form.Get("title")); err != nil {
 			if errors.Is(err, domain.ErrAlbumNotFound) {
 				a.flash(r.Context(), http.StatusText(http.StatusNotFound), flashErr)
 				http.Redirect(w, r, r.Referer(), http.StatusSeeOther)

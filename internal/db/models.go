@@ -111,9 +111,10 @@ type Album struct {
 }
 
 type AlbumPhoto struct {
-	ID      int32
-	AlbumID int32
-	PhotoID int32
+	ID        int32
+	AlbumID   int32
+	PhotoID   int32
+	CreatedAt time.Time
 }
 
 type Photo struct {

@@ -14,7 +14,7 @@ import (
 const addPhotoToAlbum = `-- name: AddPhotoToAlbum :one
 INSERT INTO album_photos (album_id, photo_id)
 VALUES ($1, $2)
-RETURNING id, album_id, photo_id
+RETURNING id, album_id, photo_id, created_at
 `
 
 type AddPhotoToAlbumParams struct {
@@ -25,7 +25,12 @@ type AddPhotoToAlbumParams struct {
 func (q *Queries) AddPhotoToAlbum(ctx context.Context, arg AddPhotoToAlbumParams) (AlbumPhoto, error) {
 	row := q.db.QueryRowContext(ctx, addPhotoToAlbum, arg.AlbumID, arg.PhotoID)
 	var i AlbumPhoto
-	err := row.Scan(&i.ID, &i.AlbumID, &i.PhotoID)
+	err := row.Scan(
+		&i.ID,
+		&i.AlbumID,
+		&i.PhotoID,
+		&i.CreatedAt,
+	)
 	return i, err
 }
 
@@ -75,6 +80,25 @@ func (q *Queries) GetAlbumPhoto(ctx context.Context, id int32) (GetAlbumPhotoRow
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.AlbumID,
+	)
+	return i, err
+}
+
+const getLastPhotoFromAlbum = `-- name: GetLastPhotoFromAlbum :one
+SELECT id, album_id, photo_id, created_at FROM album_photos
+WHERE album_id = $1
+ORDER BY created_at ASC
+LIMIT 1
+`
+
+func (q *Queries) GetLastPhotoFromAlbum(ctx context.Context, albumID int32) (AlbumPhoto, error) {
+	row := q.db.QueryRowContext(ctx, getLastPhotoFromAlbum, albumID)
+	var i AlbumPhoto
+	err := row.Scan(
+		&i.ID,
+		&i.AlbumID,
+		&i.PhotoID,
+		&i.CreatedAt,
 	)
 	return i, err
 }
