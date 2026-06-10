@@ -67,7 +67,7 @@ CREATE TABLE photo_metadata (
     variant photo_variant NOT NULL,
     width INT NOT NULL,
     height INT NOT NULL,
-    file_size BIGINT,
+    file_size BIGINT NOT NULL,
     mime_type VARCHAR(50) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(photo_id, variant)

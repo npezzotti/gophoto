@@ -210,7 +210,7 @@ func (ppw *PhotoProcessorWorker) processPhoto(photoId int32, sizes []ImageOpts) 
 			Variant:  size.Variant,
 			Width:    int32(imgSize.Width),
 			Height:   int32(imgSize.Height),
-			FileSize: &fileSize,
+			FileSize: fileSize,
 			MimeType: "image/webp",
 		})
 		if err != nil {

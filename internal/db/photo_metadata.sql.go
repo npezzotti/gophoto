@@ -7,7 +7,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 )
 
 const createPhotoMetadata = `-- name: CreatePhotoMetadata :one
@@ -34,7 +33,7 @@ type CreatePhotoMetadataParams struct {
 	Variant  PhotoVariant
 	Width    int32
 	Height   int32
-	FileSize sql.NullInt64
+	FileSize int64
 	MimeType string
 }
 

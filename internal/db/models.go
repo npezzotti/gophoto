@@ -132,7 +132,7 @@ type PhotoMetadatum struct {
 	Variant   PhotoVariant
 	Width     int32
 	Height    int32
-	FileSize  sql.NullInt64
+	FileSize  int64
 	MimeType  string
 	CreatedAt time.Time
 }

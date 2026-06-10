@@ -125,7 +125,7 @@ func (r *Repository) GetPhotoMetadataByPhotoIDAndVariant(ctx context.Context, ph
 		Variant:   domain.PhotoVariant(metadata.Variant),
 		Width:     metadata.Width,
 		Height:    metadata.Height,
-		FileSize:  nullInt64Ptr(metadata.FileSize),
+		FileSize:  metadata.FileSize,
 		MimeType:  metadata.MimeType,
 		CreatedAt: metadata.CreatedAt,
 	}, nil
@@ -164,7 +164,7 @@ func (r *Repository) GetPhotoMetadataByPhotoID(ctx context.Context, photoId int3
 			Variant:   domain.PhotoVariant(m.Variant),
 			Width:     m.Width,
 			Height:    m.Height,
-			FileSize:  nullInt64Ptr(m.FileSize),
+			FileSize:  m.FileSize,
 			MimeType:  m.MimeType,
 			CreatedAt: m.CreatedAt,
 		})
@@ -210,7 +210,7 @@ type CreatePhotoWithOriginalMetadataParams struct {
 	Key      string
 	Width    int32
 	Height   int32
-	FileSize sql.NullInt64
+	FileSize int64
 	MimeType string
 }
 
@@ -220,7 +220,7 @@ func toCreatePhotoWithOriginalMetadataParams(arg domain.CreatePhotoWithOriginalM
 		Key:      arg.Key,
 		Width:    arg.Width,
 		Height:   arg.Height,
-		FileSize: sql.NullInt64{Int64: arg.FileSize, Valid: true},
+		FileSize: arg.FileSize,
 		MimeType: arg.MimeType,
 	}
 }
@@ -275,7 +275,7 @@ func (q *Queries) createPhotoWithOriginalMetadata(ctx context.Context, arg Creat
 		Variant:  PhotoVariantOriginal,
 		Width:    arg.Width,
 		Height:   arg.Height,
-		FileSize: sql.NullInt64{Int64: arg.FileSize.Int64, Valid: arg.FileSize.Valid},
+		FileSize: arg.FileSize,
 		MimeType: arg.MimeType,
 	}); err != nil {
 		return Photo{}, fmt.Errorf("create photo metadata: %w", err)
@@ -392,7 +392,7 @@ func (r *Repository) CreatePhotoMetadata(ctx context.Context, arg domain.CreateP
 		Variant:  PhotoVariant(arg.Variant),
 		Width:    arg.Width,
 		Height:   arg.Height,
-		FileSize: ptrToNullInt64(arg.FileSize),
+		FileSize: arg.FileSize,
 		MimeType: arg.MimeType,
 	})
 	if err != nil {
@@ -405,7 +405,7 @@ func (r *Repository) CreatePhotoMetadata(ctx context.Context, arg domain.CreateP
 		Variant:   domain.PhotoVariant(metadata.Variant),
 		Width:     metadata.Width,
 		Height:    metadata.Height,
-		FileSize:  nullInt64Ptr(metadata.FileSize),
+		FileSize:  metadata.FileSize,
 		MimeType:  metadata.MimeType,
 		CreatedAt: metadata.CreatedAt,
 	}, nil
