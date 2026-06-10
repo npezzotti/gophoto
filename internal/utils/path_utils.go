@@ -24,13 +24,17 @@ func BuildPhotoPathForVariant(key string, variant domain.PhotoVariant, mimeType 
 	shardLvl1 := parsedUUIDStr[0:2]
 	shardLvl2 := parsedUUIDStr[2:4]
 
+	if !variant.IsValid() {
+		return "", fmt.Errorf("invalid photo variant: %s", variant)
+	}
+
 	// Determine the file extension based on the MIME type.
 	ext, err := extractFileExtension(mimeType)
 	if err != nil {
 		return "", fmt.Errorf("failed to extract file extension: %w", err)
 	}
 
-	return fmt.Sprintf("%s/%s/%s/%s.%s", shardLvl1, shardLvl2, parsedUUIDStr, (string(variant)), ext), nil
+	return fmt.Sprintf("%s/%s/%s/%s.%s", shardLvl1, shardLvl2, parsedUUIDStr, string(variant), ext), nil
 }
 
 func extractFileExtension(mimeType domain.MimeType) (string, error) {

@@ -21,6 +21,15 @@ const (
 	PhotoVariantAvatar   PhotoVariant = "avatar"
 )
 
+func (v PhotoVariant) IsValid() bool {
+	switch v {
+	case PhotoVariantOriginal, PhotoVariantLarge, PhotoVariantMedium, PhotoVariantSmall, PhotoVariantThumb, PhotoVariantAvatar:
+		return true
+	default:
+		return false
+	}
+}
+
 type PhotoStatus string
 
 const (
