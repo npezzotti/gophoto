@@ -11,10 +11,11 @@ import (
 )
 
 var (
-	ErrUserNotFound       = errors.New("user not found")
-	ErrAlbumNotFound      = errors.New("album not found")
-	ErrPhotoNotFound      = errors.New("photo not found")
-	ErrAlbumPhotoNotFound = errors.New("album photo not found")
+	ErrUserNotFound          = errors.New("user not found")
+	ErrAlbumNotFound         = errors.New("album not found")
+	ErrPhotoNotFound         = errors.New("photo not found")
+	ErrPhotoMetadataNotFound = errors.New("photo metadata not found")
+	ErrAlbumPhotoNotFound    = errors.New("album photo not found")
 )
 
 type PhotoRepository interface {
@@ -153,6 +154,9 @@ func (r *Repository) GetAlbumPhoto(ctx context.Context, id int32) (domain.AlbumP
 func (r *Repository) GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]domain.PhotoMetadatum, error) {
 	metadata, err := r.querier.GetPhotoMetadataByPhotoID(ctx, photoId)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrPhotoMetadataNotFound
+		}
 		return nil, err
 	}
 
