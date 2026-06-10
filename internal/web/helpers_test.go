@@ -11,38 +11,31 @@ import (
 func Test__isAuthenticated(t *testing.T) {
 	tcases := []struct {
 		name     string
-		request  *http.Request
+		context  context.Context
 		expected bool
 	}{
 		{
-			name:     "request with no context returns false",
-			request:  &http.Request{},
+			name:     "request with no authentication returns false",
+			context:  context.Background(),
 			expected: false,
 		},
 		{
-			name: "request with context but no IsAuthenticatedContextKey returns false",
-			request: func() *http.Request {
-				r := &http.Request{}
-				r = r.WithContext(context.Background())
-				return r
-			}(),
-			expected: false,
-		},
-		{
-			name: "request with context and IsAuthenticatedContextKey set to true returns true",
-			request: func() *http.Request {
-				r := &http.Request{}
-				r = r.WithContext(context.Background())
-				r = r.WithContext(context.WithValue(r.Context(), IsAuthenticatedContextKey, true))
-				return r
-			}(),
+			name:     "request with context and IsAuthenticatedContextKey set to true returns true",
+			context:  context.WithValue(context.Background(), IsAuthenticatedContextKey, true),
 			expected: true,
+		},
+		{
+			name:     "request with context and IsAuthenticatedContextKey set to false returns false",
+			context:  context.WithValue(context.Background(), IsAuthenticatedContextKey, false),
+			expected: false,
 		},
 	}
 
 	for _, tt := range tcases {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isAuthenticated(tt.request)
+			req := http.Request{}
+			reqWithCtx := req.WithContext(tt.context)
+			got := isAuthenticated(reqWithCtx)
 			if got != tt.expected {
 				t.Fatalf("expected isAuthenticated to return %v, got %v", tt.expected, got)
 			}
