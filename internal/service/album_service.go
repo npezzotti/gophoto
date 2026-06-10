@@ -18,7 +18,7 @@ type AlbumService struct {
 	photoRepo db.PhotoRepository
 	store     store.Store
 	config    *config.Config
-	logging   *logging.Logger
+	logger    *logging.Logger
 }
 
 func NewAlbumService(r db.AlbumRepository, p db.PhotoRepository, s store.Store, c *config.Config, logger *logging.Logger) *AlbumService {
@@ -27,7 +27,7 @@ func NewAlbumService(r db.AlbumRepository, p db.PhotoRepository, s store.Store, 
 		photoRepo: p,
 		store:     s,
 		config:    c,
-		logging:   logger,
+		logger:    logger,
 	}
 }
 
@@ -77,11 +77,13 @@ func (s *AlbumService) GetAlbumPageView(ctx context.Context, userID, albumID, li
 
 		path, err := utils.BuildPhotoPathForVariant(photo.PhotoKey, photo.Variant, domain.MimeType(photo.MimeType))
 		if err != nil {
+			s.logger.Error("Error building photo path: %s", err)
 			continue
 		}
 
 		url, err := s.store.GenerateURL(ctx, path, s.config.URLExpiry)
 		if err != nil {
+			s.logger.Error("Error generating photo URL: %s", err)
 			continue
 		}
 

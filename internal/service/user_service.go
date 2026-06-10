@@ -60,19 +60,27 @@ func (s *UserService) buildProfileImage(ctx context.Context, user domain.User) d
 
 	photo, err := s.photoRepo.GetPhoto(ctx, profilePictureID)
 	if err != nil {
-		s.logger.Warn("profile_image_fallback stage=get_photo user_id=%d profile_picture_id=%d error=%q", user.ID, profilePictureID, err.Error())
+		if !errors.Is(err, db.ErrPhotoNotFound) {
+			s.logger.Warn("no photo found for profile picture user_id=%d profile_picture_id=%d", user.ID, profilePictureID)
+		} else {
+			s.logger.Warn("failed to get photo user_id=%d profile_picture_id=%d error=%q", user.ID, profilePictureID, err.Error())
+		}
 		return image
 	}
 
 	if photo.Key == "" {
-		s.logger.Warn("profile_image_fallback stage=empty_photo_key user_id=%d profile_picture_id=%d", user.ID, profilePictureID)
+		s.logger.Warn("no key found for profile picture user_id=%d profile_picture_id=%d", user.ID, profilePictureID)
 
 		return image
 	}
 
 	meta, err := s.photoRepo.GetPhotoMetadataByPhotoID(ctx, profilePictureID)
 	if err != nil {
-		s.logger.Warn("profile_image_fallback stage=get_photo_metadata user_id=%d profile_picture_id=%d error=%q", user.ID, profilePictureID, err.Error())
+		if errors.Is(err, db.ErrPhotoMetadataNotFound) {
+			s.logger.Warn("no photo metadata found for profile picture user_id=%d profile_picture_id=%d", user.ID, profilePictureID)
+			return image
+		}
+		s.logger.Warn("failed to get photo metadata user_id=%d profile_picture_id=%d error=%q", user.ID, profilePictureID, err.Error())
 		return image
 	}
 
@@ -86,13 +94,13 @@ func (s *UserService) buildProfileImage(ctx context.Context, user domain.User) d
 
 		path, err := utils.BuildPhotoPathForVariant(photo.Key, m.Variant, domain.MimeType(m.MimeType))
 		if err != nil {
-			s.logger.Debug("profile_image_variant_skip stage=build_photo_path user_id=%d profile_picture_id=%d variant=%s error=%q", user.ID, profilePictureID, m.Variant, err.Error())
+			s.logger.Error("Error building photo path: %s", err)
 			continue
 		}
 
 		url, err := s.store.GenerateURL(ctx, path, s.config.URLExpiry)
 		if err != nil {
-			s.logger.Debug("profile_image_variant_skip stage=generate_url user_id=%d profile_picture_id=%d variant=%s error=%q", user.ID, profilePictureID, m.Variant, err.Error())
+			s.logger.Error("Error generating photo URL: %s", err)
 			continue
 		}
 
@@ -108,7 +116,8 @@ func (s *UserService) buildProfileImage(ctx context.Context, user domain.User) d
 	}
 
 	if len(sources) == 0 {
-		s.logger.Warn("profile_image_fallback stage=no_usable_variants user_id=%d profile_picture_id=%d", user.ID, profilePictureID)
+		s.logger.Warn("no photo variants found for profile picture, falling "+
+			"back to default image user_id=%d profile_picture_id=%d", user.ID, profilePictureID)
 		return image
 	}
 
