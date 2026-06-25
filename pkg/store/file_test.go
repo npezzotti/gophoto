@@ -103,7 +103,7 @@ func TestFileStore_GenerateURL(t *testing.T) {
 		if len(queryParts) != 2 {
 			t.Fatalf("unexpected query parameters: got %q, expected 2", queryParts)
 		}
-		
+
 		expires := queryParts[0]
 		signature := queryParts[1]
 
