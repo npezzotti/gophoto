@@ -109,7 +109,7 @@ func (s *PhotoService) CreateAlbumPhotoWithOriginalMetadata(ctx context.Context,
 		return domain.Photo{}, fmt.Errorf("error uploading photo to storage: %w", err)
 	}
 
-	if err := s.queuePhotoProcessing(ctx, photo); err != nil {
+	if err := s.queuePhotoProcessing(ctx, photo, workers.JobTypeAlbumPhoto); err != nil {
 		return domain.Photo{}, fmt.Errorf("error queueing photo processing: %w", err)
 	}
 
@@ -139,7 +139,7 @@ func (s *PhotoService) CreateUserPhotoWithOriginalMetadata(ctx context.Context, 
 		return domain.Photo{}, fmt.Errorf("error uploading photo to storage: %w", err)
 	}
 
-	if err := s.queuePhotoProcessing(ctx, photo); err != nil {
+	if err := s.queuePhotoProcessing(ctx, photo, workers.JobTypeUserPhoto); err != nil {
 		return domain.Photo{}, fmt.Errorf("error queueing photo processing: %w", err)
 	}
 
@@ -235,8 +235,8 @@ func (s *PhotoService) uploadPhotoToStorage(ctx context.Context, photo domain.Ph
 	return nil
 }
 
-func (s *PhotoService) queuePhotoProcessing(ctx context.Context, photo domain.Photo) error {
-	processingJob, err := json.Marshal(workers.PhotoProcessingJob{Type: workers.JobTypeAlbumPhoto, PhotoID: photo.ID})
+func (s *PhotoService) queuePhotoProcessing(ctx context.Context, photo domain.Photo, jobType workers.JobType) error {
+	processingJob, err := json.Marshal(workers.PhotoProcessingJob{Type: jobType, PhotoID: photo.ID})
 	if err != nil {
 		return fmt.Errorf("error marshalling photo processing job for photo %d: %w", photo.ID, err)
 	}
