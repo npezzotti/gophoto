@@ -12,7 +12,9 @@ import (
 )
 
 const (
-	FormFileName = "file"
+	FormFileName         = "file"
+	maxUploadRequestSize = 50 << (10 * 2) // 50 MB
+	multipartMemoryLimit = 8 << 20
 )
 
 func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
@@ -227,8 +229,15 @@ func (a *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
-		a.writeJsonErrorResp(w, http.StatusBadRequest, "error parsing form")
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadRequestSize)
+	if err := r.ParseMultipartForm(multipartMemoryLimit); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			a.writeJsonErrorResp(w, http.StatusRequestEntityTooLarge, "file too large")
+			return
+		}
+
+		a.writeJsonErrorResp(w, http.StatusBadRequest, "error parsing multipart form")
 		return
 	}
 
