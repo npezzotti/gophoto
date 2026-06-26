@@ -164,8 +164,15 @@ func (a *application) updateAlbumHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (a *application) deleteAlbumHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodPost {
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		a.Logger.Error("error parsing form: %v", err)
+		a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
+		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 		return
 	}
 
@@ -176,7 +183,7 @@ func (a *application) deleteAlbumHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	albumIDStr := r.URL.Query().Get("id")
+	albumIDStr := r.Form.Get("id")
 	if albumIDStr == "" {
 		a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
@@ -329,12 +336,19 @@ func (a *application) photoStatusHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (a *application) deleteAlbumPhotoHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodPost {
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 		return
 	}
 
-	albumPhotoIDStr := r.URL.Query().Get("id")
+	if err := r.ParseForm(); err != nil {
+		a.Logger.Error("error parsing form: %v", err)
+		a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
+		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
+		return
+	}
+
+	albumPhotoIDStr := r.Form.Get("id")
 	if albumPhotoIDStr == "" {
 		a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)

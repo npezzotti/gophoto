@@ -213,36 +213,34 @@ func (a *application) editProfileHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (a *application) deleteAccountHandler(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		user, ok := extractUserFromContext(r.Context())
-		if !ok {
+	if r.Method != http.MethodPost {
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		return
+	}
+
+	user, ok := extractUserFromContext(r.Context())
+	if !ok {
+		a.flash(r.Context(), "User not found.", flashErr)
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
+	if err := a.userService.DeleteUser(r.Context(), user.ID); err != nil {
+		if errors.Is(err, domain.ErrUserNotFound) {
 			a.flash(r.Context(), "User not found.", flashErr)
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
-
-		if err := a.userService.DeleteUser(r.Context(), user.ID); err != nil {
-			if errors.Is(err, domain.ErrUserNotFound) {
-				a.flash(r.Context(), "User not found.", flashErr)
-				http.Redirect(w, r, "/login", http.StatusSeeOther)
-				return
-			}
-			a.Logger.Error("error deleting user with ID %d: %v", user.ID, err)
-			a.flash(r.Context(), "Error deleting account. Please try again.", flashErr)
-			http.Redirect(w, r, "/profile", http.StatusSeeOther)
-			return
-		}
-
-		if err := a.sessionManager.Destroy(r.Context()); err != nil {
-			a.Logger.Error("error deleting session: %v", err)
-		}
-
-		a.flash(r.Context(), "Your account has been deleted.", flashInfo)
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	default:
-		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		a.Logger.Error("error deleting user with ID %d: %v", user.ID, err)
+		a.flash(r.Context(), "Error deleting account. Please try again.", flashErr)
+		http.Redirect(w, r, "/profile", http.StatusSeeOther)
 		return
 	}
+
+	if err := a.sessionManager.Destroy(r.Context()); err != nil {
+		a.Logger.Error("error deleting session: %v", err)
+	}
+
+	a.flash(r.Context(), "Your account has been deleted.", flashInfo)
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }

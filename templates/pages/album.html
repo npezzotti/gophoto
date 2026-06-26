@@ -33,15 +33,15 @@
                                     <label for="title">Title</label>
                                     <input type="text" class="form-control mb-2" id="title" name="title"
                                         value="{{ .Album.Title }}">
+                                    <input type="hidden" name="id" value="{{ .Album.ID }}">
                                     <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
                                 </div>
                                 <div class="hstack gap-1 mt-2">
                                     <input type="submit" class="btn btn-primary" value="Save" />
                                     <button type="button" class="btn btn-secondary"
                                         data-bs-dismiss="modal">Close</button>
-                                    <a href="/albums/delete?id={{ .Album.ID }}" type="button"
-                                        class="btn btn-danger ms-auto">Delete
-                                        Album</a>
+                                    <button type="submit" formaction="/albums/delete" formmethod="post"
+                                        class="btn btn-danger ms-auto">Delete Album</button>
                                 </div>
                             </form>
                         </div>
@@ -92,8 +92,12 @@
                             <ul class="dropdown-menu dropdown-menu-lg-end" aria-labelledby="dropdownMenuLink">
                                 <li><a class="dropdown-item link-primary" href="{{ .OriginalSrc }}"
                                         download>Download</a>
-                                <li><a class="dropdown-item link-danger"
-                                        href="/photo/delete?id={{ .ID }}">Delete</a>
+                                <li>
+                                    <form action="/photo/delete" method="post">
+                                        <input type="hidden" name="id" value="{{ .ID }}">
+                                        <input type="hidden" name="csrf_token" value="{{ $.CSRFToken }}">
+                                        <button type="submit" class="dropdown-item link-danger">Delete</button>
+                                    </form>
                                 </li>
                             </ul>
 

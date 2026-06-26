@@ -82,7 +82,7 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                            <form action="/profile/delete" method="get">
+                            <form action="/profile/delete" method="post">
                                 <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
                                 <button type="submit" class="btn btn-danger">Delete my account</button>
                             </form>
