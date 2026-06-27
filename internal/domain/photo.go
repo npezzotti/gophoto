@@ -82,7 +82,6 @@ type PhotoMetadatum struct {
 	CreatedAt time.Time
 }
 
-// CreatePhotoWithOriginalMetadataParams is used for creating a new photo with its original metadata.
 type CreatePhotoWithOriginalMetadataParams struct {
 	UserID   int32
 	Key      string
@@ -92,7 +91,6 @@ type CreatePhotoWithOriginalMetadataParams struct {
 	MimeType string
 }
 
-// CreatePhotoMetadataParams is used for creating metadata for processed photo variants.
 type CreatePhotoMetadataParams struct {
 	PhotoID  int32
 	Variant  PhotoVariant
