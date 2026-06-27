@@ -69,14 +69,6 @@ func (s *PhotoService) GetAlbumPhoto(ctx context.Context, id int32) (domain.Albu
 	return photo, nil
 }
 
-func (s *PhotoService) GetPhotoMetadataByPhotoID(ctx context.Context, photoId int32) ([]domain.PhotoMetadatum, error) {
-	metadata, err := s.photoRepo.GetPhotoMetadataByPhotoID(ctx, photoId)
-	if err != nil {
-		return nil, fmt.Errorf("error getting photo metadata: %w", err)
-	}
-	return metadata, nil
-}
-
 func (s *PhotoService) CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, f multipart.File, fh *multipart.FileHeader, userID int32, albumID int32) (domain.Photo, error) {
 	album, err := s.albumRepo.GetAlbumByID(ctx, albumID)
 	if err != nil {
