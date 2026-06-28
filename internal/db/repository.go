@@ -42,7 +42,7 @@ type AlbumRepository interface {
 }
 
 type UserRepository interface {
-	GetUserById(ctx context.Context, id int32) (domain.User, error)
+	GetUserByID(ctx context.Context, id int32) (domain.User, error)
 	GetUserByEmail(ctx context.Context, email string) (domain.User, error)
 	CreateUser(ctx context.Context, firstName, lastName, email, passwordHash string) (domain.User, error)
 	UpdateUser(ctx context.Context, params domain.UserUpdateParams) (domain.User, error)
@@ -415,7 +415,7 @@ func (r *Repository) CreatePhotoMetadata(ctx context.Context, arg domain.CreateP
 	}, nil
 }
 
-func (r *Repository) GetUserById(ctx context.Context, id int32) (domain.User, error) {
+func (r *Repository) GetUserByID(ctx context.Context, id int32) (domain.User, error) {
 	user, err := r.querier.GetUserById(ctx, id)
 	if err != nil {
 		return domain.User{}, err

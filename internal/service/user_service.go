@@ -147,7 +147,7 @@ func (s *UserService) newUserPresentation(ctx context.Context, user domain.User)
 }
 
 func (s *UserService) GetUserByID(ctx context.Context, id int32) (*domain.UserPresentation, error) {
-	user, err := s.userRepo.GetUserById(ctx, id)
+	user, err := s.userRepo.GetUserByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, db.ErrUserNotFound) {
 			return nil, domain.ErrUserNotFound
@@ -184,7 +184,7 @@ func (s *UserService) CreateUser(ctx context.Context, firstName, lastName, email
 }
 
 func (s *UserService) UpdateUser(ctx context.Context, userID int32, firstName, lastName, email, password string) (*domain.UserPresentation, error) {
-	user, err := s.userRepo.GetUserById(ctx, userID)
+	user, err := s.userRepo.GetUserByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, db.ErrUserNotFound) {
 			return nil, domain.ErrUserNotFound
