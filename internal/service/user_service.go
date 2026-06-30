@@ -22,10 +22,19 @@ type UserService struct {
 	config    *config.Config
 	logger    *logging.Logger
 	hashFn    func(password string) (string, error)
+	matchFn   func(hashedPassword, password string) (bool, error)
 }
 
 func NewUserService(r db.UserRepository, p db.PhotoRepository, s store.Store, c *config.Config, l *logging.Logger) *UserService {
-	return &UserService{userRepo: r, photoRepo: p, store: s, config: c, logger: l, hashFn: hashPassword}
+	return &UserService{
+		userRepo:  r,
+		photoRepo: p,
+		store:     s,
+		config:    c,
+		logger:    l,
+		hashFn:    hashPassword,
+		matchFn:   passwordsMatch,
+	}
 }
 
 func (s *UserService) defaultProfileImage() domain.ResponsiveImage {
@@ -247,7 +256,7 @@ func (s *UserService) AuthenticateByEmail(ctx context.Context, email, password s
 		return domain.User{}, fmt.Errorf("error fetching user for authentication: %w", err)
 	}
 
-	authenticated, err := passwordsMatch(user.PasswordHash, password)
+	authenticated, err := s.matchFn(user.PasswordHash, password)
 	if err != nil {
 		s.logger.Error("error comparing password hash for user ID %d: %v", user.ID, err)
 		return domain.User{}, fmt.Errorf("error authenticating user: %w", err)
