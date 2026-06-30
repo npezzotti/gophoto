@@ -21,10 +21,11 @@ type UserService struct {
 	store     store.Store
 	config    *config.Config
 	logger    *logging.Logger
+	hashFn    func(password string) (string, error)
 }
 
 func NewUserService(r db.UserRepository, p db.PhotoRepository, s store.Store, c *config.Config, l *logging.Logger) *UserService {
-	return &UserService{userRepo: r, photoRepo: p, store: s, config: c, logger: l}
+	return &UserService{userRepo: r, photoRepo: p, store: s, config: c, logger: l, hashFn: hashPassword}
 }
 
 func (s *UserService) defaultProfileImage() domain.ResponsiveImage {
@@ -170,7 +171,7 @@ func (s *UserService) GetUserByEmail(ctx context.Context, email string) (domain.
 }
 
 func (s *UserService) CreateUser(ctx context.Context, firstName, lastName, email, password string) (*domain.UserPresentation, error) {
-	passwdHash, err := hashPassword(password)
+	passwdHash, err := s.hashFn(password)
 	if err != nil {
 		return nil, fmt.Errorf("error hashing password: %w", err)
 	}
@@ -194,7 +195,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userID int32, firstName, l
 
 	var pwdHash string
 	if password != "" {
-		hash, err := hashPassword(password)
+		hash, err := s.hashFn(password)
 		if err != nil {
 			return nil, fmt.Errorf("error hashing new password: %w", err)
 		}
