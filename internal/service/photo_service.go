@@ -85,7 +85,7 @@ func (s *PhotoService) CreateAlbumPhotoWithOriginalMetadata(ctx context.Context,
 		return domain.Photo{}, domain.ErrAlbumNotFound
 	}
 
-	buf, fileType, meta, err := s.processUploadedFile(f, fh)
+	buf, fileType, meta, err := s.processUploadedFile(f, fh.Size)
 	if err != nil {
 		return domain.Photo{}, fmt.Errorf("error processing uploaded file: %w", err)
 	}
@@ -115,7 +115,7 @@ func (s *PhotoService) CreateAlbumPhotoWithOriginalMetadata(ctx context.Context,
 }
 
 func (s *PhotoService) CreateUserPhotoWithOriginalMetadata(ctx context.Context, f multipart.File, fh *multipart.FileHeader, userID int32) (domain.Photo, error) {
-	buf, fileType, meta, err := s.processUploadedFile(f, fh)
+	buf, fileType, meta, err := s.processUploadedFile(f, fh.Size)
 	if err != nil {
 		return domain.Photo{}, fmt.Errorf("error processing uploaded file: %w", err)
 	}
@@ -160,13 +160,13 @@ func (s *PhotoService) RemovePhotoFromAlbum(ctx context.Context, photoID, userID
 	return nil
 }
 
-func (s *PhotoService) processUploadedFile(f multipart.File, fh *multipart.FileHeader) ([]byte, domain.MimeType, bimg.ImageSize, error) {
+func (s *PhotoService) processUploadedFile(f multipart.File, size int64) ([]byte, domain.MimeType, bimg.ImageSize, error) {
 	fileType, err := detectContentType(f)
 	if err != nil {
 		return nil, "", bimg.ImageSize{}, fmt.Errorf("error detecting content type: %w", err)
 	}
 
-	if err := validatePhotoUpload(fileType, fh); err != nil {
+	if err := validatePhotoUpload(fileType, size); err != nil {
 		return nil, "", bimg.ImageSize{}, fmt.Errorf("photo validation failed: %w", err)
 	}
 
@@ -183,8 +183,8 @@ func (s *PhotoService) processUploadedFile(f multipart.File, fh *multipart.FileH
 	return buf, domain.MimeType(fileType), meta, nil
 }
 
-func validatePhotoUpload(fileType string, fh *multipart.FileHeader) error {
-	if fh.Size > MaxUploadSize {
+func validatePhotoUpload(fileType string, size int64) error {
+	if size > MaxUploadSize {
 		return ErrFileTooLarge
 	}
 
@@ -205,7 +205,7 @@ func validMIMEType(mtype string) bool {
 
 // detectContentType reads the first 512 bytes of the provided file to determine its content type.
 // It resets the file's read pointer to the beginning before returning.
-func detectContentType(f multipart.File) (string, error) {
+func detectContentType(f io.ReadSeeker) (string, error) {
 	buff := make([]byte, 512)
 	_, err := f.Read(buff)
 	if err != nil {
