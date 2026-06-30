@@ -56,6 +56,9 @@ func NewPhotoService(photoRepo db.PhotoRepository, albumRepo db.AlbumRepository,
 func (s *PhotoService) GetPhoto(ctx context.Context, id int32) (domain.Photo, error) {
 	photo, err := s.photoRepo.GetPhoto(ctx, id)
 	if err != nil {
+		if err == db.ErrPhotoNotFound {
+			return domain.Photo{}, domain.ErrPhotoNotFound
+		}
 		return domain.Photo{}, fmt.Errorf("error getting photo: %w", err)
 	}
 	return photo, nil
@@ -64,6 +67,9 @@ func (s *PhotoService) GetPhoto(ctx context.Context, id int32) (domain.Photo, er
 func (s *PhotoService) GetAlbumPhoto(ctx context.Context, id int32) (domain.AlbumPhoto, error) {
 	photo, err := s.photoRepo.GetAlbumPhoto(ctx, id)
 	if err != nil {
+		if err == db.ErrAlbumPhotoNotFound {
+			return domain.AlbumPhoto{}, domain.ErrAlbumPhotoNotFound
+		}
 		return domain.AlbumPhoto{}, fmt.Errorf("error getting album photo: %w", err)
 	}
 	return photo, nil
