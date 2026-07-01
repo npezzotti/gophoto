@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/alexedwards/scs/v2"
 	"github.com/npezzotti/gophoto/internal/config"
-	"github.com/npezzotti/gophoto/internal/service"
+	"github.com/npezzotti/gophoto/internal/domain"
 	"github.com/npezzotti/gophoto/pkg/logging"
 	"github.com/npezzotti/gophoto/pkg/template"
 )
@@ -35,18 +36,41 @@ const (
 	PhotoTypeUserPhoto  PhotoType = "user"
 )
 
+type albumService interface {
+	GetAlbumPageView(ctx context.Context, userID, albumID, limit, offset int32) (domain.AlbumPageView, error)
+	ListAlbumsByUser(ctx context.Context, userID int32, limit, offset int32) ([]*domain.AlbumListItem, error)
+	CreateAlbum(context.Context, int32, string) (domain.Album, error)
+	UpdateAlbum(ctx context.Context, userID, albumID int32, title string) (domain.Album, error)
+	DeleteAlbum(ctx context.Context, userID, albumID int32) error
+}
+
+type photoService interface {
+	CreateAlbumPhotoWithOriginalMetadata(ctx context.Context, f multipart.File, fh *multipart.FileHeader, userID int32, albumID int32) (domain.Photo, error)
+	CreateUserPhotoWithOriginalMetadata(ctx context.Context, f multipart.File, fh *multipart.FileHeader, userID int32) (domain.Photo, error)
+	GetPhoto(ctx context.Context, id int32) (domain.Photo, error)
+	RemovePhotoFromAlbum(ctx context.Context, photoID, userID int32) error
+}
+
+type userService interface {
+	GetUserByID(ctx context.Context, id int32) (*domain.UserPresentation, error)
+	UpdateUser(ctx context.Context, userID int32, firstName, lastName, email, password string) (*domain.UserPresentation, error)
+	DeleteUser(ctx context.Context, userID int32) error
+	AuthenticateByEmail(ctx context.Context, email, password string) (domain.User, error)
+	CreateUser(ctx context.Context, firstName, lastName, email, password string) (*domain.UserPresentation, error)
+}
+
 type application struct {
 	config         *config.Config
 	srv            *http.Server
 	templateCache  template.TemplateCache
 	sessionManager *scs.SessionManager
 	Logger         *logging.Logger
-	userService    *service.UserService
-	albumService   *service.AlbumService
-	photoService   *service.PhotoService
+	userService    userService
+	albumService   albumService
+	photoService   photoService
 }
 
-func NewApplication(userService *service.UserService, albumService *service.AlbumService, photoService *service.PhotoService, cfg *config.Config, sess *scs.SessionManager, tc template.TemplateCache, logger *logging.Logger) *application {
+func NewApplication(userService userService, albumService albumService, photoService photoService, cfg *config.Config, sess *scs.SessionManager, tc template.TemplateCache, logger *logging.Logger) *application {
 	app := &application{
 		config:         cfg,
 		sessionManager: sess,
