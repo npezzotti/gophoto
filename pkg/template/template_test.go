@@ -31,21 +31,21 @@ func TestNewTemplateCache(t *testing.T) {
 			got, gotErr := NewTemplateCache(tt.pagesGlob, tt.partialsGlob, tt.baseTemplate)
 			if gotErr != nil {
 				if !tt.wantErr {
-					t.Errorf("NewTemplateCache() failed: %v", gotErr)
+					t.Errorf("unexpected error: %v", gotErr)
 				}
 				return
 			}
 			if tt.wantErr {
-				t.Fatal("NewTemplateCache() succeeded unexpectedly")
+				t.Fatal("expected error but got none")
 			}
 
 			if len(got) != tt.wantLen {
-				t.Fatalf("NewTemplateCache() cache length = %d, want %d", len(got), tt.wantLen)
+				t.Fatalf("got length %d, expected %d", len(got), tt.wantLen)
 			}
 
 			for _, key := range tt.wantKeys {
 				if got[key] == nil {
-					t.Errorf("NewTemplateCache() missing key %q", key)
+					t.Errorf("expected key %q to be present in the cache", key)
 				}
 			}
 		})
@@ -84,7 +84,7 @@ func TestTemplateCache_RenderTemplate(t *testing.T) {
 			gotErr := tc.RenderTemplate(tt.w, tt.tmpl, tt.data)
 			if gotErr != nil {
 				if !tt.wantErr {
-					t.Errorf("RenderTemplate() failed: %v", gotErr)
+					t.Errorf("unexpected error: %v", gotErr)
 				}
 				return
 			}
@@ -97,7 +97,7 @@ func TestTemplateCache_RenderTemplate(t *testing.T) {
 				t.Errorf("output is empty")
 			}
 			if !bytes.Contains([]byte(output), []byte(tt.data.(string))) {
-				t.Errorf("rendered output does not contain expected contect")
+				t.Errorf("rendered output does not contain expected content")
 			}
 		})
 	}
