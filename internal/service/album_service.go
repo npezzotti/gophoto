@@ -32,12 +32,22 @@ func NewAlbumService(r db.AlbumRepository, p db.PhotoRepository, s store.Store, 
 }
 
 func (s *AlbumService) GetAlbumByID(ctx context.Context, albumID int32) (domain.Album, error) {
-	return s.albumRepo.GetAlbumByID(ctx, albumID)
+	album, err := s.albumRepo.GetAlbumByID(ctx, albumID)
+	if err != nil {
+		if err == db.ErrAlbumNotFound {
+			return domain.Album{}, domain.ErrAlbumNotFound
+		}
+		return domain.Album{}, fmt.Errorf("error getting album with ID %d: %w", albumID, err)
+	}
+	return album, nil
 }
 
 func (s *AlbumService) GetAlbumPageView(ctx context.Context, userID, albumID, limit, offset int32) (domain.AlbumPageView, error) {
 	album, err := s.albumRepo.GetAlbumByID(ctx, albumID)
 	if err != nil {
+		if err == db.ErrAlbumNotFound {
+			return domain.AlbumPageView{}, domain.ErrAlbumNotFound
+		}
 		return domain.AlbumPageView{}, fmt.Errorf("error getting album: %w", err)
 	}
 
@@ -158,6 +168,9 @@ func (s *AlbumService) CreateAlbum(ctx context.Context, userID int32, title stri
 func (s *AlbumService) UpdateAlbum(ctx context.Context, albumID int32, userID int32, title string) (domain.Album, error) {
 	album, err := s.albumRepo.GetAlbumByID(ctx, albumID)
 	if err != nil {
+		if err == db.ErrAlbumNotFound {
+			return domain.Album{}, domain.ErrAlbumNotFound
+		}
 		return domain.Album{}, fmt.Errorf("error getting album with ID %d: %w", albumID, err)
 	}
 
@@ -175,6 +188,9 @@ func (s *AlbumService) UpdateAlbum(ctx context.Context, albumID int32, userID in
 func (s *AlbumService) DeleteAlbum(ctx context.Context, albumID, userID int32) error {
 	album, err := s.albumRepo.GetAlbumByID(ctx, albumID)
 	if err != nil {
+		if err == db.ErrAlbumNotFound {
+			return domain.ErrAlbumNotFound
+		}
 		return fmt.Errorf("error getting album with ID %d: %w", albumID, err)
 	}
 
