@@ -169,12 +169,16 @@ func (a *albumRepoStub) DeleteAlbum(ctx context.Context, albumId int32) error {
 }
 
 type storeStub struct {
+	generateURLFn   func(ctx context.Context, key string, expiry time.Duration) (string, error)
 	lastWrittenKey  string
 	lastWrittenData []byte
 	writeErr        error
 }
 
 func (s *storeStub) GenerateURL(ctx context.Context, key string, expiry time.Duration) (string, error) {
+	if s.generateURLFn != nil {
+		return s.generateURLFn(ctx, key, expiry)
+	}
 	return "", nil
 }
 func (s *storeStub) Read(ctx context.Context, key string) (io.ReadCloser, error) {

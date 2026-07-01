@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -80,22 +81,36 @@ func TestAlbumService_GetAlbumByID(t *testing.T) {
 }
 
 func TestAlbumService_GetAlbumPageView(t *testing.T) {
+	photoKey1 := uuid.New().String()
+	photoKey2 := uuid.New().String()
+	photoKey3 := uuid.New().String()
+
 	albumRepoStub := &albumRepoStub{
 		getAlbumByIDFn: func(ctx context.Context, id int32) (domain.Album, error) {
 			return domain.Album{ID: 1, UserID: 1, Title: "Test Album", NumPhotos: 3}, nil
 		},
 		listAlbumPhotoViewRowsFn: func(ctx context.Context, albumID, limit, offset int32) ([]domain.AlbumPhotoViewRow, error) {
 			return []domain.AlbumPhotoViewRow{
-				{PhotoID: 1, PhotoKey: uuid.New().String(), Variant: domain.PhotoVariantOriginal, MimeType: string(domain.MimeTypeJPEG)},
-				{PhotoID: 2, PhotoKey: uuid.New().String(), Variant: domain.PhotoVariantSmall, MimeType: string(domain.MimeTypeJPEG)},
-				{PhotoID: 3, PhotoKey: uuid.New().String(), Variant: domain.PhotoVariantMedium, MimeType: string(domain.MimeTypeJPEG)},
+				{PhotoID: 1, PhotoKey: photoKey1, Variant: domain.PhotoVariantOriginal, MimeType: string(domain.MimeTypeJPEG)},
+				{PhotoID: 1, PhotoKey: photoKey1, Variant: domain.PhotoVariantLarge, Width: 1600, Height: 1200, MimeType: string(domain.MimeTypeJPEG)},
+				{PhotoID: 1, PhotoKey: photoKey1, Variant: domain.PhotoVariantMedium, Width: 800, Height: 600, MimeType: string(domain.MimeTypeJPEG)},
+				{PhotoID: 2, PhotoKey: photoKey2, Variant: domain.PhotoVariantOriginal, MimeType: string(domain.MimeTypeJPEG)},
+				{PhotoID: 2, PhotoKey: photoKey2, Variant: domain.PhotoVariantLarge, Width: 1600, Height: 1200, MimeType: string(domain.MimeTypeJPEG)},
+				{PhotoID: 2, PhotoKey: photoKey2, Variant: domain.PhotoVariantSmall, Width: 400, Height: 300, MimeType: string(domain.MimeTypeJPEG)},
+				{PhotoID: 3, PhotoKey: photoKey3, Variant: domain.PhotoVariantOriginal, MimeType: string(domain.MimeTypeJPEG)},
+				{PhotoID: 3, PhotoKey: photoKey3, Variant: domain.PhotoVariantLarge, Width: 1600, Height: 1200, MimeType: string(domain.MimeTypeJPEG)},
+				{PhotoID: 3, PhotoKey: photoKey3, Variant: domain.PhotoVariantThumb, Width: 200, Height: 150, MimeType: string(domain.MimeTypeJPEG)},
 			}, nil
 		},
 	}
 	albumSvc := NewAlbumService(
 		albumRepoStub,
 		&photoRepoStub{},
-		&storeStub{},
+		&storeStub{
+			generateURLFn: func(ctx context.Context, key string, expiry time.Duration) (string, error) {
+				return fmt.Sprintf("https://example.test/%s", key), nil
+			},
+		},
 		&config.Config{URLExpiry: 10 * time.Minute},
 		newTestLogger(),
 	)
