@@ -122,7 +122,11 @@ func (p *photoRepoStub) GetOrphanedPhotos(ctx context.Context) ([]domain.Photo, 
 }
 
 type albumRepoStub struct {
-	getAlbumByIDFn func(ctx context.Context, id int32) (domain.Album, error)
+	getAlbumByIDFn           func(ctx context.Context, id int32) (domain.Album, error)
+	listAlbumPhotoViewRowsFn func(ctx context.Context, albumID, limit, offset int32) ([]domain.AlbumPhotoViewRow, error)
+	createAlbumFn            func(ctx context.Context, userID int32, title string) (domain.Album, error)
+	updateAlbumFn            func(ctx context.Context, albumID int32, userID int32, title string) (domain.Album, error)
+	deleteAlbumFn            func(ctx context.Context, albumID int32) error
 }
 
 func (a *albumRepoStub) GetAlbumByID(ctx context.Context, id int32) (domain.Album, error) {
@@ -137,18 +141,30 @@ func (a *albumRepoStub) ListAlbumsByUser(ctx context.Context, userID int32, limi
 }
 
 func (a *albumRepoStub) ListAlbumPhotoViewRows(ctx context.Context, albumID, limit, offset int32) ([]domain.AlbumPhotoViewRow, error) {
+	if a.listAlbumPhotoViewRowsFn != nil {
+		return a.listAlbumPhotoViewRowsFn(ctx, albumID, limit, offset)
+	}
 	return nil, nil
 }
 
 func (a *albumRepoStub) CreateAlbum(ctx context.Context, userID int32, title string) (domain.Album, error) {
+	if a.createAlbumFn != nil {
+		return a.createAlbumFn(ctx, userID, title)
+	}
 	return domain.Album{}, nil
 }
 
 func (a *albumRepoStub) UpdateAlbum(ctx context.Context, albumId int32, userID int32, title string) (domain.Album, error) {
+	if a.updateAlbumFn != nil {
+		return a.updateAlbumFn(ctx, albumId, userID, title)
+	}
 	return domain.Album{}, nil
 }
 
 func (a *albumRepoStub) DeleteAlbum(ctx context.Context, albumId int32) error {
+	if a.deleteAlbumFn != nil {
+		return a.deleteAlbumFn(ctx, albumId)
+	}
 	return nil
 }
 
