@@ -147,6 +147,9 @@ func (s *PhotoService) CreateUserPhotoWithOriginalMetadata(ctx context.Context, 
 func (s *PhotoService) RemovePhotoFromAlbum(ctx context.Context, photoID, userID int32) error {
 	albumPhoto, err := s.GetAlbumPhoto(ctx, photoID)
 	if err != nil {
+		if err == domain.ErrAlbumPhotoNotFound {
+			return domain.ErrAlbumPhotoNotFound
+		}
 		return fmt.Errorf("error getting album photo: %w", err)
 	}
 
