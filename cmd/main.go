@@ -27,6 +27,7 @@ import (
 	"github.com/npezzotti/gophoto/pkg/logging"
 	"github.com/npezzotti/gophoto/pkg/store"
 	"github.com/npezzotti/gophoto/pkg/template"
+	templatesfs "github.com/npezzotti/gophoto/templates"
 )
 
 func main() {
@@ -78,7 +79,7 @@ func run() error {
 	// Initialize the template cache
 	var tc template.TemplateCache
 	if cfg.UseTemplateCache {
-		tc, err = template.NewTemplateCache(web.PagesGlob, web.PartialsGlob, web.BaseTemplate)
+		tc, err = template.NewTemplateCacheFromFS(templatesfs.FS, web.PagesGlob, web.PartialsGlob, web.BaseTemplate)
 		if err != nil {
 			return fmt.Errorf("error creating template cache: %w", err)
 		}

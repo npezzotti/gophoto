@@ -9,12 +9,13 @@ import (
 	"github.com/npezzotti/gophoto/pkg/forms"
 	"github.com/npezzotti/gophoto/pkg/pagination"
 	"github.com/npezzotti/gophoto/pkg/template"
+	templatesfs "github.com/npezzotti/gophoto/templates"
 )
 
 const (
-	PagesGlob    = "./templates/pages/*.html"
-	PartialsGlob = "./templates/partials/*.html"
-	BaseTemplate = "./templates/base.html"
+	PagesGlob    = "pages/*.html"
+	PartialsGlob = "partials/*.html"
+	BaseTemplate = "base.html"
 )
 
 type templateData struct {
@@ -60,7 +61,13 @@ func (a *application) writeTemplateResponse(w http.ResponseWriter, data *templat
 	if a.config.UseTemplateCache {
 		tc = a.templateCache
 	} else {
-		tc, _ = template.NewTemplateCache(PagesGlob, PartialsGlob, BaseTemplate)
+		newTemplateCache, err := template.NewTemplateCacheFromFS(templatesfs.FS, PagesGlob, PartialsGlob, BaseTemplate)
+		if err != nil {
+			a.Logger.Error("error creating template cache: %v", err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		tc = newTemplateCache
 	}
 
 	var buf bytes.Buffer
