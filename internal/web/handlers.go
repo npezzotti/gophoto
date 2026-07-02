@@ -32,7 +32,7 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 			id, err := strconv.Atoi(id_str)
 			if err != nil {
 				a.Logger.Error("error converting string to int: %v", err)
-				a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
+				a.flash(r.Context(), "Invalid album ID.", flashErr)
 				http.Redirect(w, r, "/albums", http.StatusSeeOther)
 				return
 			}
@@ -43,9 +43,9 @@ func (a *application) getAlbumHandler(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				var errMsg string
 				if errors.Is(err, domain.ErrAlbumNotFound) {
-					errMsg = http.StatusText(http.StatusNotFound)
+					errMsg = "Album not found."
 				} else {
-					errMsg = http.StatusText(http.StatusInternalServerError)
+					errMsg = "Internal server error."
 				}
 				a.Logger.Error("error getting album page view: %v", err)
 				a.flash(r.Context(), errMsg, flashErr)
@@ -101,11 +101,18 @@ func (a *application) createAlbumHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		album, err := a.albumService.CreateAlbum(r.Context(), user.ID, r.Form.Get("title"))
+		title := r.Form.Get("title")
+		if title == "" {
+			a.flash(r.Context(), "Album title cannot be empty.", flashErr)
+			http.Redirect(w, r, "/albums", http.StatusSeeOther)
+			return
+		}
+
+		album, err := a.albumService.CreateAlbum(r.Context(), user.ID, title)
 		if err != nil {
 			a.Logger.Error("error creating album: %v", err)
-			a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
-			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
+			a.flash(r.Context(), "Error creating album.", flashErr)
+			http.Redirect(w, r, "/albums", http.StatusSeeOther)
 			return
 		}
 
@@ -123,7 +130,7 @@ func (a *application) updateAlbumHandler(w http.ResponseWriter, r *http.Request)
 		if err := r.ParseForm(); err != nil {
 			a.Logger.Error("error parsing form: %v", err)
 			a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
-			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
+			http.Redirect(w, r, "/albums", http.StatusSeeOther)
 			return
 		}
 
@@ -132,7 +139,7 @@ func (a *application) updateAlbumHandler(w http.ResponseWriter, r *http.Request)
 		if err != nil {
 			a.Logger.Error("error converting string to int: %v", err)
 			a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
-			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
+			http.Redirect(w, r, "/albums", http.StatusSeeOther)
 			return
 		}
 
@@ -145,13 +152,13 @@ func (a *application) updateAlbumHandler(w http.ResponseWriter, r *http.Request)
 
 		if _, err := a.albumService.UpdateAlbum(r.Context(), int32(albumID), user.ID, r.Form.Get("title")); err != nil {
 			if errors.Is(err, domain.ErrAlbumNotFound) {
-				a.flash(r.Context(), http.StatusText(http.StatusNotFound), flashErr)
-				http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
+				a.flash(r.Context(), "Album not found.", flashErr)
+				http.Redirect(w, r, "/albums", http.StatusSeeOther)
 				return
 			}
 			a.Logger.Error("error updating album: %v", err)
-			a.flash(r.Context(), http.StatusText(http.StatusInternalServerError), flashErr)
-			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
+			a.flash(r.Context(), "Error updating album.", flashErr)
+			http.Redirect(w, r, "/albums", http.StatusSeeOther)
 			return
 		}
 
@@ -172,7 +179,7 @@ func (a *application) deleteAlbumHandler(w http.ResponseWriter, r *http.Request)
 	if err := r.ParseForm(); err != nil {
 		a.Logger.Error("error parsing form: %v", err)
 		a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
-		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
+		http.Redirect(w, r, "/albums", http.StatusSeeOther)
 		return
 	}
 
@@ -185,27 +192,27 @@ func (a *application) deleteAlbumHandler(w http.ResponseWriter, r *http.Request)
 
 	albumIDStr := r.Form.Get("id")
 	if albumIDStr == "" {
-		a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
-		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
+		a.flash(r.Context(), "Album ID is required.", flashErr)
+		http.Redirect(w, r, "/albums", http.StatusSeeOther)
 		return
 	}
 	albumID, err := strconv.Atoi(albumIDStr)
 	if err != nil {
 		a.Logger.Error("error converting string to int: %v", err)
-		a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
-		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
+		a.flash(r.Context(), "Invalid album ID.", flashErr)
+		http.Redirect(w, r, "/albums", http.StatusSeeOther)
 		return
 	}
 
 	if err := a.albumService.DeleteAlbum(r.Context(), int32(albumID), user.ID); err != nil {
 		if errors.Is(err, domain.ErrAlbumNotFound) {
-			a.flash(r.Context(), http.StatusText(http.StatusNotFound), flashErr)
-			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
+			a.flash(r.Context(), "Album not found.", flashErr)
+			http.Redirect(w, r, "/albums", http.StatusSeeOther)
 			return
 		}
 		a.Logger.Error("error deleting album: %v", err)
-		a.flash(r.Context(), http.StatusText(http.StatusInternalServerError), flashErr)
-		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
+		a.flash(r.Context(), "Error deleting album.", flashErr)
+		http.Redirect(w, r, "/albums", http.StatusSeeOther)
 		return
 	}
 

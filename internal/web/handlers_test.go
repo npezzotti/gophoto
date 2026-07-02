@@ -3,9 +3,13 @@ package web
 import (
 	"context"
 	"encoding/gob"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
 	"strings"
 	"testing"
 
@@ -19,11 +23,48 @@ func init() {
 	gob.Register(Flash{})
 }
 
+// withAuthenticatedUser adds the authenticated user to the request context.
+func withAuthenticatedUser(req *http.Request, user *domain.UserPresentation) *http.Request {
+	ctx := context.WithValue(req.Context(), IsAuthenticatedContextKey, true)
+	ctx = context.WithValue(ctx, AuthenticatedUserContextKey, user)
+	req = req.WithContext(ctx)
+	return req
+}
+
+// validateFlashInSession checks if the flash message in the session matches the expected message and level.
+func validateFlashInSession(t *testing.T, app *application, req *http.Request, resp *http.Response, expectedMessage string, expectedLevel flashClass) {
+	t.Helper()
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == app.sessionManager.Cookie.Name {
+			// Load the session from the cookie
+			loadedCtx, err := app.sessionManager.Load(req.Context(), cookie.Value)
+			if err != nil {
+				t.Fatalf("failed to load session: %v", err)
+			}
+			val := app.sessionManager.Get(loadedCtx, sessionKeyFlash)
+			flashMsg, ok := val.(Flash)
+			if !ok {
+				t.Fatalf("expected flash in session, got %T", val)
+			}
+			if flashMsg.Message != expectedMessage || flashMsg.Level != expectedLevel {
+				t.Fatalf("unexpected flash message: got %v", flashMsg)
+			}
+		}
+	}
+}
 func Test_application_getAlbumHandler(t *testing.T) {
-	t.Run("successful request", func(t *testing.T) {
-		app := &application{
-			sessionManager: scs.New(),
-			Logger:         logging.NewLogger(io.Discard, false),
+	tcases := []struct {
+		name          string
+		albumService  *albumServiceStub
+		req           *http.Request
+		authenticated bool
+		wantStatus    int
+		wantLocation  string
+		wantFlash     *Flash
+		validateBody  []string
+	}{
+		{
+			name: "successful request",
 			albumService: &albumServiceStub{
 				getAlbumPageViewFn: func(ctx context.Context, userID, albumID, limit, offset int32) (domain.AlbumPageView, error) {
 					return domain.AlbumPageView{
@@ -39,81 +80,29 @@ func Test_application_getAlbumHandler(t *testing.T) {
 					}, nil
 				},
 			},
-			config: &config.Config{},
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/albums?id=1", nil)
-		req = req.WithContext(context.WithValue(req.Context(), AuthenticatedUserContextKey, &domain.UserPresentation{ID: 1}))
-		rr := httptest.NewRecorder()
-
-		app.sessionManager.LoadAndSave(http.HandlerFunc(app.getAlbumHandler)).ServeHTTP(rr, req)
-
-		resp := rr.Result()
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("expected status %d, got %d", http.StatusOK, resp.StatusCode)
-		}
-
-		bodyBytes, err := io.ReadAll(resp.Body)
-		if err != nil {
-			t.Fatalf("failed to read response body: %v", err)
-		}
-		if !strings.Contains(string(bodyBytes), "Test Album") || !strings.Contains(string(bodyBytes), "Photo 1") || !strings.Contains(string(bodyBytes), "Photo 2") {
-			t.Fatalf("expected response body to contain album and photo titles, got %q", string(bodyBytes))
-		}
-	})
-	t.Run("redirects to login when user is missing from context", func(t *testing.T) {
-		app := &application{
-			sessionManager: scs.New(),
-			Logger:         logging.NewLogger(io.Discard, false),
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/albums", nil)
-		rr := httptest.NewRecorder()
-
-		app.sessionManager.LoadAndSave(http.HandlerFunc(app.getAlbumHandler)).ServeHTTP(rr, req)
-
-		resp := rr.Result()
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusSeeOther {
-			t.Fatalf("expected status %d, got %d", http.StatusSeeOther, resp.StatusCode)
-		}
-
-		if got := resp.Header.Get("Location"); got != "/login" {
-			t.Fatalf("expected redirect to /login, got %q", got)
-		}
-	})
-
-	t.Run("redirects to /albums for invalid album id", func(t *testing.T) {
-		app := &application{
-			sessionManager: scs.New(),
-			Logger:         logging.NewLogger(io.Discard, false),
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/albums?id=bad-id", nil)
-		req = req.WithContext(context.WithValue(req.Context(), AuthenticatedUserContextKey, &domain.UserPresentation{ID: 1}))
-		rr := httptest.NewRecorder()
-
-		app.sessionManager.LoadAndSave(http.HandlerFunc(app.getAlbumHandler)).ServeHTTP(rr, req)
-
-		resp := rr.Result()
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusSeeOther {
-			t.Fatalf("expected status %d, got %d", http.StatusSeeOther, resp.StatusCode)
-		}
-
-		if got := resp.Header.Get("Location"); got != "/albums" {
-			t.Fatalf("expected redirect to /albums, got %q", got)
-		}
-	})
-
-	t.Run("returns user's albums when no id parameter", func(t *testing.T) {
-		app := &application{
-			sessionManager: scs.New(),
-			Logger:         logging.NewLogger(io.Discard, false),
+			req:           httptest.NewRequest(http.MethodGet, "/albums?id=1", nil),
+			authenticated: true,
+			wantStatus:    http.StatusOK,
+			validateBody:  []string{"Test Album", "Photo 1", "Photo 2"},
+		},
+		{
+			name:          "redirects to login when user is missing from context",
+			req:           httptest.NewRequest(http.MethodGet, "/albums?id=1", nil),
+			authenticated: false,
+			wantStatus:    http.StatusSeeOther,
+			wantLocation:  "/login",
+			wantFlash:     &Flash{Message: "User not found.", Level: flashErr},
+		},
+		{
+			name:          "redirects to /albums for invalid album id",
+			req:           httptest.NewRequest(http.MethodGet, "/albums?id=bad-id", nil),
+			authenticated: true,
+			wantStatus:    http.StatusSeeOther,
+			wantLocation:  "/albums",
+			wantFlash:     &Flash{Message: "Invalid album ID.", Level: flashErr},
+		},
+		{
+			name: "returns user's albums when no id parameter",
 			albumService: &albumServiceStub{
 				listAlbumsByUserFn: func(ctx context.Context, userID int32, limit, offset int32) ([]*domain.AlbumListItem, error) {
 					return []*domain.AlbumListItem{
@@ -146,47 +135,395 @@ func Test_application_getAlbumHandler(t *testing.T) {
 					}, nil
 				},
 			},
-			config: &config.Config{},
-		}
+			req:           httptest.NewRequest(http.MethodGet, "/albums", nil),
+			authenticated: true,
+			wantStatus:    http.StatusOK,
+			validateBody:  []string{"Album 1", "Album 2"},
+		},
+		{
+			name: "album not found",
+			albumService: &albumServiceStub{
+				getAlbumPageViewFn: func(ctx context.Context, userID, albumID, limit, offset int32) (domain.AlbumPageView, error) {
+					return domain.AlbumPageView{}, domain.ErrAlbumNotFound
+				},
+			},
+			req:           httptest.NewRequest(http.MethodGet, "/albums?id=1", nil),
+			authenticated: true,
+			wantStatus:    http.StatusSeeOther,
+			wantLocation:  "/albums",
+			wantFlash:     &Flash{Message: "Album not found.", Level: flashErr},
+		},
+		{
+			name: "error getting album",
+			albumService: &albumServiceStub{
+				getAlbumPageViewFn: func(ctx context.Context, userID, albumID, limit, offset int32) (domain.AlbumPageView, error) {
+					return domain.AlbumPageView{}, errors.New("internal server error")
+				},
+			},
+			req:           httptest.NewRequest(http.MethodGet, "/albums?id=1", nil),
+			authenticated: true,
+			wantStatus:    http.StatusSeeOther,
+			wantLocation:  "/albums",
+			wantFlash:     &Flash{Message: "Internal server error.", Level: flashErr},
+		},
+	}
 
-		req := httptest.NewRequest(http.MethodGet, "/albums", nil)
-		req = req.WithContext(context.WithValue(req.Context(), AuthenticatedUserContextKey, &domain.UserPresentation{ID: 1}))
-		rr := httptest.NewRecorder()
+	for _, tc := range tcases {
+		t.Run(tc.name, func(t *testing.T) {
+			app := &application{
+				sessionManager: scs.New(),
+				Logger:         logging.NewLogger(io.Discard, false),
+				albumService:   tc.albumService,
+				config:         &config.Config{},
+			}
 
-		app.sessionManager.LoadAndSave(http.HandlerFunc(app.getAlbumHandler)).ServeHTTP(rr, req)
+			req := tc.req
+			if tc.authenticated {
+				req = req.WithContext(context.WithValue(req.Context(), AuthenticatedUserContextKey, &domain.UserPresentation{ID: 1}))
+			}
+			rr := httptest.NewRecorder()
 
-		resp := rr.Result()
-		defer resp.Body.Close()
+			app.sessionManager.LoadAndSave(http.HandlerFunc(app.getAlbumHandler)).ServeHTTP(rr, req)
 
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("expected status %d, got %d", http.StatusOK, resp.StatusCode)
-		}
+			resp := rr.Result()
+			defer resp.Body.Close()
 
-		bodyBytes, err := io.ReadAll(resp.Body)
-		if err != nil {
-			t.Fatalf("failed to read response body: %v", err)
-		}
-		if !strings.Contains(string(bodyBytes), "Album 1") || !strings.Contains(string(bodyBytes), "Album 2") {
-			t.Fatalf("expected response body to contain album titles, got %q", string(bodyBytes))
-		}
-	})
+			if resp.StatusCode != tc.wantStatus {
+				t.Fatalf("expected status %d, got %d", tc.wantStatus, resp.StatusCode)
+			}
 
-	t.Run("returns method not allowed for unsupported methods", func(t *testing.T) {
-		app := &application{
-			sessionManager: scs.New(),
-			Logger:         logging.NewLogger(io.Discard, false),
-		}
+			if tc.wantLocation != "" {
+				if got := resp.Header.Get("Location"); got != tc.wantLocation {
+					t.Fatalf("expected redirect to %q, got %q", tc.wantLocation, got)
+				}
+			}
 
-		req := httptest.NewRequest(http.MethodPost, "/albums", nil)
-		rr := httptest.NewRecorder()
+			if tc.wantFlash != nil {
+				validateFlashInSession(t, app, req, resp, tc.wantFlash.Message, tc.wantFlash.Level)
+			}
+			if len(tc.validateBody) > 0 {
+				bodyBytes, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("failed to read response body: %v", err)
+				}
+				body := string(bodyBytes)
+				for _, substr := range tc.validateBody {
+					if !strings.Contains(body, substr) {
+						t.Fatalf("expected response body to contain %q, got %q", substr, body)
+					}
+				}
+			}
+		})
+	}
+}
 
-		app.getAlbumHandler(rr, req)
+func Test_createAlbumHandler(t *testing.T) {
+	tcases := []struct {
+		name          string
+		albumService  *albumServiceStub
+		albumTitle    string
+		authenticated bool
+		wantStatus    int
+		wantLocation  string
+		wantFlash     *Flash
+	}{
+		{
+			name: "successfully creates album",
+			albumService: &albumServiceStub{
+				createAlbumFn: func(ctx context.Context, userID int32, title string) (domain.Album, error) {
+					return domain.Album{ID: 1, Title: title}, nil
+				},
+			},
+			albumTitle:    "New Album",
+			authenticated: true,
+			wantStatus:    http.StatusSeeOther,
+			wantLocation:  "/albums?id=1",
+			wantFlash:     &Flash{Message: fmt.Sprintf("Successfully created album %q!", "New Album"), Level: flashInfo},
+		},
+		{
+			name:          "redirects to login when user is missing from context",
+			albumTitle:    "New Album",
+			authenticated: false,
+			wantStatus:    http.StatusSeeOther,
+			wantLocation:  "/login",
+			wantFlash:     &Flash{Message: "User not found.", Level: flashErr},
+		},
+		{
+			name:          "title missing in form",
+			authenticated: true,
+			wantStatus:    http.StatusSeeOther,
+			wantLocation:  "/albums",
+			wantFlash:     &Flash{Message: "Album title cannot be empty.", Level: flashErr},
+		},
+		{
+			name: "error creating album",
+			albumService: &albumServiceStub{
+				createAlbumFn: func(ctx context.Context, userID int32, title string) (domain.Album, error) {
+					return domain.Album{}, errors.New("failed to create album")
+				},
+			},
+			albumTitle:    "New Album",
+			authenticated: true,
+			wantStatus:    http.StatusSeeOther,
+			wantLocation:  "/albums",
+			wantFlash:     &Flash{Message: "Error creating album.", Level: flashErr},
+		},
+	}
 
-		resp := rr.Result()
-		defer resp.Body.Close()
+	for _, tt := range tcases {
+		t.Run(tt.name, func(t *testing.T) {
+			app := &application{
+				sessionManager: scs.New(),
+				Logger:         logging.NewLogger(io.Discard, false),
+				albumService:   tt.albumService,
+				config:         &config.Config{},
+			}
 
-		if resp.StatusCode != http.StatusMethodNotAllowed {
-			t.Fatalf("expected status %d, got %d", http.StatusMethodNotAllowed, resp.StatusCode)
-		}
-	})
+			form := url.Values{}
+			form.Set("title", tt.albumTitle)
+			req := httptest.NewRequest(http.MethodPost, "/albums", strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+			if tt.authenticated {
+				req = withAuthenticatedUser(req, &domain.UserPresentation{ID: 1})
+			}
+
+			rr := httptest.NewRecorder()
+			app.sessionManager.LoadAndSave(http.HandlerFunc(app.createAlbumHandler)).ServeHTTP(rr, req)
+
+			resp := rr.Result()
+			defer resp.Body.Close()
+
+			if resp.StatusCode != tt.wantStatus {
+				t.Fatalf("expected status %d, got %d", tt.wantStatus, resp.StatusCode)
+			}
+
+			if tt.wantLocation != "" {
+				if got := resp.Header.Get("Location"); got != tt.wantLocation {
+					t.Fatalf("expected redirect to %q, got %q", tt.wantLocation, got)
+				}
+			}
+
+			if tt.wantFlash != nil {
+				validateFlashInSession(t, app, req, resp, tt.wantFlash.Message, tt.wantFlash.Level)
+			}
+		})
+	}
+}
+
+func Test_updateAlbumHandler(t *testing.T) {
+	tcases := []struct {
+		name          string
+		albumService  *albumServiceStub
+		updatedTitle  string
+		authenticated bool
+		wantStatus    int
+		wantLocation  string
+		wantFlash     *Flash
+	}{
+		{
+			name: "successfully updates album",
+			albumService: &albumServiceStub{
+				updateAlbumFn: func(ctx context.Context, userID, albumID int32, title string) (domain.Album, error) {
+					return domain.Album{ID: albumID, Title: title}, nil
+				},
+			},
+			updatedTitle:  "Updated Album Title",
+			authenticated: true,
+			wantStatus:    http.StatusSeeOther,
+			wantLocation:  "/albums?id=1",
+			wantFlash:     &Flash{Message: "Album successfully updated.", Level: flashInfo},
+		},
+		{
+			name:          "redirects to login when user is missing from context",
+			updatedTitle:  "Updated Album Title",
+			authenticated: false,
+			wantStatus:    http.StatusSeeOther,
+			wantLocation:  "/login",
+			wantFlash:     &Flash{Message: "User not found.", Level: flashErr},
+		},
+		{
+			name: "album not found",
+			albumService: &albumServiceStub{
+				updateAlbumFn: func(ctx context.Context, userID, albumID int32, title string) (domain.Album, error) {
+					return domain.Album{}, domain.ErrAlbumNotFound
+				},
+			},
+			updatedTitle:  "Updated Album Title",
+			authenticated: true,
+			wantStatus:    http.StatusSeeOther,
+			wantLocation:  "/albums",
+			wantFlash:     &Flash{Message: "Album not found.", Level: flashErr},
+		},
+		{
+			name: "error updating album",
+			albumService: &albumServiceStub{
+				updateAlbumFn: func(ctx context.Context, userID, albumID int32, title string) (domain.Album, error) {
+					return domain.Album{}, errors.New("internal server error")
+				},
+			},
+			updatedTitle:  "Updated Album Title",
+			authenticated: true,
+			wantStatus:    http.StatusSeeOther,
+			wantLocation:  "/albums",
+			wantFlash:     &Flash{Message: "Error updating album.", Level: flashErr},
+		},
+	}
+
+	for _, tt := range tcases {
+		t.Run(tt.name, func(t *testing.T) {
+			app := &application{
+				sessionManager: scs.New(),
+				Logger:         logging.NewLogger(io.Discard, false),
+				albumService:   tt.albumService,
+			}
+
+			form := url.Values{}
+			form.Set("title", tt.updatedTitle)
+			req := httptest.NewRequest(http.MethodPost, "/albums?id=1", strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+			if tt.authenticated {
+				req = withAuthenticatedUser(req, &domain.UserPresentation{ID: 1})
+			}
+
+			rr := httptest.NewRecorder()
+			app.sessionManager.LoadAndSave(http.HandlerFunc(app.updateAlbumHandler)).ServeHTTP(rr, req)
+
+			resp := rr.Result()
+			defer resp.Body.Close()
+
+			if resp.StatusCode != tt.wantStatus {
+				t.Fatalf("expected status %d, got %d", tt.wantStatus, resp.StatusCode)
+			}
+			if got := resp.Header.Get("Location"); got != tt.wantLocation {
+				t.Fatalf("expected redirect to %q, got %q", tt.wantLocation, got)
+			}
+
+			validateFlashInSession(t, app, req, resp, tt.wantFlash.Message, tt.wantFlash.Level)
+		})
+	}
+}
+
+func Test_deleteAlbumHandler(t *testing.T) {
+	tcases := []struct {
+		name          string
+		albumService  *albumServiceStub
+		req           *http.Request
+		authenticated bool
+		wantStatus    int
+		wantLocation  string
+		wantFlash     *Flash
+	}{
+		{
+			name: "successfully deletes album",
+			albumService: &albumServiceStub{
+				deleteAlbumFn: func(ctx context.Context, userID, albumID int32) error {
+					return nil
+				},
+			},
+			req:           httptest.NewRequest(http.MethodPost, "/albums/delete?id=1", nil),
+			authenticated: true,
+			wantStatus:    http.StatusSeeOther,
+			wantLocation:  "/albums",
+			wantFlash:     &Flash{Message: "Successfully deleted album with ID 1.", Level: flashInfo},
+		},
+		{
+			name:          "redirects to login when user is missing from context",
+			req:           httptest.NewRequest(http.MethodPost, "/albums/delete?id=1", nil),
+			authenticated: false,
+			wantStatus:    http.StatusSeeOther,
+			wantLocation:  "/login",
+			wantFlash:     &Flash{Message: "User not found.", Level: flashErr},
+		},
+		{
+			name:          "id parameter missing",
+			req:           httptest.NewRequest(http.MethodPost, "/albums/delete", nil),
+			authenticated: true,
+			wantStatus:    http.StatusSeeOther,
+			wantLocation:  "/albums",
+			wantFlash:     &Flash{Message: "Album ID is required.", Level: flashErr},
+		},
+		{
+			name:          "invalid album id",
+			req:           httptest.NewRequest(http.MethodPost, "/albums/delete?id=bad-id", nil),
+			authenticated: true,
+			wantStatus:    http.StatusSeeOther,
+			wantLocation:  "/albums",
+			wantFlash:     &Flash{Message: "Invalid album ID.", Level: flashErr},
+		},
+		{
+			name: "album not found",
+			albumService: &albumServiceStub{
+				deleteAlbumFn: func(ctx context.Context, userID, albumID int32) error {
+					return domain.ErrAlbumNotFound
+				},
+			},
+			req:           httptest.NewRequest(http.MethodPost, "/albums/delete?id=1", nil),
+			authenticated: true,
+			wantStatus:    http.StatusSeeOther,
+			wantLocation:  "/albums",
+			wantFlash:     &Flash{Message: "Album not found.", Level: flashErr},
+		},
+		{
+			name: "error deleting album",
+			albumService: &albumServiceStub{
+				deleteAlbumFn: func(ctx context.Context, userID, albumID int32) error {
+					return errors.New("internal server error")
+				},
+			},
+			req:           httptest.NewRequest(http.MethodPost, "/albums/delete?id=1", nil),
+			authenticated: true,
+			wantStatus:    http.StatusSeeOther,
+			wantLocation:  "/albums",
+			wantFlash:     &Flash{Message: "Error deleting album.", Level: flashErr},
+		},
+	}
+
+	for _, tt := range tcases {
+		t.Run(tt.name, func(t *testing.T) {
+			app := &application{
+				sessionManager: scs.New(),
+				Logger:         logging.NewLogger(io.Discard, false),
+				albumService:   tt.albumService,
+			}
+
+			if tt.authenticated {
+				tt.req = withAuthenticatedUser(tt.req, &domain.UserPresentation{ID: 1})
+			}
+			rr := httptest.NewRecorder()
+
+			app.sessionManager.LoadAndSave(http.HandlerFunc(app.deleteAlbumHandler)).ServeHTTP(rr, tt.req)
+			resp := rr.Result()
+			defer resp.Body.Close()
+
+			if resp.StatusCode != tt.wantStatus {
+				t.Fatalf("expected status %d, got %d", tt.wantStatus, resp.StatusCode)
+			}
+			if got := resp.Header.Get("Location"); got != tt.wantLocation {
+				t.Fatalf("expected redirect to %q, got %q", tt.wantLocation, got)
+			}
+			if tt.wantFlash != nil {
+				validateFlashInSession(t, app, tt.req, resp, tt.wantFlash.Message, tt.wantFlash.Level)
+			}
+		})
+	}
+}
+
+func Test_aboutHandler(t *testing.T) {
+	app := &application{
+		sessionManager: scs.New(),
+		Logger:         logging.NewLogger(os.Stdout, false),
+		config:         &config.Config{},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/about", nil)
+	rr := httptest.NewRecorder()
+	req = withAuthenticatedUser(req, &domain.UserPresentation{ID: 1})
+
+	app.sessionManager.LoadAndSave(http.HandlerFunc(app.aboutHandler)).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rr.Code)
+	}
 }
