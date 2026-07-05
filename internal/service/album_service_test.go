@@ -11,6 +11,7 @@ import (
 	"github.com/npezzotti/gophoto/internal/config"
 	"github.com/npezzotti/gophoto/internal/db"
 	"github.com/npezzotti/gophoto/internal/domain"
+	"github.com/npezzotti/gophoto/internal/utils"
 )
 
 func TestAlbumService_GetAlbumByID(t *testing.T) {
@@ -149,12 +150,12 @@ func TestUserService_CreateAlbum(t *testing.T) {
 			name: "Successful album creation",
 			albumRepoStub: &albumRepoStub{
 				createAlbumFn: func(ctx context.Context, userID int32, title string) (domain.Album, error) {
-					return domain.Album{ID: 1, UserID: userID, Title: title, CoverPhotoID: ptrInt32(2), NumPhotos: 3}, nil
+					return domain.Album{ID: 1, UserID: userID, Title: title, CoverPhotoID: utils.PtrInt32(2), NumPhotos: 3}, nil
 				},
 			},
 			userID:        1,
 			title:         "New Album",
-			expectedAlbum: domain.Album{ID: 1, UserID: 1, Title: "New Album", CoverPhotoID: ptrInt32(2), NumPhotos: 3},
+			expectedAlbum: domain.Album{ID: 1, UserID: 1, Title: "New Album", CoverPhotoID: utils.PtrInt32(2), NumPhotos: 3},
 		},
 	}
 

@@ -1,11 +1,14 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"encoding/gob"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -16,6 +19,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 	"github.com/npezzotti/gophoto/internal/config"
 	"github.com/npezzotti/gophoto/internal/domain"
+	"github.com/npezzotti/gophoto/internal/utils"
 	"github.com/npezzotti/gophoto/pkg/logging"
 )
 
@@ -525,5 +529,254 @@ func Test_aboutHandler(t *testing.T) {
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, rr.Code)
+	}
+}
+
+func Test_uploadPhotoHandler(t *testing.T) {
+	tcases := []struct {
+		name          string
+		photoService  *photoServiceStub
+		authenticated bool
+		url           string
+		wantStatus    int
+		wantErr       string
+		wantLocation  string
+	}{
+		{
+			name: "successfully uploads photo",
+			photoService: &photoServiceStub{
+				createAlbumPhotoWithOriginalMetadataFn: func(ctx context.Context, f multipart.File, fh *multipart.FileHeader, userID, albumID int32) (domain.Photo, error) {
+					return domain.Photo{ID: 1, UserID: &userID}, nil
+				},
+			},
+			authenticated: true,
+			url:           "/photos?type=album&id=1",
+			wantStatus:    http.StatusCreated,
+		},
+		{
+			name:          "throws error when request is unauthenticated",
+			authenticated: false,
+			url:           "/photos?type=album&id=1",
+			wantStatus:    http.StatusUnauthorized,
+			wantErr:       "user not authenticated",
+		},
+	}
+
+	for _, tt := range tcases {
+		t.Run(tt.name, func(t *testing.T) {
+			app := &application{
+				sessionManager: scs.New(),
+				Logger:         logging.NewLogger(io.Discard, false),
+				config:         &config.Config{},
+				photoService:   tt.photoService,
+			}
+
+			form := &bytes.Buffer{}
+			writer := multipart.NewWriter(form)
+			part, err := writer.CreateFormFile(FormFileName, "test.jpg")
+			if err != nil {
+				t.Fatalf("error creating form file: %v", err)
+			}
+			_, err = part.Write([]byte("dummy photo data"))
+			if err != nil {
+				t.Fatalf("error writing to form file: %v", err)
+			}
+			writer.Close()
+
+			req := httptest.NewRequest(http.MethodPost, tt.url, form)
+			req.Header.Set("Content-Type", writer.FormDataContentType())
+			rr := httptest.NewRecorder()
+
+			if tt.authenticated {
+				req = withAuthenticatedUser(req, &domain.UserPresentation{ID: 1})
+			}
+
+			app.sessionManager.LoadAndSave(http.HandlerFunc(app.uploadPhotoHandler)).ServeHTTP(rr, req)
+
+			resp := rr.Result()
+			defer resp.Body.Close()
+
+			if resp.StatusCode != tt.wantStatus {
+				t.Fatalf("expected status %d, got %d", tt.wantStatus, resp.StatusCode)
+			}
+
+			if tt.wantErr != "" {
+				var jsonResp map[string]string
+				err = json.NewDecoder(resp.Body).Decode(&jsonResp)
+				if err != nil {
+					t.Fatalf("error decoding JSON response: %v", err)
+				}
+				if jsonResp["error"] != tt.wantErr {
+					t.Fatalf("expected error message %q, got %q", tt.wantErr, jsonResp["error"])
+				}
+				return
+			}
+
+			jsonResp := make(map[string]int32)
+			err = json.NewDecoder(resp.Body).Decode(&jsonResp)
+			if err != nil {
+				t.Fatalf("error decoding JSON response: %v", err)
+			}
+			if _, ok := jsonResp["id"]; !ok {
+				t.Fatalf("expected JSON response to contain 'id' field")
+			}
+		})
+	}
+}
+
+func Test_photoStatusHandler(t *testing.T) {
+	tcases := []struct {
+		name, url, wantStatus string
+		userID                int32
+		photoServiceStub      *photoServiceStub
+		wantErr               string
+		wantStatusCode        int
+	}{
+		{
+			name:       "photo is processing",
+			url:        "/photos/status?id=1",
+			wantStatus: string(domain.PhotoStatusProcessing),
+			userID:     1,
+			photoServiceStub: &photoServiceStub{
+				getPhotoFn: func(ctx context.Context, id int32) (domain.Photo, error) {
+					return domain.Photo{ID: id, Status: domain.PhotoStatusProcessing, UserID: utils.PtrInt32(1)}, nil
+				},
+			},
+			wantStatusCode: http.StatusOK,
+		},
+		{
+			name:       "photo is ready",
+			url:        "/photos/status?id=2",
+			wantStatus: string(domain.PhotoStatusProcessed),
+			userID:     1,
+			photoServiceStub: &photoServiceStub{
+				getPhotoFn: func(ctx context.Context, id int32) (domain.Photo, error) {
+					return domain.Photo{ID: id, Status: domain.PhotoStatusProcessed, UserID: utils.PtrInt32(1)}, nil
+				},
+			},
+			wantStatusCode: http.StatusOK,
+		},
+		{
+			name:       "photo not found",
+			url:        "/photos/status?id=3",
+			wantStatus: "error",
+			userID:     1,
+			photoServiceStub: &photoServiceStub{
+				getPhotoFn: func(ctx context.Context, id int32) (domain.Photo, error) {
+					return domain.Photo{}, domain.ErrPhotoNotFound
+				},
+			},
+			wantErr:        "photo not found",
+			wantStatusCode: http.StatusNotFound,
+		},
+		{
+			name:       "unauthenticated user",
+			url:        "/photos/status?id=4",
+			wantStatus: "error",
+			userID:     0,
+			photoServiceStub: &photoServiceStub{
+				getPhotoFn: func(ctx context.Context, id int32) (domain.Photo, error) {
+					return domain.Photo{ID: id, Status: domain.PhotoStatusProcessed, UserID: utils.PtrInt32(1)}, nil
+				},
+			},
+			wantErr:        "user not authenticated",
+			wantStatusCode: http.StatusUnauthorized,
+		},
+		{
+			name:   "missing photo ID parameter",
+			url:    "/photos/status",
+			userID: 1,
+			photoServiceStub: &photoServiceStub{
+				getPhotoFn: func(ctx context.Context, id int32) (domain.Photo, error) {
+					return domain.Photo{}, nil
+				},
+			},
+			wantErr:        "missing \"id\" query parameter",
+			wantStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:   "invalid photo ID parameter",
+			url:    "/photos/status?id=invalid",
+			userID: 1,
+			photoServiceStub: &photoServiceStub{
+				getPhotoFn: func(ctx context.Context, id int32) (domain.Photo, error) {
+					return domain.Photo{}, nil
+				},
+			},
+			wantErr:        "invalid \"id\" query parameter",
+			wantStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:   "photo not found",
+			url:    "/photos/status?id=3",
+			userID: 1,
+			photoServiceStub: &photoServiceStub{
+				getPhotoFn: func(ctx context.Context, id int32) (domain.Photo, error) {
+					return domain.Photo{}, domain.ErrPhotoNotFound
+				},
+			},
+			wantErr:        "photo not found",
+			wantStatusCode: http.StatusNotFound,
+		},
+		{
+			name:   "photo belongs to another user",
+			url:    "/photos/status?id=5",
+			userID: 1,
+			photoServiceStub: &photoServiceStub{
+				getPhotoFn: func(ctx context.Context, id int32) (domain.Photo, error) {
+					return domain.Photo{ID: id, Status: domain.PhotoStatusProcessed, UserID: utils.PtrInt32(2)}, nil
+				},
+			},
+			wantErr:        "photo not found",
+			wantStatusCode: http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tcases {
+		t.Run(tt.name, func(t *testing.T) {
+			app := &application{
+				sessionManager: scs.New(),
+				Logger:         logging.NewLogger(io.Discard, false),
+				config:         &config.Config{},
+				photoService:   tt.photoServiceStub,
+			}
+
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+			if tt.userID != 0 {
+				req = withAuthenticatedUser(req, &domain.UserPresentation{ID: tt.userID})
+			}
+			rr := httptest.NewRecorder()
+
+			app.sessionManager.LoadAndSave(http.HandlerFunc(app.photoStatusHandler)).ServeHTTP(rr, req)
+
+			resp := rr.Result()
+			defer resp.Body.Close()
+
+			if resp.StatusCode != tt.wantStatusCode {
+				t.Fatalf("expected status %d, got %d", tt.wantStatusCode, resp.StatusCode)
+			}
+
+			if tt.wantErr != "" {
+				var jsonResp map[string]string
+				err := json.NewDecoder(resp.Body).Decode(&jsonResp)
+				if err != nil {
+					t.Fatalf("error decoding JSON response: %v", err)
+				}
+				if jsonResp["error"] != tt.wantErr {
+					t.Fatalf("expected error message %q, got %q", tt.wantErr, jsonResp["error"])
+				}
+				return
+			}
+
+			respBody := make(map[string]string)
+			err := json.NewDecoder(resp.Body).Decode(&respBody)
+			if err != nil {
+				t.Fatalf("error decoding JSON response: %v", err)
+			}
+
+			if status, ok := respBody["status"]; !ok || status != tt.wantStatus || !strings.EqualFold(status, tt.wantStatus) {
+				t.Fatalf("expected JSON response to contain 'status' field with value %q, got %q", tt.wantStatus, status)
+			}
+		})
 	}
 }

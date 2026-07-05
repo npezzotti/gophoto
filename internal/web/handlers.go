@@ -227,13 +227,13 @@ func (a *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	if !isAuthenticated(r) {
-		a.writeJsonErrorResp(w, http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
+		a.writeJsonErrorResp(w, http.StatusUnauthorized, "user not authenticated")
 		return
 	}
 
 	user, ok := extractUserFromContext(r.Context())
 	if !ok {
-		a.writeJsonErrorResp(w, http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
+		a.writeJsonErrorResp(w, http.StatusUnauthorized, "user not found.")
 		return
 	}
 
@@ -300,33 +300,33 @@ func (a *application) photoStatusHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	if !isAuthenticated(r) {
-		a.writeJsonErrorResp(w, http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
+		a.writeJsonErrorResp(w, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
 
 	user, ok := extractUserFromContext(r.Context())
 	if !ok {
-		a.writeJsonErrorResp(w, http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
+		a.writeJsonErrorResp(w, http.StatusUnauthorized, "User not found.")
 		return
 	}
 
 	id_str := r.URL.Query().Get("id")
 	if id_str == "" {
-		a.writeJsonErrorResp(w, http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+		a.writeJsonErrorResp(w, http.StatusBadRequest, "missing \"id\" query parameter")
 		return
 	}
 
 	id, err := strconv.Atoi(id_str)
 	if err != nil {
 		a.Logger.Error("error converting string to int: %v", err)
-		a.writeJsonErrorResp(w, http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+		a.writeJsonErrorResp(w, http.StatusBadRequest, "invalid \"id\" query parameter")
 		return
 	}
 
 	photo, err := a.photoService.GetPhoto(r.Context(), int32(id))
 	if err != nil {
 		if errors.Is(err, domain.ErrPhotoNotFound) {
-			a.writeJsonErrorResp(w, http.StatusNotFound, http.StatusText(http.StatusNotFound))
+			a.writeJsonErrorResp(w, http.StatusNotFound, "photo not found")
 			return
 		}
 		a.Logger.Error("error getting photo: %v", err)
@@ -335,7 +335,7 @@ func (a *application) photoStatusHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	if photo.UserID == nil || *photo.UserID != user.ID {
-		a.writeJsonErrorResp(w, http.StatusNotFound, http.StatusText(http.StatusNotFound))
+		a.writeJsonErrorResp(w, http.StatusNotFound, "photo not found")
 		return
 	}
 

@@ -9,11 +9,8 @@ import (
 
 	"github.com/npezzotti/gophoto/internal/db"
 	"github.com/npezzotti/gophoto/internal/domain"
+	"github.com/npezzotti/gophoto/internal/utils"
 )
-
-func ptrInt32(i int32) *int32 {
-	return &i
-}
 
 func newMultiPartFile(t *testing.T) (multipart.File, *multipart.FileHeader) {
 	t.Helper()
@@ -203,7 +200,7 @@ func TestPhotoService_CreateAlbumPhotoWithOriginalMetadata(t *testing.T) {
 				createAlbumPhotoWithOriginalMetadataFn: func(ctx context.Context, albumID int32, cmd domain.CreatePhotoWithOriginalMetadataParams) (domain.Photo, error) {
 					return domain.Photo{
 						ID:     42,
-						UserID: ptrInt32(cmd.UserID),
+						UserID: utils.PtrInt32(cmd.UserID),
 						Key:    cmd.Key,
 					}, nil
 				},
@@ -263,7 +260,7 @@ func TestPhotoService_CreateUserPhotoWithOriginalMetadata(t *testing.T) {
 				createUserPhotoWithOriginalMetadataFn: func(ctx context.Context, userID int32, cmd domain.CreatePhotoWithOriginalMetadataParams) (domain.Photo, error) {
 					return domain.Photo{
 						ID:     42,
-						UserID: ptrInt32(cmd.UserID),
+						UserID: utils.PtrInt32(cmd.UserID),
 						Key:    cmd.Key,
 					}, nil
 				},
@@ -318,7 +315,7 @@ func TestRemovePhotoFromAlbum(t *testing.T) {
 			name: "Successful removal",
 			photoRepoStub: &photoRepoStub{
 				getAlbumPhotoByIDFn: func(ctx context.Context, photoID int32) (domain.AlbumPhoto, error) {
-					return domain.AlbumPhoto{ID: photoID, AlbumID: 6, UserID: ptrInt32(5)}, nil
+					return domain.AlbumPhoto{ID: photoID, AlbumID: 6, UserID: utils.PtrInt32(5)}, nil
 				},
 				removePhotoFromAlbumFn: func(ctx context.Context, albumId int32, photoId int32) error {
 					return nil
