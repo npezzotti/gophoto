@@ -34,6 +34,11 @@ func (a *application) signupHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if _, err := a.userService.CreateUser(r.Context(), sf.FirstName, sf.LastName, sf.Email, sf.Password); err != nil {
+			if errors.Is(err, domain.ErrUserAlreadyExists) {
+				a.flash(r.Context(), "An account with this email already exists.", flashErr)
+				http.Redirect(w, r, "/login", http.StatusSeeOther)
+				return
+			}
 			a.Logger.Error("error creating user: %v", err)
 			a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
 			http.Redirect(w, r, "/signup", http.StatusSeeOther)

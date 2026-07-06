@@ -187,6 +187,9 @@ func (s *UserService) CreateUser(ctx context.Context, firstName, lastName, email
 
 	user, err := s.userRepo.CreateUser(ctx, firstName, lastName, email, passwdHash)
 	if err != nil {
+		if errors.Is(err, db.ErrUserAlreadyExists) {
+			return nil, domain.ErrUserAlreadyExists
+		}
 		return nil, fmt.Errorf("error creating user: %w", err)
 	}
 

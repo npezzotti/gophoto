@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/lib/pq"
 	"github.com/npezzotti/gophoto/internal/domain"
 )
 
@@ -16,6 +17,7 @@ var (
 	ErrPhotoNotFound         = errors.New("photo not found")
 	ErrPhotoMetadataNotFound = errors.New("photo metadata not found")
 	ErrAlbumPhotoNotFound    = errors.New("album photo not found")
+	ErrUserAlreadyExists     = errors.New("user already exists")
 )
 
 type PhotoRepository interface {
@@ -457,6 +459,12 @@ func (r *Repository) CreateUser(ctx context.Context, firstName, lastName, email,
 		Email:        email,
 		PasswordHash: passwordHash,
 	})
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+		if pqErr.Constraint == "users_email_key" {
+			return domain.User{}, ErrUserAlreadyExists
+		}
+	}
 	if err != nil {
 		return domain.User{}, err
 	}
