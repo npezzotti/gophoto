@@ -242,7 +242,7 @@ func Test_validPresignedURL(t *testing.T) {
 	createSignature := func(path string, expires int64, key []byte) string {
 		message := store.CreateMessage(path, expires)
 		signature := store.GenerateSignature(message, key)
-		return base64.URLEncoding.EncodeToString(signature)
+		return base64.RawURLEncoding.EncodeToString(signature)
 	}
 
 	buildSignedURL := func(path string, expires int64, signature string) string {
