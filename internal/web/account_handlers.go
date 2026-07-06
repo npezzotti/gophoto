@@ -109,6 +109,12 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 		// Default redirect
 		http.Redirect(w, r, "/albums", http.StatusSeeOther)
 	case http.MethodGet:
+		_, ok := extractUserFromContext(r.Context())
+		if ok {
+			http.Redirect(w, r, "/albums", http.StatusSeeOther)
+			return
+		}
+
 		td := a.generateTemplateData(r)
 		td.Form = &forms.LoginForm{}
 		a.renderTemplate(w, td, "login.html")
