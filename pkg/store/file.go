@@ -50,7 +50,7 @@ func (fs *FileStore) GenerateURL(ctx context.Context, key string, expiry time.Du
 	urlPath := fs.publicPath(key)
 	expiryTime := time.Now().Add(expiry)
 	message := CreateMessage(urlPath, expiryTime.Unix())
-	signature := generateHmac(message, fs.secretKey)
+	signature := GenerateSignature(message, fs.secretKey)
 	b64Sig := base64.URLEncoding.EncodeToString(signature)
 
 	return fmt.Sprintf("%s?expires=%d&signature=%s", urlPath, expiryTime.Unix(), b64Sig), nil

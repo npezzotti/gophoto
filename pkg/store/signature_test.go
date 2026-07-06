@@ -52,7 +52,7 @@ func Test_generateHmac(t *testing.T) {
 				t.Fatalf("failed to decode hex string: %v", err)
 			}
 
-			got := generateHmac(tt.message, tt.secret)
+			got := GenerateSignature(tt.message, tt.secret)
 			if !bytes.Equal(got, want) {
 				t.Errorf("got %x, want %x", got, want)
 			}
@@ -71,14 +71,14 @@ func TestVerifySignature(t *testing.T) {
 		{
 			name:        "valid signature verification",
 			message:     "test message",
-			providedMac: generateHmac("test message", []byte("test secret")),
+			providedMac: GenerateSignature("test message", []byte("test secret")),
 			secret:      []byte("test secret"),
 			want:        true,
 		},
 		{
 			name:        "invalid signature verification",
 			message:     "test message",
-			providedMac: generateHmac("test message", []byte("wrong secret")),
+			providedMac: GenerateSignature("test message", []byte("wrong secret")),
 			secret:      []byte("test secret"),
 			want:        false,
 		},
