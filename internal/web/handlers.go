@@ -348,6 +348,13 @@ func (a *application) deleteAlbumPhotoHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	user, ok := extractUserFromContext(r.Context())
+	if !ok {
+		a.flash(r.Context(), "User not found.", flashErr)
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
 	if err := r.ParseForm(); err != nil {
 		a.Logger.Error("error parsing form: %v", err)
 		a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
@@ -357,7 +364,7 @@ func (a *application) deleteAlbumPhotoHandler(w http.ResponseWriter, r *http.Req
 
 	albumPhotoIDStr := r.Form.Get("id")
 	if albumPhotoIDStr == "" {
-		a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
+		a.flash(r.Context(), "Missing photo ID.", flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 		return
 	}
@@ -365,26 +372,19 @@ func (a *application) deleteAlbumPhotoHandler(w http.ResponseWriter, r *http.Req
 	albumPhotoID, err := strconv.Atoi(albumPhotoIDStr)
 	if err != nil {
 		a.Logger.Error("error parsing id: %v", err)
-		a.flash(r.Context(), http.StatusText(http.StatusBadRequest), flashErr)
+		a.flash(r.Context(), "Invalid photo ID.", flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
-		return
-	}
-
-	user, ok := extractUserFromContext(r.Context())
-	if !ok {
-		a.flash(r.Context(), "User not found.", flashErr)
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
 
 	if err := a.photoService.RemovePhotoFromAlbum(r.Context(), int32(albumPhotoID), user.ID); err != nil {
 		if errors.Is(err, domain.ErrPhotoNotFound) {
-			a.flash(r.Context(), http.StatusText(http.StatusNotFound), flashErr)
+			a.flash(r.Context(), "Photo not found.", flashErr)
 			http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 			return
 		}
 		a.Logger.Error("error removing photo from album: %v", err)
-		a.flash(r.Context(), http.StatusText(http.StatusInternalServerError), flashErr)
+		a.flash(r.Context(), "Error deleting photo.", flashErr)
 		http.Redirect(w, r, r.Referer(), http.StatusSeeOther)
 		return
 	}

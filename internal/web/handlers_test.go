@@ -780,3 +780,127 @@ func Test_photoStatusHandler(t *testing.T) {
 		})
 	}
 }
+
+func Test_deleteAlbumPhotoHandler(t *testing.T) {
+	tcases := []struct {
+		name             string
+		url              string
+		userID           int32
+		photoServiceStub *photoServiceStub
+		wantStatus       int
+		wantLocation     string
+		wantFlash        *Flash
+	}{
+		{
+			name:   "successfully deletes album photo",
+			url:    "/albums/photos/delete?id=1",
+			userID: 1,
+			photoServiceStub: &photoServiceStub{
+				removePhotoFromAlbumFn: func(ctx context.Context, photoID, userID int32) error {
+					return nil
+				},
+			},
+			wantStatus:   http.StatusSeeOther,
+			wantLocation: "/albums?id=1",
+			wantFlash:    &Flash{Message: "Photo successfully deleted.", Level: flashInfo},
+		},
+		{
+			name:   "unauthenticated user",
+			url:    "/albums/photos/delete?id=1",
+			userID: 0,
+			photoServiceStub: &photoServiceStub{
+				removePhotoFromAlbumFn: func(ctx context.Context, photoID, userID int32) error {
+					return nil
+				},
+			},
+			wantStatus:   http.StatusSeeOther,
+			wantLocation: "/login",
+			wantFlash:    &Flash{Message: "User not found.", Level: flashErr},
+		},
+		{
+			name:   "invalid photo ID",
+			url:    "/albums/photos/delete",
+			userID: 1,
+			photoServiceStub: &photoServiceStub{
+				removePhotoFromAlbumFn: func(ctx context.Context, photoID, userID int32) error {
+					return nil
+				},
+			},
+			wantStatus:   http.StatusSeeOther,
+			wantLocation: "/albums?id=1",
+			wantFlash:    &Flash{Message: "Missing photo ID.", Level: flashErr},
+		},
+		{
+			name:   "invalid photo ID",
+			url:    "/albums/photos/delete?id=bad-id",
+			userID: 1,
+			photoServiceStub: &photoServiceStub{
+				removePhotoFromAlbumFn: func(ctx context.Context, photoID, userID int32) error {
+					return nil
+				},
+			},
+			wantStatus:   http.StatusSeeOther,
+			wantLocation: "/albums?id=1",
+			wantFlash:    &Flash{Message: "Invalid photo ID.", Level: flashErr},
+		},
+		{
+			name:   "photo not found",
+			url:    "/albums/photos/delete?id=1",
+			userID: 1,
+			photoServiceStub: &photoServiceStub{
+				removePhotoFromAlbumFn: func(ctx context.Context, photoID, userID int32) error {
+					return domain.ErrPhotoNotFound
+				},
+			},
+			wantStatus:   http.StatusSeeOther,
+			wantLocation: "/albums?id=1",
+			wantFlash:    &Flash{Message: "Photo not found.", Level: flashErr},
+		},
+		{
+			name:   "error deleting photo",
+			url:    "/albums/photos/delete?id=1",
+			userID: 1,
+			photoServiceStub: &photoServiceStub{
+				removePhotoFromAlbumFn: func(ctx context.Context, photoID, userID int32) error {
+					return errors.New("internal server error")
+				},
+			},
+			wantStatus:   http.StatusSeeOther,
+			wantLocation: "/albums?id=1",
+			wantFlash:    &Flash{Message: "Error deleting photo.", Level: flashErr},
+		},
+	}
+
+	for _, tt := range tcases {
+		t.Run(tt.name, func(t *testing.T) {
+			app := &application{
+				sessionManager: scs.New(),
+				Logger:         logging.NewLogger(io.Discard, false),
+				config:         &config.Config{},
+				photoService:   tt.photoServiceStub,
+			}
+
+			req := httptest.NewRequest(http.MethodPost, tt.url, nil)
+			if tt.userID != 0 {
+				req = withAuthenticatedUser(req, &domain.UserPresentation{ID: tt.userID})
+			}
+			req.Header.Set("Referer", "/albums?id=1")
+			rr := httptest.NewRecorder()
+
+			app.sessionManager.LoadAndSave(http.HandlerFunc(app.deleteAlbumPhotoHandler)).ServeHTTP(rr, req)
+
+			resp := rr.Result()
+			defer resp.Body.Close()
+
+			if resp.StatusCode != tt.wantStatus {
+				t.Fatalf("expected status %d, got %d", tt.wantStatus, resp.StatusCode)
+			}
+			if got := resp.Header.Get("Location"); got != tt.wantLocation {
+				t.Fatalf("expected redirect to %q, got %q", tt.wantLocation, got)
+			}
+			if tt.wantFlash != nil {
+				validateFlashInSession(t, app, req, resp, tt.wantFlash.Message, tt.wantFlash.Level)
+			}
+		})
+	}
+}
