@@ -112,7 +112,7 @@ func validPresignedURL(url *url.URL, signingKey []byte) bool {
 		return false
 	}
 
-	receivedSig, err := base64.URLEncoding.DecodeString(b64signature)
+	receivedSig, err := base64.RawURLEncoding.DecodeString(b64signature)
 	if err != nil {
 		return false
 	}

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -39,6 +40,10 @@ func NewFileStore(baseDir string, secretKey []byte) (*FileStore, error) {
 }
 
 func (fs *FileStore) GenerateURL(ctx context.Context, key string, expiry time.Duration) (string, error) {
+	if expiry <= 0 {
+		return "", fmt.Errorf("expiry duration must be greater than zero")
+	}
+
 	filePath := fs.path(key)
 	if _, err := os.Stat(filePath); err != nil {
 		if os.IsNotExist(err) {
@@ -51,9 +56,17 @@ func (fs *FileStore) GenerateURL(ctx context.Context, key string, expiry time.Du
 	expiryTime := time.Now().Add(expiry)
 	message := CreateMessage(urlPath, expiryTime.Unix())
 	signature := GenerateSignature(message, fs.secretKey)
-	b64Sig := base64.URLEncoding.EncodeToString(signature)
+	b64Sig := base64.RawURLEncoding.EncodeToString(signature)
 
-	return fmt.Sprintf("%s?expires=%d&signature=%s", urlPath, expiryTime.Unix(), b64Sig), nil
+	finalURL := url.URL{
+		Path: urlPath,
+	}
+	finalURL.RawQuery = url.Values{
+		"expires":   []string{fmt.Sprintf("%d", expiryTime.Unix())},
+		"signature": []string{b64Sig},
+	}.Encode()
+
+	return finalURL.String(), nil
 }
 
 func (fs *FileStore) Read(ctx context.Context, path string) (io.ReadCloser, error) {

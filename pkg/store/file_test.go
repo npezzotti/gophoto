@@ -143,6 +143,23 @@ func TestFileStore_GenerateURL(t *testing.T) {
 			t.Fatalf("unexpected error message: got %v, expected it to be %v", err, ErrNotExist)
 		}
 	})
+
+	t.Run("expiry is <= 0", func(t *testing.T) {
+		tempDir := t.TempDir()
+		store, err := NewFileStore(tempDir, []byte("test-key"))
+		if err != nil {
+			t.Fatalf("failed to create FileStore: %v", err)
+		}
+
+		_, err = store.GenerateURL(context.Background(), "testfile.txt", 0)
+		if err == nil {
+			t.Fatal("expected error generating URL with expiry <= 0, got none")
+		}
+
+		if !strings.Contains(err.Error(), "expiry duration must be greater than zero") {
+			t.Fatalf("unexpected error message: got %v, expected it to contain %q", err, "expiry duration must be greater than zero")
+		}
+	})
 }
 
 func TestFileStore_Read(t *testing.T) {
