@@ -86,18 +86,18 @@ func (s *photoServiceStub) RemovePhotoFromAlbum(ctx context.Context, photoID, us
 }
 
 type userServiceStub struct {
-	getUserFn             func(ctx context.Context, id int32) (domain.UserPresentation, error)
+	getUserFn             func(ctx context.Context, id int32) (*domain.UserPresentation, error)
 	updateUserFn          func(ctx context.Context, userID int32, firstName, lastName, email, password string) (*domain.UserPresentation, error)
 	deleteUserFn          func(ctx context.Context, userID int32) error
-	authenticateByEmailFn func(ctx context.Context, email, password string) (domain.UserPresentation, error)
+	authenticateByEmailFn func(ctx context.Context, email, password string) (domain.User, error)
 	createUserFn          func(ctx context.Context, firstName, lastName, email, password string) (*domain.UserPresentation, error)
 }
 
-func (s *userServiceStub) GetUserByID(ctx context.Context, id int32) (domain.UserPresentation, error) {
+func (s *userServiceStub) GetUserByID(ctx context.Context, id int32) (*domain.UserPresentation, error) {
 	if s.getUserFn != nil {
 		return s.getUserFn(ctx, id)
 	}
-	return domain.UserPresentation{}, nil
+	return &domain.UserPresentation{}, nil
 }
 
 func (s *userServiceStub) UpdateUser(ctx context.Context, userID int32, firstName, lastName, email, password string) (*domain.UserPresentation, error) {
@@ -114,11 +114,11 @@ func (s *userServiceStub) DeleteUser(ctx context.Context, userID int32) error {
 	return nil
 }
 
-func (s *userServiceStub) AuthenticateByEmail(ctx context.Context, email, password string) (domain.UserPresentation, error) {
+func (s *userServiceStub) AuthenticateByEmail(ctx context.Context, email, password string) (domain.User, error) {
 	if s.authenticateByEmailFn != nil {
 		return s.authenticateByEmailFn(ctx, email, password)
 	}
-	return domain.UserPresentation{}, nil
+	return domain.User{}, nil
 }
 
 func (s *userServiceStub) CreateUser(ctx context.Context, firstName, lastName, email, password string) (*domain.UserPresentation, error) {
