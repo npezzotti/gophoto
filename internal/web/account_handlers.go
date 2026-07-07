@@ -75,6 +75,7 @@ func (a *application) loginHandler(w http.ResponseWriter, r *http.Request) {
 		if !lf.Validate() {
 			td := a.generateTemplateData(r)
 			td.Form = lf
+			a.Logger.Error("validation errors: %v", lf.Errors)
 			a.renderTemplateWithStatus(w, td, http.StatusBadRequest, "login.html")
 			return
 		}
