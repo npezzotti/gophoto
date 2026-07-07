@@ -166,21 +166,21 @@ func Test_noSurf(t *testing.T) {
 	t.Errorf("expected a CSRF cookie to be set, but none was found")
 }
 
+func createSignature(path string, expires int64, key []byte) string {
+	message := store.CreateMessage(path, expires)
+	signature := store.GenerateSignature(message, key)
+	return base64.RawURLEncoding.EncodeToString(signature)
+}
+
+func buildSignedURL(path string, expires int64, signature string) string {
+	q := url.Values{}
+	q.Set("expires", strconv.FormatInt(expires, 10))
+	q.Set("signature", signature)
+	return path + "?" + q.Encode()
+}
+
 func Test_validatePresignedURL(t *testing.T) {
 	signingKey := []byte("test-signing-key")
-
-	createSignature := func(path string, expires int64, key []byte) string {
-		message := store.CreateMessage(path, expires)
-		signature := store.GenerateSignature(message, key)
-		return base64.URLEncoding.EncodeToString(signature)
-	}
-
-	buildSignedURL := func(path string, expires int64, signature string) string {
-		q := url.Values{}
-		q.Set("expires", strconv.FormatInt(expires, 10))
-		q.Set("signature", signature)
-		return path + "?" + q.Encode()
-	}
 
 	validExpiry := time.Now().Add(10 * time.Minute).Unix()
 	validPath := "/uploads/photo.jpg"
@@ -238,19 +238,6 @@ func Test_validatePresignedURL(t *testing.T) {
 
 func Test_validPresignedURL(t *testing.T) {
 	signingKey := []byte("test-signing-key")
-
-	createSignature := func(path string, expires int64, key []byte) string {
-		message := store.CreateMessage(path, expires)
-		signature := store.GenerateSignature(message, key)
-		return base64.RawURLEncoding.EncodeToString(signature)
-	}
-
-	buildSignedURL := func(path string, expires int64, signature string) string {
-		q := url.Values{}
-		q.Set("expires", strconv.FormatInt(expires, 10))
-		q.Set("signature", signature)
-		return path + "?" + q.Encode()
-	}
 
 	validExpiry := time.Now().Add(10 * time.Minute).Unix()
 	validPath := "/uploads/photo.jpg"
