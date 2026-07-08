@@ -68,4 +68,4 @@ make run
 ```
 
 **Open your browser:**
-Visit [http://localhost:8800](http://localhost:8800)
+Visit [http://localhost:8800/signup](http://localhost:8800/signup)
