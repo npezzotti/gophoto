@@ -51,21 +51,67 @@ type UserRepository interface {
 	DeleteUser(ctx context.Context, userID int32) error
 }
 
-type Repository struct {
-	db      *sql.DB
-	querier *Queries
+type querier interface {
+	WithTx(tx *sql.Tx) querier
+	GetPhoto(ctx context.Context, id int32) (Photo, error)
+	DeletePhoto(ctx context.Context, id int32) error
+	GetOrphanedPhotos(ctx context.Context) ([]Photo, error)
+	UpdatePhotoStatus(ctx context.Context, arg UpdatePhotoStatusParams) error
+	GetPhotoMetadataByPhotoIDAndVariant(ctx context.Context, arg GetPhotoMetadataByPhotoIDAndVariantParams) (PhotoMetadatum, error)
+	GetAlbumPhoto(ctx context.Context, id int32) (GetAlbumPhotoRow, error)
+	GetPhotoMetadataByPhotoID(ctx context.Context, photoID int32) ([]PhotoMetadatum, error)
+	createPhotoWithOriginalMetadata(ctx context.Context, arg CreatePhotoWithOriginalMetadataParams) (Photo, error)
+	AddPhotoToAlbumWithCover(ctx context.Context, arg AddPhotoToAlbumParams) (Album, error)
+	IncrementAlbumPhotoCount(ctx context.Context, arg IncrementAlbumPhotoCountParams) error
+	UpdateUserProfilePicture(ctx context.Context, arg UpdateUserProfilePictureParams) (User, error)
+	DeleteAlbumPhoto(ctx context.Context, arg DeleteAlbumPhotoParams) (int32, error)
+	DecrementAlbumPhotoCount(ctx context.Context, arg DecrementAlbumPhotoCountParams) error
+	GetLastPhotoFromAlbum(ctx context.Context, albumID int32) (AlbumPhoto, error)
+	GetAlbumById(ctx context.Context, id int32) (GetAlbumByIdRow, error)
+	SetAlbumCoverPhoto(ctx context.Context, arg SetAlbumCoverPhotoParams) error
+	CreatePhotoMetadata(ctx context.Context, arg CreatePhotoMetadataParams) (PhotoMetadatum, error)
+	GetUserById(ctx context.Context, id int32) (GetUserByIdRow, error)
+	GetUserByEmail(ctx context.Context, email string) (User, error)
+	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
+	DeleteUser(ctx context.Context, id int32) error
+	CreateAlbum(ctx context.Context, arg CreateAlbumParams) (Album, error)
+	UpdateAlbum(ctx context.Context, arg UpdateAlbumParams) (Album, error)
+	DeleteAlbum(ctx context.Context, id int32) error
+	ListAlbumPhotoViewRows(ctx context.Context, arg ListAlbumPhotoViewRowsParams) ([]ListAlbumPhotoViewRowsRow, error)
+	ListAlbumsByUser(ctx context.Context, arg ListAlbumsByUserParams) ([]ListAlbumsByUserRow, error)
 }
 
-func NewRepository(db *sql.DB) *Repository {
+// queriesAdapter wraps *Queries so that WithTx returns the querier interface
+// rather than the concrete *Queries type, satisfying the querier interface.
+type queriesAdapter struct{ *Queries }
+
+func (a queriesAdapter) WithTx(tx *sql.Tx) querier {
+	return queriesAdapter{a.Queries.WithTx(tx)}
+}
+
+type db interface {
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
+}
+
+type Repository struct {
+	db      db
+	querier querier
+}
+
+func NewRepository(sqlDB *sql.DB) *Repository {
 	return &Repository{
-		db:      db,
-		querier: New(db),
+		db:      sqlDB,
+		querier: queriesAdapter{New(sqlDB)},
 	}
 }
 
 func (r *Repository) GetPhoto(ctx context.Context, id int32) (domain.Photo, error) {
 	photo, err := r.querier.GetPhoto(ctx, id)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Photo{}, ErrPhotoNotFound
+		}
 		return domain.Photo{}, err
 	}
 	return domain.Photo{
