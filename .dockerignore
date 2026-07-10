@@ -1,0 +1,28 @@
+# Version control
+.git
+.gitignore
+.dockerignore
+
+# Docs / local tooling
+README.md
+*.md
+Makefile
+sqlc.yaml
+
+# IaC / deployment configs
+terraform/
+kubernetes/
+
+# Local build output
+bin/
+
+# Runtime-only static files (bind-mounted, not embedded)
+assets/
+
+# Dev tooling artifacts
+docker-compose.yml
+coverage.out
+.DS_Store
+
+# Test files (not needed for go build)
+**/*_test.go
