@@ -5,7 +5,7 @@
 
 # Docs / local tooling
 README.md
-*.md
+*/*.md
 Makefile
 sqlc.yaml
 
@@ -25,4 +25,4 @@ coverage.out
 .DS_Store
 
 # Test files (not needed for go build)
-**/*_test.go
+*/*_test.go
