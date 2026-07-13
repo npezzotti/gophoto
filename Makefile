@@ -3,7 +3,7 @@ BIN_DIR := ./bin
 BINARY := gophoto
 
 .PHONY: start stop logs db-shell fmt test build clean
-start:
+start: fmt
 	docker compose -f $(COMPOSE_FILE) up -d --build
 stop:
 	docker compose -f $(COMPOSE_FILE) down
@@ -13,9 +13,7 @@ db-shell:
 	docker compose -f $(COMPOSE_FILE) exec db psql -U gophoto -d gophoto
 fmt:
 	go fmt ./...
-test:
+test: fmt
 	go test -v ./...
 build:
-	go build -o $(BIN_DIR)/$(BINARY) cmd/*.go
-clean:
-	rm -rf $(BIN_DIR)/*
+	docker build -t gophoto:latest .
