@@ -28,11 +28,13 @@ type templateData struct {
 	Paginator            *pagination.Pagination
 	CSRFToken            string
 	AddPhotoUploadAction string
+	AssetBaseURL         string
 }
 
 func (a *application) generateTemplateData(r *http.Request) *templateData {
 	td := &templateData{
-		CSRFToken: nosurf.Token(r),
+		CSRFToken:    nosurf.Token(r),
+		AssetBaseURL: a.config.AssetBaseURL,
 	}
 
 	ctx := r.Context()

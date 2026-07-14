@@ -20,6 +20,7 @@ import (
 func Test_application_generateTemplateData(t *testing.T) {
 	t.Run("should set default template data", func(t *testing.T) {
 		a := application{
+			config:         &config.Config{},
 			sessionManager: scs.New(),
 		}
 
@@ -39,6 +40,7 @@ func Test_application_generateTemplateData(t *testing.T) {
 
 	t.Run("should generate CSRF token", func(t *testing.T) {
 		a := application{
+			config:         &config.Config{},
 			sessionManager: scs.New(),
 		}
 
@@ -59,6 +61,7 @@ func Test_application_generateTemplateData(t *testing.T) {
 
 	t.Run("should include flash message from session", func(t *testing.T) {
 		a := application{
+			config:         &config.Config{},
 			sessionManager: scs.New(),
 		}
 
@@ -92,6 +95,7 @@ func Test_application_generateTemplateData(t *testing.T) {
 
 	t.Run("should set default template data with authenticated user", func(t *testing.T) {
 		a := application{
+			config:         &config.Config{},
 			sessionManager: scs.New(),
 		}
 

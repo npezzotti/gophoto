@@ -121,7 +121,10 @@ func (a *application) routes() *http.ServeMux {
 	mux.Handle("/profile", a.protected(http.HandlerFunc(a.profileHandler)))
 	mux.Handle("/profile/edit", a.protected(http.HandlerFunc(a.editProfileHandler)))
 	mux.Handle("/profile/delete", a.protected(http.HandlerFunc(a.deleteAccountHandler)))
-	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
+
+	if a.config.AssetBaseURL == config.DefaultAssetsBaseUrl {
+		mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
+	}
 
 	if a.config.StorageType == config.StorageTypeDisk {
 		// Only serve uploads directly if using local file storage

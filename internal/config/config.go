@@ -9,10 +9,11 @@ import (
 type storageType string
 
 const (
-	StorageTypeDisk storageType = "disk"
-	StorageTypeS3   storageType = "s3"
-	DefaultAddress              = ":8800"
-	DefaultBaseDir              = "uploads"
+	StorageTypeDisk      storageType = "disk"
+	StorageTypeS3        storageType = "s3"
+	DefaultAddress                   = ":8800"
+	DefaultBaseDir                   = "uploads"
+	DefaultAssetsBaseUrl             = "/assets"
 )
 
 var DefaultSigningKey = []byte("default-signing-key")
@@ -23,6 +24,7 @@ type Config struct {
 	HttpServerAddr   string
 	BaseDir          string
 	StaticDir        string
+	AssetBaseURL     string
 	BucketName       string
 	UseTemplateCache bool
 	RedisAddress     string
@@ -43,12 +45,17 @@ func LoadConfigFromEnv() (*Config, error) {
 		BucketName:       os.Getenv("GOPHOTO_BUCKET_NAME"),
 		SigningKey:       []byte(os.Getenv("GOPHOTO_SIGNING_KEY")),
 		StaticDir:        os.Getenv("GOPHOTO_STATIC_DIR"),
+		AssetBaseURL:     os.Getenv("GOPHOTO_ASSET_BASE_URL"),
 		Debug:            os.Getenv("GOPHOTO_DEBUG") == "true",
 		URLExpiry:        15 * time.Minute,
 	}
 
 	if cfg.StaticDir == "" {
 		cfg.StaticDir = "/assets"
+	}
+
+	if cfg.AssetBaseURL == "" {
+		cfg.AssetBaseURL = DefaultAssetsBaseUrl
 	}
 
 	if cfg.HttpServerAddr == "" {
