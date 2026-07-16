@@ -3,7 +3,9 @@
 {{define "content"}}
 
 <div class="row g-0 vh-100">
-    <div class="col d-none d-md-flex bg-image-palm"></div>
+    <div class="col-md-6 d-none d-md-flex mh-100">
+        <img src="{{.AssetBaseURL}}/images/palm.webp" alt="" class="object-fit-cover w-100">
+    </div>
     <div class="col d-flex flex-column align-items-center justify-content-center">
         <img class="align-self-center" src="{{.AssetBaseURL}}/images/gophoto.png" height="200" alt="gophoto">
         <div class="container w-75 mt-5">
