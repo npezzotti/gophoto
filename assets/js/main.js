@@ -1,27 +1,30 @@
-// Convert all <time> elements with a data-timestamp attribute to localized date strings
-document.querySelectorAll('time[data-timestamp]').forEach(el => {
-  const date = new Date(el.dataset.timestamp);
-  el.textContent = date.toLocaleDateString([], {
+document.addEventListener('DOMContentLoaded', () => {
+  formatTimestamps();
+  showToast();
+});
+
+function formatTimestamps() {
+  const els = document.querySelectorAll('time[data-timestamp]');
+  if (!els.length) return;
+
+  const fmt = new Intl.DateTimeFormat(navigator.language, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
     hour: 'numeric',
     minute: 'numeric',
   });
-});
 
-const toastElList = document.querySelectorAll('.toast');
-const toastList = [...toastElList].map(toastEl => new bootstrap.Toast(toastEl).show());
-
-function showToast() {
-  const toast = document.getElementById('toast');
-  if (!toast) {
-    return;
-  }
-
-  const toastInstance = new bootstrap.Toast(toast);
-  toastInstance.show();
+  els.forEach(el => {
+    const ts = Number(el.dataset.timestamp);
+    if (Number.isNaN(ts)) return;
+    el.textContent = fmt.format(new Date(ts));
+  });
 }
 
-// Show the toast notification if it exists
-showToast();
+function showToast() {
+  const toastEl = document.getElementById('toast');
+  if (toastEl && typeof bootstrap !== 'undefined') {
+    new bootstrap.Toast(toastEl).show();
+  }
+}

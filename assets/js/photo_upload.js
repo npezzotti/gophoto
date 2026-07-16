@@ -1,6 +1,14 @@
-const POLLING_INTERVAL = 2000; // 2 seconds
+const POLLING_INTERVAL = 2000; // ms between status checks
+const MAX_POLLS = 60;          // ~2 minutes before timeout
 
-const photoUploadForm = document.getElementById('photo-upload-form');
+const photoUploadForm    = document.getElementById('photo-upload-form');
+const addPhotoModalEl    = document.getElementById('addPhotoModal');
+const progressModalEl    = document.getElementById('photoProgressModal');
+const progressBar        = progressModalEl.querySelector('[role="progressbar"]');
+
+const addPhotoModal  = bootstrap.Modal.getOrCreateInstance(addPhotoModalEl);
+const progressModal  = bootstrap.Modal.getOrCreateInstance(progressModalEl);
+
 photoUploadForm.addEventListener('submit', async e => {
   e.preventDefault();
   const form = e.target;
@@ -9,117 +17,111 @@ photoUploadForm.addEventListener('submit', async e => {
 
   try {
     const response = await uploadPhoto(form);
-    if (response.ok) {
-      const data = await response.json();
-
-      processingPhotoId = data.id;
-      if (!processingPhotoId) {
-        throw new Error("No photo ID returned from server");
-      }
-
-      const addPhotoModelEl = document.getElementById('addPhotoModal');
-      const addPhotoModal = bootstrap.Modal.getOrCreateInstance(addPhotoModelEl, {});
-      const photoProgressModalEl = document.getElementById('photoProgressModal');
-      const progressModal = bootstrap.Modal.getOrCreateInstance(photoProgressModalEl, {});
-
-      addPhotoModelEl.addEventListener('hidden.bs.modal', () => {
-        progressModal.show();
-      }, { once: true });
-
-      addPhotoModal.hide();
-
-      setTimeout(() => {
-        const progressBar = photoProgressModalEl.querySelector('[role="progressbar"]');
-        const pollInterval = setInterval(async () => {
-          try {
-            await pollPhotoProcessingStatus(processingPhotoId, progressBar, pollInterval);
-          } catch (err) {
-            clearInterval(pollInterval);
-            progressModal.hide();
-            console.log("Error polling photo status:", err);
-          }
-        }, POLLING_INTERVAL);
-      }, 500);
-    } else {
-      const resp = await response.json();
-      errorMessage = resp.error || "Unknown error uploading photo";
-      throw new Error(errorMessage);
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.error || `Upload failed: HTTP ${response.status}`);
     }
+
+    const data = await response.json();
+    if (!data.id) throw new Error('No photo ID returned from server');
+
+    // Hide the upload modal; once it's gone, show the progress modal.
+    addPhotoModalEl.addEventListener('hidden.bs.modal', () => {
+      resetProgress();
+      progressModal.show();
+    }, { once: true });
+
+    progressModalEl.addEventListener('shown.bs.modal', () => {
+      startPolling(data.id);
+    }, { once: true });
+
+    addPhotoModal.hide();
+
   } catch (err) {
-    console.log("Error uploading photo: " + err);
+    console.error('Error uploading photo:', err);
+    showFormError(form, err.message);
+    if (submitButton) submitButton.disabled = false;
   }
 });
 
-async function uploadPhoto(form) {
-  const formData = new FormData(form);
-  try {
-    const response = await fetch(form.action, {
-      method: form.method,
-      body: formData,
-    });
-    return response;
-  } catch (error) {
-    throw error;
+function startPolling(photoId) {
+  let pollCount = 0;
+
+  async function tick() {
+    if (++pollCount > MAX_POLLS) {
+      progressModal.hide();
+      console.error('Photo processing timed out');
+      return;
+    }
+
+    try {
+      const done = await checkPhotoStatus(photoId);
+      if (done) {
+        // Give the user a moment to see 100% before the reload.
+        setTimeout(() => location.reload(), 1000);
+      } else {
+        setTimeout(tick, POLLING_INTERVAL);
+      }
+    } catch (err) {
+      progressModal.hide();
+      console.error('Error polling photo status:', err);
+    }
   }
+
+  setTimeout(tick, POLLING_INTERVAL);
+}
+
+async function uploadPhoto(form) {
+  return fetch(form.action, { method: form.method, body: new FormData(form) });
 }
 
 async function fetchPhotoStatus(photoId) {
-  try {
-    const response = await fetch(`/photos/status?id=${photoId}`);
-    return response;
-  } catch (error) {
-    throw error;
+  return fetch(`/photos/status?id=${photoId}`);
+}
+
+async function checkPhotoStatus(photoId) {
+  const response = await fetchPhotoStatus(photoId);
+  if (!response.ok) {
+    throw new Error(`Status check failed: HTTP ${response.status}`);
+  }
+  const data = await response.json();
+
+  switch (data.status) {
+    case 'processing':
+      advanceProgress();
+      return false;
+    case 'processed':
+      setProgress(100);
+      return true;
+    case 'errored':
+      throw new Error('Photo processing failed on the server');
+    default:
+      throw new Error(`Unknown photo status: ${data.status}`);
   }
 }
 
-function setProgress(bar, percent) {
-  bar.setAttribute('aria-valuenow', percent);
-  bar.style.width = `${percent}%`;
+function resetProgress() {
+  setProgress(0);
 }
 
-function getProgress(bar) {
-  return parseInt(bar.getAttribute('aria-valuenow')) || 0;
+function advanceProgress() {
+  const max     = parseInt(progressBar.getAttribute('aria-valuemax'), 10) || 100;
+  const current = parseInt(progressBar.getAttribute('aria-valuenow'), 10) || 0;
+  // Advance by 10 but cap at max - 1 so we never falsely show 100%.
+  setProgress(Math.min(current + 10, max - 1));
 }
 
-async function pollPhotoProcessingStatus(photoId, progressBar, interval) {
-  if (progressBar) {
-    let currentValue = getProgress(progressBar);
-    let maxValue = parseInt(progressBar.getAttribute('aria-valuemax')) || 100;
-    currentValue = Math.min(currentValue + 10, maxValue);
-    if (currentValue === maxValue) {
-      currentValue = maxValue - 5; // Don't reach 100% until confirmed
-    }
+function setProgress(percent) {
+  progressBar.setAttribute('aria-valuenow', percent);
+  progressBar.style.width = `${percent}%`;
+}
 
-    setProgress(progressBar, currentValue);
+function showFormError(form, message) {
+  let alert = form.querySelector('.upload-error');
+  if (!alert) {
+    alert = document.createElement('p');
+    alert.className = 'upload-error text-danger mt-2';
+    form.appendChild(alert);
   }
-
-  try {
-    const response = await fetchPhotoStatus(photoId);
-    const data = await response.json();
-    switch (data.status) {
-      case "processing":
-        // Still processing, do nothing
-        break;
-      case "processed":
-        // Complete the progress bar
-        if (progressBar) {
-          setProgress(progressBar, 100);
-        }
-
-        // Stop polling
-        clearInterval(interval);
-
-        // Refresh the page after a short delay to show the new photo
-        setTimeout(() => {
-          location.reload();
-        }, 1000);
-        break;
-      case "errored":
-        throw new Error("Photo processing failed");
-      default:
-        throw new Error("Unknown photo status");
-    }
-  } catch (err) {
-    throw new Error("Error fetching photo status: " + err);
-  }
+  alert.textContent = message;
 }
