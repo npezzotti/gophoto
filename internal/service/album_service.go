@@ -206,9 +206,9 @@ func (s *AlbumService) DeleteAlbum(ctx context.Context, albumID, userID int32) e
 
 func (s *AlbumService) newAlbumListItem(ctx context.Context, album domain.AlbumListItem) *domain.AlbumListItem {
 	coverImage := domain.ResponsiveImage{
-		DefaultSrc: filepath.Join(s.config.StaticDir, domain.DefaultAlbumCover),
+		DefaultSrc: filepath.Join(s.config.AssetBaseURL, domain.DefaultAlbumCover),
 		Sources: []domain.ImageSource{
-			{Width: 400, Height: 300, URL: filepath.Join(s.config.StaticDir, domain.DefaultAlbumCover)},
+			{Width: 400, Height: 300, URL: filepath.Join(s.config.AssetBaseURL, domain.DefaultAlbumCover)},
 		},
 		Alt: "Default album cover",
 	}

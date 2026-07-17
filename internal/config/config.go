@@ -23,7 +23,6 @@ type Config struct {
 	DatabaseSource   string
 	HttpServerAddr   string
 	BaseDir          string
-	StaticDir        string
 	AssetBaseURL     string
 	BucketName       string
 	UseTemplateCache bool
@@ -44,14 +43,9 @@ func LoadConfigFromEnv() (*Config, error) {
 		StorageType:      storageType(os.Getenv("GOPHOTO_STORAGE_TYPE")),
 		BucketName:       os.Getenv("GOPHOTO_BUCKET_NAME"),
 		SigningKey:       []byte(os.Getenv("GOPHOTO_SIGNING_KEY")),
-		StaticDir:        os.Getenv("GOPHOTO_STATIC_DIR"),
 		AssetBaseURL:     os.Getenv("GOPHOTO_ASSET_BASE_URL"),
 		Debug:            os.Getenv("GOPHOTO_DEBUG") == "true",
 		URLExpiry:        15 * time.Minute,
-	}
-
-	if cfg.StaticDir == "" {
-		cfg.StaticDir = "/assets"
 	}
 
 	if cfg.AssetBaseURL == "" {

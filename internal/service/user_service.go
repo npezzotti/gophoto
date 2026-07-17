@@ -38,8 +38,8 @@ func NewUserService(r db.UserRepository, p db.PhotoRepository, s store.Store, c 
 }
 
 func (s *UserService) defaultProfileImage() domain.ResponsiveImage {
-	thumbnailPath := filepath.Join(s.config.StaticDir, domain.DefaultProfileThumbnailPath)
-	avatarPath := filepath.Join(s.config.StaticDir, domain.DefaultProfileAvatarPath)
+	thumbnailPath := filepath.Join(s.config.AssetBaseURL, domain.DefaultProfileThumbnailPath)
+	avatarPath := filepath.Join(s.config.AssetBaseURL, domain.DefaultProfileAvatarPath)
 
 	return domain.ResponsiveImage{
 		DefaultSrc: thumbnailPath,
