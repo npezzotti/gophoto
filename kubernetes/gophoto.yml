@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gophoto
+  labels:
+    app: gophoto
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gophoto
+  template:
+    metadata:
+      labels:
+        app: gophoto
+    spec:
+      serviceAccountName: gophoto
+      containers:
+        - name: gophoto
+          image: ""
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8800
+          env:
+            - name: GOPHOTO_USE_TEMPLATE_CACHE
+              value: "true"
+            - name: GOPHOTO_HTTP_SERVER_ADDR
+              value: "0.0.0.0:8800"
+            - name: GOPHOTO_STORAGE_TYPE
+              value: s3
+            - name: GOPHOTO_BUCKET_NAME
+              value: ""
+            - name: GOPHOTO_ASSET_BASE_URL
+              value: ""
+          envFrom:
+            - secretRef:
+                name: gophoto-secret
+          resources: 
+            requests:
+              memory: "64Mi"
+              cpu: "250m"
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gophoto
+  namespace: default
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gophoto
+spec:
+  selector:
+    app: gophoto
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8800
+  type: LoadBalancer
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gophoto-secret
+type: Opaque
+stringData:
+  GOPHOTO_DSN: ""
+  GOPHOTO_REDIS_ADDR: ""
+  GOPHOTO_SIGNING_KEY: ""
