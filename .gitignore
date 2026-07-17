@@ -39,3 +39,5 @@ uploads/
 
 # build artifacts
 bin/
+node_modules/
+assets/dist/
