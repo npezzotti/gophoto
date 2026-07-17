@@ -1,5 +1,5 @@
-REGISTRY ?= docker.io
-REPO ?= npezzotti/gophoto
+REGISTRY ?= 
+REPO ?= 
 IMAGE := $(REGISTRY)/$(REPO)
 
 GIT_SHA := $(shell git rev-parse --short HEAD)
@@ -53,7 +53,7 @@ assets:
 		--minify\
 		--outdir=assets/dist/css
 deploy-assets: assets
-	terraform -chdir=$(TERRAFORM_DIR) apply -auto-approve -target=aws_s3_object.assets_css -target=aws_s3_object.assets_js -target=aws_s3_object.assets_images
+	terraform -chdir=$(TERRAFORM_DIR) apply -target=aws_s3_object.assets_css -target=aws_s3_object.assets_js -target=aws_s3_object.assets_images
 	@if [ -n "$(CDN_DISTRIBUTION_ID)" ]; then \
 		echo "Invalidating CloudFront distribution $(CDN_DISTRIBUTION_ID)..."; \
 		aws cloudfront create-invalidation --distribution-id $(CDN_DISTRIBUTION_ID) --paths "/css/*" "/js/*" "/images/*"; \
