@@ -17,7 +17,7 @@ TERRAFORM_DIR ?= terraform
 CDN_DISTRIBUTION_ID := $(shell terraform -chdir=$(TERRAFORM_DIR) output -raw cdn_distribution_id 2>/dev/null)
 
 .PHONY: start stop logs db-shell fmt test build assets deploy-assets help
-start: fmt
+start: fmt assets
 	docker compose -f docker-compose.yml up -d --build
 stop:
 	docker compose -f docker-compose.yml down
