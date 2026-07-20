@@ -41,7 +41,9 @@ build:
 	@echo "Built $(IMAGE):$(VERSION)"
 assets:
 	esbuild node_modules/bootstrap/dist/css/bootstrap.min.css \
-		--bundle --minify --outfile=assets/dist/css/bootstrap.min.css
+		--bundle \
+		--minify \
+		--outfile=assets/dist/css/bootstrap.min.css
 	esbuild node_modules/bootstrap/dist/js/bootstrap.bundle.min.js \
 		--bundle=false --minify --outfile=assets/dist/js/bootstrap.bundle.min.js
 	esbuild assets/js/main.js assets/js/photo_upload.js \
